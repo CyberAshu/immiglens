@@ -133,11 +133,11 @@ export default function AdminDashboard() {
                     <Pie data={capturePieData} cx="50%" cy="46%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
                       {capturePieData.map(entry => <Cell key={entry.name} fill={entry.color} />)}
                     </Pie>
-                    <Tooltip formatter={(v: number, n: string) => [`${v}`, n]}
+                    <Tooltip formatter={(v: any, n: any) => [`${v ?? 0}`, n]}
                       contentStyle={{ background: '#1a1a2e', border: '1px solid #2e2e44', borderRadius: 8, fontSize: 12 }}
                       itemStyle={{ color: '#e8e8f0' }} />
                     <Legend iconType="circle" iconSize={9}
-                      formatter={(v, e: { payload?: { value: number } }) => `${v}: ${e.payload?.value ?? 0}`}
+                      formatter={(v: any, e: any) => `${v}: ${e.payload?.value ?? 0}`}
                       wrapperStyle={{ fontSize: 12, color: '#aaa', paddingTop: 12 }} />
                   </PieChart>
                 </ResponsiveContainer>
@@ -153,11 +153,11 @@ export default function AdminDashboard() {
                     <Pie data={rolePieData} cx="50%" cy="46%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
                       {rolePieData.map(entry => <Cell key={entry.name} fill={entry.color} />)}
                     </Pie>
-                    <Tooltip formatter={(v: number, n: string) => [`${v}`, n]}
+                    <Tooltip formatter={(v: any, n: any) => [`${v ?? 0}`, n]}
                       contentStyle={{ background: '#1a1a2e', border: '1px solid #2e2e44', borderRadius: 8, fontSize: 12 }}
                       itemStyle={{ color: '#e8e8f0' }} />
                     <Legend iconType="circle" iconSize={9}
-                      formatter={(v, e: { payload?: { value: number } }) => `${v}: ${e.payload?.value ?? 0}`}
+                      formatter={(v: any, e: any) => `${v}: ${e.payload?.value ?? 0}`}
                       wrapperStyle={{ fontSize: 12, color: '#aaa', paddingTop: 12 }} />
                   </PieChart>
                 </ResponsiveContainer>

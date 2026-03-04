@@ -158,9 +158,9 @@ export default function AdminOverview() {
                     <Pie data={capturePie} cx="50%" cy="48%" innerRadius={48} outerRadius={72} paddingAngle={3} dataKey="value">
                       {capturePie.map(e => <Cell key={e.name} fill={e.color} />)}
                     </Pie>
-                    <Tooltip formatter={(v: number, n: string) => [`${v}`, n]} {...CHART_STYLE} />
+                    <Tooltip formatter={(v: any, n: any) => [`${v ?? 0}`, n]} {...CHART_STYLE} />
                     <Legend iconType="circle" iconSize={8}
-                      formatter={(v, e: { payload?: { value: number } }) => `${v} (${e.payload?.value ?? 0})`}
+                      formatter={(v: any, e: any) => `${v} (${e.payload?.value ?? 0})`}
                       wrapperStyle={{ fontSize: 11, color: '#888', paddingTop: 8 }} />
                   </PieChart>
                 </ResponsiveContainer>
@@ -174,9 +174,9 @@ export default function AdminOverview() {
                     <Pie data={rolePie} cx="50%" cy="48%" innerRadius={48} outerRadius={72} paddingAngle={3} dataKey="value">
                       {rolePie.map(e => <Cell key={e.name} fill={e.color} />)}
                     </Pie>
-                    <Tooltip formatter={(v: number, n: string) => [`${v}`, n]} {...CHART_STYLE} />
+                    <Tooltip formatter={(v: any, n: any) => [`${v ?? 0}`, n]} {...CHART_STYLE} />
                     <Legend iconType="circle" iconSize={8}
-                      formatter={(v, e: { payload?: { value: number } }) => `${v} (${e.payload?.value ?? 0})`}
+                      formatter={(v: any, e: any) => `${v} (${e.payload?.value ?? 0})`}
                       wrapperStyle={{ fontSize: 11, color: '#888', paddingTop: 8 }} />
                   </PieChart>
                 </ResponsiveContainer>

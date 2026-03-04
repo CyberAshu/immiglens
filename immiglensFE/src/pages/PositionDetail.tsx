@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { captures as capturesApi, positions as positionsApi, reports as reportsApi } from '../api'
 import { RoundRow } from '../components/RoundRow'
-import type { CaptureRound, JobPosting, JobPosition, ReportDocument } from '../types'
+import type { CaptureRound, JobPosition, ReportDocument } from '../types'
 
 export default function PositionDetail() {
   const { employerId, positionId } = useParams<{ employerId: string; positionId: string }>()

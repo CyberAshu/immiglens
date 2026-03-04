@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react'
 import { organizations as orgApi } from '../api'
 import type { OrgInvitation, OrgMembership, OrgRole, Organization } from '../types'
 
-const ROLE_ORDER: OrgRole[] = ['owner', 'admin', 'viewer']
-
 function RoleBadge({ role }: { role: OrgRole }) {
   const colors: Record<OrgRole, string> = { owner: '#f59e0b', admin: '#a78bfa', viewer: '#22d3ee' }
   const labels: Record<OrgRole, string> = { owner: 'Owner', admin: 'Org Admin', viewer: 'Viewer' }
