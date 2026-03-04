@@ -13,6 +13,7 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "http://localhost:4173",
         "http://127.0.0.1:5173",
+        "https://immiglens.vercel.app",
     ]
 
     DATABASE_URL: str = "postgresql+asyncpg://postgres:12345@localhost/immiglens"
