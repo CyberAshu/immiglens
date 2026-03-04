@@ -1,0 +1,336 @@
+﻿from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.audit import log_action
+from app.core.database import get_db
+from app.core.dependencies import get_current_user
+from app.models.capture import CaptureResult, CaptureRound, ResultStatus
+from app.models.employer import Employer
+from app.models.job_position import JobPosition
+from app.models.job_posting import JobPosting
+from app.models.organization import Organization, OrgMembership
+from app.models.subscription import SubscriptionTier
+from app.models.user import User
+from app.schemas.admin import (
+    AdminGlobalStats,
+    AdminOrgMember,
+    AdminOrgOut,
+    AdminUserRecord,
+    AssignTierRequest,
+    TierCreate,
+    TierUpdate,
+)
+from app.schemas.auth import UserOut
+from app.schemas.subscription import SubscriptionTierOut
+
+router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+async def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required.")
+    return current_user
+
+
+# ── Global stats ──────────────────────────────────────────────
+
+@router.get("/stats", response_model=AdminGlobalStats)
+async def admin_stats(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    async def count(stmt) -> int:
+        return (await db.execute(stmt)).scalar_one()
+
+    total_users      = await count(select(func.count()).select_from(User))
+    total_employers  = await count(select(func.count()).select_from(Employer))
+    total_positions  = await count(select(func.count()).select_from(JobPosition))
+    total_postings   = await count(select(func.count()).select_from(JobPosting))
+    total_rounds     = await count(select(func.count()).select_from(CaptureRound))
+    completed_rounds = await count(select(func.count()).select_from(CaptureRound).where(CaptureRound.status == "completed"))
+    pending_rounds   = await count(select(func.count()).select_from(CaptureRound).where(CaptureRound.status == "pending"))
+    total_screenshots  = await count(select(func.count()).select_from(CaptureResult).where(CaptureResult.status == ResultStatus.DONE))
+    failed_screenshots = await count(select(func.count()).select_from(CaptureResult).where(CaptureResult.status == ResultStatus.FAILED))
+
+    return AdminGlobalStats(
+        total_users=total_users,
+        total_employers=total_employers,
+        total_positions=total_positions,
+        total_job_postings=total_postings,
+        total_capture_rounds=total_rounds,
+        completed_rounds=completed_rounds,
+        pending_rounds=pending_rounds,
+        total_screenshots=total_screenshots,
+        failed_screenshots=failed_screenshots,
+    )
+
+
+# ── User management ──────────────────────────────────────────
+
+@router.get("/users", response_model=list[AdminUserRecord])
+async def admin_list_users(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    users = (await db.execute(select(User).order_by(User.created_at.desc()))).scalars().all()
+
+    # tier info per user
+    tier_rows = (await db.execute(select(SubscriptionTier))).scalars().all()
+    tier_map = {t.id: t for t in tier_rows}
+
+    # employer counts per user
+    emp_rows = (await db.execute(
+        select(Employer.user_id, func.count().label("cnt")).group_by(Employer.user_id)
+    )).all()
+    emp_count = {r.user_id: r.cnt for r in emp_rows}
+
+    emp_id_rows = (await db.execute(select(Employer.id, Employer.user_id))).all()
+    emp_to_user = {r.id: r.user_id for r in emp_id_rows}
+
+    pos_rows = (await db.execute(select(JobPosition.id, JobPosition.employer_id))).all()
+    pos_count_by_user: dict[int, int] = {}
+    pos_to_user: dict[int, int] = {}
+    for r in pos_rows:
+        uid = emp_to_user.get(r.employer_id)
+        if uid:
+            pos_count_by_user[uid] = pos_count_by_user.get(uid, 0) + 1
+            pos_to_user[r.id] = uid
+
+    post_rows = (await db.execute(select(JobPosting.id, JobPosting.job_position_id))).all()
+    post_to_user: dict[int, int] = {
+        r.id: pos_to_user[r.job_position_id]
+        for r in post_rows if r.job_position_id in pos_to_user
+    }
+
+    round_rows = (await db.execute(select(CaptureRound.id, CaptureRound.job_position_id))).all()
+    round_to_user: dict[int, int] = {
+        r.id: pos_to_user[r.job_position_id]
+        for r in round_rows if r.job_position_id in pos_to_user
+    }
+
+    shot_rows = (await db.execute(
+        select(CaptureResult.capture_round_id)
+        .where(CaptureResult.status == ResultStatus.DONE)
+    )).scalars().all()
+    screenshots_by_user: dict[int, int] = {}
+    for rid in shot_rows:
+        uid = round_to_user.get(rid)
+        if uid:
+            screenshots_by_user[uid] = screenshots_by_user.get(uid, 0) + 1
+
+    return [
+        AdminUserRecord(
+            id=u.id,
+            email=u.email,
+            full_name=u.full_name,
+            is_admin=u.is_admin,
+            employers=emp_count.get(u.id, 0),
+            positions=pos_count_by_user.get(u.id, 0),
+            screenshots=screenshots_by_user.get(u.id, 0),
+            created_at=u.created_at.strftime("%Y-%m-%d %H:%M UTC"),
+            tier_id=u.tier_id,
+            tier_name=tier_map[u.tier_id].display_name if u.tier_id and u.tier_id in tier_map else None,
+        )
+        for u in users
+    ]
+
+
+@router.patch("/users/{user_id}/toggle-admin", response_model=UserOut)
+async def toggle_admin(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot change your own admin status.")
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    user.is_admin = not user.is_admin
+    await db.commit()
+    await db.refresh(user)
+    await log_action(db, user_id=current_user.id, action="UPDATE",
+                     resource_type="user", resource_id=user.id,
+                     new_data={"is_admin": user.is_admin, "email": user.email})
+    await db.commit()
+    return user
+
+
+@router.patch("/users/{user_id}/tier", response_model=UserOut)
+async def assign_tier(
+    user_id: int,
+    body: AssignTierRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    if body.tier_id is not None:
+        tier = await db.get(SubscriptionTier, body.tier_id)
+        if not tier:
+            raise HTTPException(status_code=404, detail="Tier not found.")
+    old_tier = user.tier_id
+    user.tier_id = body.tier_id
+    await db.commit()
+    await db.refresh(user)
+    await log_action(db, user_id=current_user.id, action="UPDATE",
+                     resource_type="user", resource_id=user.id,
+                     old_data={"tier_id": old_tier}, new_data={"tier_id": body.tier_id})
+    await db.commit()
+    return user
+
+
+@router.delete("/users/{user_id}", status_code=204)
+async def admin_delete_user(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account.")
+    user = await db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+    await log_action(db, user_id=current_user.id, action="DELETE",
+                     resource_type="user", resource_id=user.id,
+                     old_data={"email": user.email})
+    await db.delete(user)
+    await db.commit()
+
+
+# ── Organization management ───────────────────────────────────
+
+@router.get("/organizations", response_model=list[AdminOrgOut])
+async def admin_list_orgs(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    orgs = (await db.execute(
+        select(Organization).order_by(Organization.created_at.desc())
+    )).scalars().all()
+
+    users_rows = (await db.execute(select(User))).scalars().all()
+    user_map = {u.id: u for u in users_rows}
+
+    memberships_rows = (await db.execute(select(OrgMembership))).scalars().all()
+    memberships_by_org: dict[int, list[OrgMembership]] = {}
+    for m in memberships_rows:
+        memberships_by_org.setdefault(m.org_id, []).append(m)
+
+    result = []
+    for org in orgs:
+        owner = user_map.get(org.created_by)
+        members_raw = memberships_by_org.get(org.id, [])
+        members = [
+            AdminOrgMember(
+                user_id=m.user_id,
+                user_name=user_map[m.user_id].full_name if m.user_id in user_map else "",
+                user_email=user_map[m.user_id].email if m.user_id in user_map else "",
+                role=m.role.value if hasattr(m.role, "value") else str(m.role),
+                joined_at=m.joined_at,
+            )
+            for m in members_raw
+        ]
+        result.append(AdminOrgOut(
+            id=org.id,
+            name=org.name,
+            description=getattr(org, "description", None),
+            owner_id=org.created_by,
+            owner_name=owner.full_name if owner else "",
+            owner_email=owner.email if owner else "",
+            member_count=len(members),
+            created_at=org.created_at,
+            members=members,
+        ))
+    return result
+
+
+@router.delete("/organizations/{org_id}", status_code=204)
+async def admin_delete_org(
+    org_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    org = await db.get(Organization, org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found.")
+    await log_action(db, user_id=current_user.id, action="DELETE",
+                     resource_type="organization", resource_id=org.id,
+                     old_data={"name": org.name})
+    await db.delete(org)
+    await db.commit()
+
+
+# ── Subscription tier management ─────────────────────────────
+
+@router.get("/subscriptions/tiers", response_model=list[SubscriptionTierOut])
+async def admin_list_tiers(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Returns ALL tiers including inactive ones (admin view)."""
+    tiers = (await db.execute(select(SubscriptionTier).order_by(SubscriptionTier.id))).scalars().all()
+    return tiers
+
+
+@router.post("/subscriptions/tiers", response_model=SubscriptionTierOut, status_code=201)
+async def admin_create_tier(
+    body: TierCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    existing = (await db.execute(
+        select(SubscriptionTier).where(SubscriptionTier.name == body.name)
+    )).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=409, detail="Tier with this name already exists.")
+    tier = SubscriptionTier(**body.model_dump())
+    db.add(tier)
+    await db.commit()
+    await db.refresh(tier)
+    await log_action(db, user_id=current_user.id, action="CREATE",
+                     resource_type="subscription_tier", resource_id=tier.id,
+                     new_data={"name": tier.name, "display_name": tier.display_name})
+    await db.commit()
+    return tier
+
+
+@router.patch("/subscriptions/tiers/{tier_id}", response_model=SubscriptionTierOut)
+async def admin_update_tier(
+    tier_id: int,
+    body: TierUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    tier = await db.get(SubscriptionTier, tier_id)
+    if not tier:
+        raise HTTPException(status_code=404, detail="Tier not found.")
+    old = {"display_name": tier.display_name, "max_employers": tier.max_employers}
+    for field, value in body.model_dump(exclude_none=True).items():
+        setattr(tier, field, value)
+    await db.commit()
+    await db.refresh(tier)
+    await log_action(db, user_id=current_user.id, action="UPDATE",
+                     resource_type="subscription_tier", resource_id=tier.id,
+                     old_data=old, new_data={"display_name": tier.display_name})
+    await db.commit()
+    return tier
+
+
+@router.delete("/subscriptions/tiers/{tier_id}", status_code=204)
+async def admin_delete_tier(
+    tier_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    tier = await db.get(SubscriptionTier, tier_id)
+    if not tier:
+        raise HTTPException(status_code=404, detail="Tier not found.")
+    # Soft-delete: deactivate rather than remove (users may still be on it)
+    tier.is_active = False
+    await log_action(db, user_id=current_user.id, action="UPDATE",
+                     resource_type="subscription_tier", resource_id=tier.id,
+                     old_data={"is_active": True}, new_data={"is_active": False})
+    await db.commit()

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; color: #111; line-height: 1.5; }
+
+  /* ── Cover ─────────────────────────────────────── */
+  .cover { min-height: 100vh; padding: 50px 50px 40px; display: flex; flex-direction: column; page-break-after: always; }
+  .gov-stripe { height: 8px; background: #003087; margin-bottom: 36px; }
+  .cover-label { font-size: 9pt; color: #555; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; }
+  .cover-employer { font-size: 26pt; font-weight: 700; color: #003087; line-height: 1.2; margin-bottom: 4px; }
+  .cover-bn { font-size: 11pt; color: #555; margin-bottom: 28px; }
+  .cover-rule { border: none; border-top: 2px solid #003087; margin: 0 0 26px; }
+  .cover-meta { width: 100%; border-collapse: collapse; }
+  .cover-meta tr:nth-child(even) { background: #f7f9fc; }
+  .cover-meta td { padding: 7px 10px; border: 1px solid #dde3ed; vertical-align: top; }
+  .cover-meta td:first-child { font-weight: 600; width: 210px; color: #333; background: #eef2f8; }
+  .cover-platforms { margin-top: 24px; padding: 12px 16px; background: #f7f9fc; border-left: 4px solid #003087; font-size: 10pt; }
+  .cover-platforms strong { display: block; margin-bottom: 6px; }
+  .cover-platforms .pf-row { margin-bottom: 3px; }
+  .cover-footer { margin-top: auto; padding-top: 20px; font-size: 8.5pt; color: #888; border-top: 1px solid #dde3ed; }
+
+  /* ── Section headings ──────────────────────────── */
+  .section { margin-bottom: 32px; }
+  .section-heading { font-size: 13pt; font-weight: 700; color: #fff; padding: 9px 14px; background: #003087; border-radius: 3px; margin-bottom: 16px; }
+
+  /* ── Summary table ─────────────────────────────── */
+  .summary-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+  .summary-table th { background: #003087; color: #fff; padding: 8px 10px; text-align: left; border: 1px solid #002070; }
+  .summary-table td { padding: 7px 10px; border: 1px solid #c8d2e0; vertical-align: top; }
+  .summary-table tr:nth-child(even) td { background: #f7f9fc; }
+  .url-cell { word-break: break-all; font-size: 8.5pt; color: #0050aa; max-width: 240px; }
+  .center { text-align: center; }
+  .checkbox-cell { text-align: center; font-size: 14pt; }
+
+  /* ── Platform evidence ─────────────────────────── */
+  .platform-block { padding-top: 4px; }
+  .platform-header { background: #003087; color: #fff; padding: 10px 14px; border-radius: 3px 3px 0 0; }
+  .platform-header .pf-name { font-size: 12pt; font-weight: 700; }
+  .platform-header .pf-url { font-size: 8.5pt; color: #b8cef0; word-break: break-all; margin-top: 2px; }
+  .platform-caption { font-size: 9pt; color: #444; font-style: italic; margin: 12px 0 16px; border-left: 3px solid #b8cef0; padding-left: 10px; }
+
+  .capture-entry { border: 1px solid #c8d2e0; border-radius: 3px; margin-bottom: 20px; overflow: hidden; }
+  .capture-meta { background: #f0f4f8; padding: 8px 12px; font-size: 9pt; border-bottom: 1px solid #c8d2e0; }
+  .capture-caption { font-size: 8.5pt; font-style: italic; color: #555; padding: 6px 12px; background: #fafbfd; border-bottom: 1px solid #eee; }
+  .screenshot { width: 100%; max-height: 520px; object-fit: contain; object-position: top; display: block; }
+  .no-screenshot { font-size: 9pt; color: #888; font-style: italic; padding: 16px 12px; background: #fafbfd; }
+  .error-note { font-size: 9pt; color: #a00; padding: 6px 12px; background: #fff5f5; border-bottom: 1px solid #fce0e0; }
+
+  .badge { display: inline-block; font-size: 7.5pt; padding: 1px 7px; border-radius: 3px; font-weight: 700; text-transform: uppercase; }
+  .badge-done    { background: #d4edda; color: #155724; }
+  .badge-failed  { background: #f8d7da; color: #721c24; }
+  .badge-pending { background: #e2e3e5; color: #383d41; }
+
+  /* ── Attachment + audience slots ───────────────── */
+  .attachments { margin-top: 18px; padding: 12px 14px; background: #f7f9fc; border: 1px dashed #aab8cc; border-radius: 3px; }
+  .attachments h4 { margin-bottom: 8px; font-size: 10pt; color: #003087; }
+  .attachments ul { padding-left: 18px; font-size: 9.5pt; }
+  .attachments ul li { margin-bottom: 4px; }
+  .audience-proof-slot { margin-top: 16px; padding: 12px 14px; border: 1px dashed #aab8cc; border-radius: 3px; }
+  .audience-proof-slot h4 { margin-bottom: 6px; font-size: 10pt; color: #003087; }
+  .audience-proof-slot p { font-size: 9pt; color: #555; margin-bottom: 10px; }
+  .attach-box { border: 1px solid #c8d2e0; border-radius: 3px; padding: 16px; text-align: center; font-size: 9pt; color: #999; background: #fafbfd; }
+  .optional-tag { font-size: 8pt; font-weight: 400; color: #888; }
+
+  .appendix-list { padding-left: 20px; font-size: 10pt; }
+  .appendix-list li { margin-bottom: 6px; }
+
+  @page {
+    margin: 18mm 16mm;
+    @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 8pt; color: #888; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 1 — COVER PAGE
+══════════════════════════════════════════════════ -->
+<div class="cover">
+  <div class="gov-stripe"></div>
+  <div class="cover-label">Labour Market Impact Assessment — Recruitment Evidence Package</div>
+  <div class="cover-employer">{{ employer.business_name }}</div>
+  {% if employer.business_number %}
+  <div class="cover-bn">Business Number (BN): {{ employer.business_number }}</div>
+  {% endif %}
+  <hr class="cover-rule">
+
+  <table class="cover-meta">
+    <tr><td>Employer Address</td><td>{{ employer.address }}</td></tr>
+    <tr><td>Contact Person</td><td>{{ employer.contact_person }}</td></tr>
+    {% if employer.contact_email %}<tr><td>Contact Email</td><td>{{ employer.contact_email }}</td></tr>{% endif %}
+    {% if employer.contact_phone %}<tr><td>Contact Phone</td><td>{{ employer.contact_phone }}</td></tr>{% endif %}
+    <tr><td>&nbsp;</td><td></td></tr>
+    <tr><td>Position Title</td><td><strong>{{ position.job_title }}</strong></td></tr>
+    <tr>
+      <td>NOC 2021 Code / TEER</td>
+      <td>{{ position.noc_code }} / TEER {{ position.noc_code[1] if position.noc_code | length >= 2 else '—' }}</td>
+    </tr>
+    {% if position.wage_stream %}
+    <tr><td>Wage Stream</td><td>{{ position.wage_stream }}</td></tr>
+    {% endif %}
+    {% if position.wage %}
+    <tr><td>Advertised Wage</td><td>{{ position.wage }}</td></tr>
+    {% endif %}
+    <tr><td>Work Location</td><td>{{ position.work_location if position.work_location else employer.address }}</td></tr>
+    <tr><td>Positions Sought</td><td>{{ position.num_positions }}</td></tr>
+    <tr><td>Recruitment Window</td><td>{{ position.start_date }} to {{ recruitment_end }}</td></tr>
+    <tr><td>Capture Frequency</td><td>Every {{ position.capture_frequency_days }} day(s)</td></tr>
+    <tr><td>Total Capture Rounds</td><td>{{ capture_rounds | length }}</td></tr>
+    <tr><td>Report Generated</td><td>{{ generated_at }}</td></tr>
+  </table>
+
+  <div class="cover-platforms">
+    <strong>Platforms / Channels Advertised On:</strong>
+    {% for posting in position.job_postings %}
+    <div class="pf-row">
+      <strong>{{ posting.platform }}</strong> —
+      <span style="font-size:9pt; color:#0050aa;">{{ posting.url }}</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="cover-footer">
+    Prepared by: {{ employer.contact_person }}
+    {% if employer.contact_email %} &nbsp;·&nbsp; {{ employer.contact_email }}{% endif %}
+    &nbsp;·&nbsp; Generated: {{ generated_at }}
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 2 — RECRUITMENT SUMMARY TABLE
+══════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-heading">Section 2 — Recruitment Summary</div>
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th>Platform</th>
+        <th>URL</th>
+        <th>First Captured</th>
+        <th>Last Captured</th>
+        <th style="text-align:center"># Successful Captures</th>
+        <th style="text-align:center">Ongoing Until Decision?</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for posting in position.job_postings %}
+      {% set stats = platform_stats[posting.id] %}
+      <tr>
+        <td><strong>{{ posting.platform }}</strong></td>
+        <td class="url-cell">{{ posting.url }}</td>
+        <td>{{ stats.first.strftime('%Y-%m-%d') if stats.first else '—' }}</td>
+        <td>{{ stats.last.strftime('%Y-%m-%d') if stats.last else '—' }}</td>
+        <td class="center">{{ stats.count }}</td>
+        <td class="checkbox-cell">☐</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p style="font-size:8.5pt; color:#555; margin-top:8px; font-style:italic;">
+    "Ongoing until decision" checkbox to be completed manually if advertising continued beyond the dates shown.
+  </p>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     SECTION 3 — PER-PLATFORM ADVERTISING EVIDENCE
+══════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-heading">Section 3 — Per-Platform Advertising Evidence</div>
+
+  {% for posting in position.job_postings %}
+  <div class="platform-block" style="{% if not loop.last %}page-break-after: always;{% endif %} margin-bottom: 32px;">
+
+    <div class="platform-header">
+      <div class="pf-name">{{ posting.platform }}</div>
+      <div class="pf-url">{{ posting.url }}</div>
+    </div>
+
+    <p class="platform-caption">
+      "Copy of job advertisement for <strong>{{ position.job_title }}</strong> (NOC {{ position.noc_code }}) posted on
+      {{ posting.platform }}. Advertisement was active during the recruitment window of
+      <strong>{{ position.start_date }}</strong> to <strong>{{ recruitment_end }}</strong>.
+      Screenshots below were captured automatically at each monitoring interval to confirm the advertisement
+      remained publicly accessible throughout the recruitment period, as required for LMIA documentation."
+    </p>
+
+    {# ── Capture screenshots ── #}
+    {% set ns = namespace(found=false, idx=0) %}
+    {% for round in capture_rounds %}
+      {% for result in round.results %}
+        {% if result.job_posting_id == posting.id %}
+          {% set ns.found = true %}
+          {% set ns.idx = ns.idx + 1 %}
+          <div class="capture-entry">
+            <div class="capture-meta">
+              <strong>Capture {{ ns.idx }}</strong>
+              &nbsp;·&nbsp; Scheduled: {{ round.scheduled_at.strftime('%Y-%m-%d') }}
+              {% if round.captured_at %}
+              &nbsp;·&nbsp; Executed: {{ round.captured_at.strftime('%Y-%m-%d %H:%M UTC') }}
+              {% endif %}
+              &nbsp;·&nbsp; <span class="badge badge-{{ result.status }}">{{ result.status }}</span>
+              {% if result.duration_ms %}
+              &nbsp;·&nbsp; {{ (result.duration_ms / 1000) | round(1) }}s
+              {% endif %}
+            </div>
+            {% if result.error %}
+            <div class="error-note">Capture error: {{ result.error }}</div>
+            {% endif %}
+            <div class="capture-caption">
+              "Screenshot of {{ posting.platform }} job listing for {{ position.job_title }}
+              {% if round.captured_at %}
+              — captured on {{ round.captured_at.strftime('%B %d, %Y at %H:%M UTC') }}
+              via automated Playwright headless browser
+              {% endif %}
+              — confirming the advertisement was publicly accessible at time of capture."
+            </div>
+            {% if screenshot_data.get(result.id) %}
+            <img class="screenshot" src="{{ screenshot_data[result.id] }}" alt="Screenshot of {{ posting.url }}">
+            {% else %}
+            <div class="no-screenshot">No screenshot available for this capture round.</div>
+            {% endif %}
+          </div>
+        {% endif %}
+      {% endfor %}
+    {% endfor %}
+
+    {% if not ns.found %}
+    <p class="no-screenshot" style="padding: 16px;">No captures recorded for this platform yet.</p>
+    {% endif %}
+
+    {# ── Supporting attachments ── #}
+    {% if report_documents %}
+    <div class="attachments">
+      <h4>Attached Supporting Documents</h4>
+      <ul>
+        {% for doc in report_documents %}
+        <li>{{ doc.original_filename }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {# ── Audience targeting proof slot ── #}
+    <div class="audience-proof-slot">
+      <h4>Audience Targeting Proof &nbsp;<span class="optional-tag">(optional — attach separately if available)</span></h4>
+      <p>
+        Attach evidence demonstrating this platform reaches the Canadian labour market — e.g. job board
+        category page screenshot, media kit, community group description, advertising invoice/receipt,
+        job fair proof, or trade publication listing.
+      </p>
+      <div class="attach-box">[ Attach document here ]</div>
+    </div>
+
+  </div>
+  {% endfor %}
+</div>
+
+
+{% if report_documents %}
+<!-- ══════════════════════════════════════════════════
+     APPENDIX — UPLOADED SUPPORTING DOCUMENTS
+══════════════════════════════════════════════════ -->
+<div class="section" style="page-break-before: always;">
+  <div class="section-heading">Appendix — Uploaded Supporting Documents</div>
+  <ol class="appendix-list">
+    {% for doc in report_documents %}
+    <li>{{ doc.original_filename }}</li>
+    {% endfor %}
+  </ol>
+</div>
+{% endif %}
+
+</body>
+</html>
