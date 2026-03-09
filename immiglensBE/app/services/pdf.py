@@ -2,11 +2,14 @@ import io
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 
 import httpx
 from jinja2 import Environment, FileSystemLoader
 from playwright.async_api import async_playwright
 from pypdf import PdfReader, PdfWriter
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.capture import CaptureRound
@@ -21,6 +24,19 @@ _jinja_env = Environment(loader=FileSystemLoader(str(_template_dir)))
 
 def _safe_filename(text: str) -> str:
     return re.sub(r"[^\w\-]", "_", text).strip("_")[:60]
+
+
+def render_report_html(context: dict[str, Any]) -> str:
+    """Render the report.html Jinja2 template with the given context dict."""
+    template = _jinja_env.get_template("report.html")
+    return template.render(**context)
+
+
+async def _load_config(db: AsyncSession) -> dict:
+    """Load active report config from DB, falling back to defaults."""
+    from app.models.report_config import DEFAULT_CONFIG, ReportConfig
+    row = (await db.execute(select(ReportConfig).limit(1))).scalar_one_or_none()
+    return row.config if row is not None else DEFAULT_CONFIG
 
 
 async def _html_to_pdf_bytes(html: str) -> bytes:
@@ -94,6 +110,7 @@ async def build_pdf(
     position: JobPosition,
     capture_rounds: list[CaptureRound],
     report_documents: list[ReportDocument],
+    db: AsyncSession | None = None,
 ) -> str:
     # ── Per-platform statistics for the summary table ─────────────────────
     platform_stats: dict[int, dict] = {}
@@ -114,9 +131,12 @@ async def build_pdf(
 
     recruitment_end = position.start_date + timedelta(days=settings.RECRUITMENT_PERIOD_DAYS)
 
-    # ── Render main report HTML → PDF (cover + summary + metadata, no images) ─
-    template = _jinja_env.get_template("report.html")
-    html_str = template.render(
+    # ── Load report config from DB ────────────────────────────────────────
+    from app.models.report_config import DEFAULT_CONFIG
+    config = await _load_config(db) if db is not None else DEFAULT_CONFIG
+
+    # ── Render main report HTML → PDF ─────────────────────────────────────
+    html_str = render_report_html(dict(
         employer=employer,
         position=position,
         capture_rounds=capture_rounds,
@@ -124,7 +144,8 @@ async def build_pdf(
         platform_stats=platform_stats,
         recruitment_end=recruitment_end,
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-    )
+        config=config,
+    ))
     main_pdf_bytes = await _html_to_pdf_bytes(html_str)
 
     # ── Assemble final PDF using pypdf ────────────────────────────────────

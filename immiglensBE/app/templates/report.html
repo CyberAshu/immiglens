@@ -5,6 +5,12 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; color: #111; line-height: 1.5; }
+  /* ── Custom text block ─────────────────────────── */
+  .custom-text-block { margin-bottom: 32px; }
+  .custom-text-heading { font-size: 12pt; font-weight: 700; color: #003087; margin-bottom: 8px; border-bottom: 2px solid #003087; padding-bottom: 4px; }
+  .custom-text-body { font-size: 10.5pt; color: #222; white-space: pre-wrap; line-height: 1.6; }
+  /* ── Divider ───────────────────────────────────── */
+  .report-divider { border: none; border-top: 2px solid #c8d2e0; margin: 32px 0; }
 
   /* ── Cover ─────────────────────────────────────── */
   .cover { min-height: 100vh; padding: 50px 50px 40px; display: flex; flex-direction: column; page-break-after: always; }
@@ -17,15 +23,10 @@
   .cover-meta tr:nth-child(even) { background: #f7f9fc; }
   .cover-meta td { padding: 7px 10px; border: 1px solid #dde3ed; vertical-align: top; }
   .cover-meta td:first-child { font-weight: 600; width: 210px; color: #333; background: #eef2f8; }
-  .cover-platforms { margin-top: 24px; padding: 12px 16px; background: #f7f9fc; border-left: 4px solid #003087; font-size: 10pt; }
-  .cover-platforms strong { display: block; margin-bottom: 6px; }
-  .cover-platforms .pf-row { margin-bottom: 3px; }
   .cover-footer { margin-top: auto; padding-top: 20px; font-size: 8.5pt; color: #888; border-top: 1px solid #dde3ed; }
-
   /* ── Section headings ──────────────────────────── */
   .section { margin-bottom: 32px; }
   .section-heading { font-size: 13pt; font-weight: 700; color: #fff; padding: 9px 14px; background: #003087; border-radius: 3px; margin-bottom: 16px; }
-
   /* ── Summary table ─────────────────────────────── */
   .summary-table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
   .summary-table th { background: #003087; color: #fff; padding: 8px 10px; text-align: left; border: 1px solid #002070; }
@@ -33,41 +34,16 @@
   .summary-table tr:nth-child(even) td { background: #f7f9fc; }
   .url-cell { word-break: break-all; font-size: 8.5pt; color: #0050aa; max-width: 240px; }
   .center { text-align: center; }
-  .checkbox-cell { text-align: center; font-size: 14pt; }
-
   /* ── Platform evidence ─────────────────────────── */
-  .platform-block { padding-top: 4px; }
+  .platform-block { padding-top: 4px; margin-bottom: 28px; }
   .platform-header { background: #003087; color: #fff; padding: 10px 14px; border-radius: 3px 3px 0 0; }
   .platform-header .pf-name { font-size: 12pt; font-weight: 700; }
   .platform-header .pf-url { font-size: 8.5pt; color: #b8cef0; word-break: break-all; margin-top: 2px; }
-  .platform-caption { font-size: 9pt; color: #444; font-style: italic; margin: 12px 0 16px; border-left: 3px solid #b8cef0; padding-left: 10px; }
-
-  .capture-entry { border: 1px solid #c8d2e0; border-radius: 3px; margin-bottom: 12px; overflow: hidden; }
-  .capture-meta { background: #f0f4f8; padding: 8px 12px; font-size: 9pt; border-bottom: 1px solid #c8d2e0; }
-  .capture-note { font-size: 8.5pt; font-style: italic; color: #555; padding: 8px 12px; background: #fafbfd; }
-  .error-note { font-size: 9pt; color: #a00; padding: 6px 12px; background: #fff5f5; }
-
-  .badge { display: inline-block; font-size: 7.5pt; padding: 1px 7px; border-radius: 3px; font-weight: 700; text-transform: uppercase; }
-  .badge-done    { background: #d4edda; color: #155724; }
-  .badge-failed  { background: #f8d7da; color: #721c24; }
-  .badge-pending { background: #e2e3e5; color: #383d41; }
-  .evidence-notice { margin: 16px 0; padding: 12px 16px; background: #f0f4ff;
-    border-left: 4px solid #003087; border-radius: 0 3px 3px 0; font-size: 9.5pt; color: #333; }
-
-  /* ── Attachment + audience slots ───────────────── */
-  .attachments { margin-top: 18px; padding: 12px 14px; background: #f7f9fc; border: 1px dashed #aab8cc; border-radius: 3px; }
-  .attachments h4 { margin-bottom: 8px; font-size: 10pt; color: #003087; }
-  .attachments ul { padding-left: 18px; font-size: 9.5pt; }
-  .attachments ul li { margin-bottom: 4px; }
-  .audience-proof-slot { margin-top: 16px; padding: 12px 14px; border: 1px dashed #aab8cc; border-radius: 3px; }
-  .audience-proof-slot h4 { margin-bottom: 6px; font-size: 10pt; color: #003087; }
-  .audience-proof-slot p { font-size: 9pt; color: #555; margin-bottom: 10px; }
-  .attach-box { border: 1px solid #c8d2e0; border-radius: 3px; padding: 16px; text-align: center; font-size: 9pt; color: #999; background: #fafbfd; }
-  .optional-tag { font-size: 8pt; font-weight: 400; color: #888; }
-
+  .capture-entry { border: 1px solid #c8d2e0; border-radius: 3px; margin-bottom: 8px; overflow: hidden; }
+  .capture-meta { background: #f0f4f8; padding: 8px 12px; font-size: 9pt; }
+  /* ── Appendix ──────────────────────────────────── */
   .appendix-list { padding-left: 20px; font-size: 10pt; }
   .appendix-list li { margin-bottom: 6px; }
-
   @page {
     margin: 18mm 16mm;
     @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 8pt; color: #888; }
@@ -76,53 +52,66 @@
 </head>
 <body>
 
-<!-- ══════════════════════════════════════════════════
-     SECTION 1 — COVER PAGE
-══════════════════════════════════════════════════ -->
+{% for block in config['blocks'] %}
+{% if block['enabled'] %}
+
+{# ══ COVER PAGE ══════════════════════════════════════════════════════════ #}
+{% if block['type'] == 'cover' %}
+{% set f = block['fields'] %}
 <div class="cover">
   <div class="gov-stripe"></div>
-  <div class="cover-label">Labour Market Impact Assessment — Recruitment Evidence Package</div>
+  <div class="cover-label">{{ block.get('label', 'Recruitment Evidence Package') }}</div>
   <div class="cover-employer">{{ employer.business_name }}</div>
   {% if employer.business_number %}
   <div class="cover-bn">Business Number (BN): {{ employer.business_number }}</div>
   {% endif %}
   <hr class="cover-rule">
-
   <table class="cover-meta">
+    {% if f.get('show_address', true) %}
     <tr><td>Employer Address</td><td>{{ employer.address }}</td></tr>
+    {% endif %}
+    {% if f.get('show_contact_person', true) %}
     <tr><td>Contact Person</td><td>{{ employer.contact_person }}</td></tr>
-    {% if employer.contact_email %}<tr><td>Contact Email</td><td>{{ employer.contact_email }}</td></tr>{% endif %}
-    {% if employer.contact_phone %}<tr><td>Contact Phone</td><td>{{ employer.contact_phone }}</td></tr>{% endif %}
+    {% endif %}
+    {% if f.get('show_contact_email', true) and employer.contact_email %}
+    <tr><td>Contact Email</td><td>{{ employer.contact_email }}</td></tr>
+    {% endif %}
+    {% if f.get('show_contact_phone', true) and employer.contact_phone %}
+    <tr><td>Contact Phone</td><td>{{ employer.contact_phone }}</td></tr>
+    {% endif %}
     <tr><td>&nbsp;</td><td></td></tr>
     <tr><td>Position Title</td><td><strong>{{ position.job_title }}</strong></td></tr>
+    {% if f.get('show_noc_code', true) %}
     <tr>
       <td>NOC 2021 Code / TEER</td>
       <td>{{ position.noc_code }} / TEER {{ position.noc_code[1] if position.noc_code | length >= 2 else '—' }}</td>
     </tr>
-    {% if position.wage_stream %}
+    {% endif %}
+    {% if f.get('show_wage_stream', true) and position.wage_stream %}
     <tr><td>Wage Stream</td><td>{{ position.wage_stream }}</td></tr>
     {% endif %}
-    {% if position.wage %}
+    {% if f.get('show_wage', true) and position.wage %}
     <tr><td>Advertised Wage</td><td>{{ position.wage }}</td></tr>
     {% endif %}
+    {% if f.get('show_work_location', true) %}
     <tr><td>Work Location</td><td>{{ position.work_location if position.work_location else employer.address }}</td></tr>
+    {% endif %}
+    {% if f.get('show_positions_sought', true) %}
     <tr><td>Positions Sought</td><td>{{ position.num_positions }}</td></tr>
-    <tr><td>Recruitment Window</td><td>{{ position.start_date }} to {{ recruitment_end }}</td></tr>
+    {% endif %}
+    {% if f.get('show_start_date', true) %}
+    <tr><td>Recruitment Start Date</td><td>{{ position.start_date }}</td></tr>
+    {% endif %}
+    {% if f.get('show_capture_frequency', true) %}
     <tr><td>Capture Frequency</td><td>Every {{ position.capture_frequency_days }} day(s)</td></tr>
+    {% endif %}
+    {% if f.get('show_total_rounds', true) %}
     <tr><td>Total Capture Rounds</td><td>{{ capture_rounds | length }}</td></tr>
+    {% endif %}
+    {% if f.get('show_generated_at', true) %}
     <tr><td>Report Generated</td><td>{{ generated_at }}</td></tr>
+    {% endif %}
   </table>
-
-  <div class="cover-platforms">
-    <strong>Platforms / Channels Advertised On:</strong>
-    {% for posting in position.job_postings %}
-    <div class="pf-row">
-      <strong>{{ posting.platform }}</strong> —
-      <span style="font-size:9pt; color:#0050aa;">{{ posting.url }}</span>
-    </div>
-    {% endfor %}
-  </div>
-
   <div class="cover-footer">
     Prepared by: {{ employer.contact_person }}
     {% if employer.contact_email %} &nbsp;·&nbsp; {{ employer.contact_email }}{% endif %}
@@ -130,21 +119,18 @@
   </div>
 </div>
 
-
-<!-- ══════════════════════════════════════════════════
-     SECTION 2 — RECRUITMENT SUMMARY TABLE
-══════════════════════════════════════════════════ -->
+{# ══ RECRUITMENT SUMMARY TABLE ══════════════════════════════════════════ #}
+{% elif block['type'] == 'summary_table' %}
+{% set f = block['fields'] %}
 <div class="section">
-  <div class="section-heading">Section 2 — Recruitment Summary</div>
+  <div class="section-heading">{{ block.get('title', 'Recruitment Summary') }}</div>
   <table class="summary-table">
     <thead>
       <tr>
         <th>Platform</th>
-        <th>URL</th>
-        <th>First Captured</th>
-        <th>Last Captured</th>
-        <th style="text-align:center"># Successful Captures</th>
-        <th style="text-align:center">Ongoing Until Decision?</th>
+        {% if f.get('show_url', true) %}<th>URL</th>{% endif %}
+        {% if f.get('show_start_date', true) %}<th>Posting Start Date</th>{% endif %}
+        {% if f.get('show_capture_count', true) %}<th style="text-align:center"># Successful Captures</th>{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -152,49 +138,26 @@
       {% set stats = platform_stats[posting.id] %}
       <tr>
         <td><strong>{{ posting.platform }}</strong></td>
-        <td class="url-cell">{{ posting.url }}</td>
-        <td>{{ stats.first.strftime('%Y-%m-%d') if stats.first else '—' }}</td>
-        <td>{{ stats.last.strftime('%Y-%m-%d') if stats.last else '—' }}</td>
-        <td class="center">{{ stats.count }}</td>
-        <td class="checkbox-cell">☐</td>
+        {% if f.get('show_url', true) %}<td class="url-cell">{{ posting.url }}</td>{% endif %}
+        {% if f.get('show_start_date', true) %}<td>{{ position.start_date }}</td>{% endif %}
+        {% if f.get('show_capture_count', true) %}<td class="center">{{ stats.count }}</td>{% endif %}
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  <p style="font-size:8.5pt; color:#555; margin-top:8px; font-style:italic;">
-    "Ongoing until decision" checkbox to be completed manually if advertising continued beyond the dates shown.
-  </p>
 </div>
 
-
-<!-- ══════════════════════════════════════════════════
-     SECTION 3 — PER-PLATFORM ADVERTISING EVIDENCE
-══════════════════════════════════════════════════ -->
+{# ══ PER-PLATFORM ADVERTISING EVIDENCE ══════════════════════════════════ #}
+{% elif block['type'] == 'evidence' %}
+{% set f = block['fields'] %}
 <div class="section">
-  <div class="section-heading">Section 3 — Per-Platform Advertising Evidence</div>
-
-  <div class="evidence-notice">
-    Full print-rendered PDFs of each job advertisement capture are included in the
-    <strong>Evidence Appendix</strong> following this report. Each capture is presented as a
-    clean, print-layout rendering of the live job posting page as it appeared at the time of
-    capture, produced by ImmigLens using a headless browser PDF renderer.
-  </div>
-
+  <div class="section-heading">{{ block.get('title', 'Per-Platform Advertising Evidence') }}</div>
   {% for posting in position.job_postings %}
-  <div class="platform-block" style="margin-bottom: 28px;">
-
+  <div class="platform-block">
     <div class="platform-header">
       <div class="pf-name">{{ posting.platform }}</div>
       <div class="pf-url">{{ posting.url }}</div>
     </div>
-
-    <p class="platform-caption">
-      Advertisement for <strong>{{ position.job_title }}</strong> (NOC {{ position.noc_code }}) posted on
-      {{ posting.platform }}. Recruitment window: <strong>{{ position.start_date }}</strong>
-      to <strong>{{ recruitment_end }}</strong>.
-    </p>
-
-    {# ── Capture log entries (metadata only — PDF evidence in appendix) ── #}
     {% set ns = namespace(found=false, idx=0) %}
     {% for round in capture_rounds %}
       {% for result in round.results %}
@@ -204,68 +167,26 @@
           <div class="capture-entry">
             <div class="capture-meta">
               <strong>Capture {{ ns.idx }}</strong>
-              &nbsp;·&nbsp; Scheduled: {{ round.scheduled_at.strftime('%Y-%m-%d') }}
-              {% if round.captured_at %}
-              &nbsp;·&nbsp; Executed: {{ round.captured_at.strftime('%Y-%m-%d %H:%M UTC') }}
-              {% endif %}
-              &nbsp;·&nbsp; <span class="badge badge-{{ result.status }}">{{ result.status }}</span>
-              {% if result.duration_ms %}
-              &nbsp;·&nbsp; {{ (result.duration_ms / 1000) | round(1) }}s
-              {% endif %}
-            </div>
-            {% if result.error %}
-            <div class="error-note">Capture error: {{ result.error }}</div>
-            {% endif %}
-            <div class="capture-note">
-              {% if result.status == 'done' %}
-              Print-rendered PDF of this capture follows in the Evidence Appendix (Capture #{{ ns.idx }}).
-              {% else %}
-              Capture did not complete — no evidence PDF available for this round.
+              {% if f.get('show_capture_datetime', true) and round.captured_at %}
+              &nbsp;·&nbsp; {{ round.captured_at.strftime('%Y-%m-%d %H:%M UTC') }}
               {% endif %}
             </div>
           </div>
         {% endif %}
       {% endfor %}
     {% endfor %}
-
     {% if not ns.found %}
     <p style="font-size:9pt; color:#888; font-style:italic; padding: 12px 0;">No captures recorded for this platform yet.</p>
     {% endif %}
-
-    {# ── Supporting attachments ── #}
-    {% if report_documents %}
-    <div class="attachments">
-      <h4>Attached Supporting Documents</h4>
-      <ul>
-        {% for doc in report_documents %}
-        <li>{{ doc.original_filename }}</li>
-        {% endfor %}
-      </ul>
-    </div>
-    {% endif %}
-
-    {# ── Audience targeting proof slot ── #}
-    <div class="audience-proof-slot">
-      <h4>Audience Targeting Proof &nbsp;<span class="optional-tag">(optional — attach separately if available)</span></h4>
-      <p>
-        Attach evidence demonstrating this platform reaches the Canadian labour market — e.g. job board
-        category page screenshot, media kit, community group description, advertising invoice/receipt,
-        job fair proof, or trade publication listing.
-      </p>
-      <div class="attach-box">[ Attach document here ]</div>
-    </div>
-
   </div>
   {% endfor %}
 </div>
 
-
+{# ══ APPENDIX ════════════════════════════════════════════════════════════ #}
+{% elif block['type'] == 'appendix' %}
 {% if report_documents %}
-<!-- ══════════════════════════════════════════════════
-     APPENDIX — UPLOADED SUPPORTING DOCUMENTS
-══════════════════════════════════════════════════ -->
 <div class="section" style="page-break-before: always;">
-  <div class="section-heading">Appendix — Uploaded Supporting Documents</div>
+  <div class="section-heading">{{ block.get('title', 'Appendix — Uploaded Supporting Documents') }}</div>
   <ol class="appendix-list">
     {% for doc in report_documents %}
     <li>{{ doc.original_filename }}</li>
@@ -273,6 +194,25 @@
   </ol>
 </div>
 {% endif %}
+
+{# ══ CUSTOM TEXT BLOCK ═══════════════════════════════════════════════════ #}
+{% elif block['type'] == 'custom_text' %}
+<div class="custom-text-block">
+  {% if block.get('heading') %}
+  <div class="custom-text-heading">{{ block['heading'] }}</div>
+  {% endif %}
+  {% if block.get('body') %}
+  <div class="custom-text-body">{{ block['body'] }}</div>
+  {% endif %}
+</div>
+
+{# ══ DIVIDER ═════════════════════════════════════════════════════════════ #}
+{% elif block['type'] == 'divider' %}
+<hr class="report-divider">
+
+{% endif %}
+{% endif %}
+{% endfor %}
 
 </body>
 </html>

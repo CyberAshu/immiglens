@@ -52,6 +52,9 @@ export default function AdminLayout() {
             <NavLink to="/admin/audit-logs" className={navCls}>
               <span className="sidebar-icon">📋</span>Audit Logs
             </NavLink>
+            <NavLink to="/admin/report-designer" className={navCls}>
+              <span className="sidebar-icon">🎨</span>Report Designer
+            </NavLink>
           </nav>
         </aside>
 

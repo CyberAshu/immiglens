@@ -124,6 +124,7 @@ async def generate_report(
         position=position,
         capture_rounds=sorted_rounds,
         report_documents=position.report_documents,
+        db=db,
     )
 
     return RedirectResponse(url=pdf_url, status_code=302)

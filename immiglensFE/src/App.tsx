@@ -16,6 +16,7 @@ import AdminOverview from './pages/admin/AdminOverview'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminOrganizations from './pages/admin/AdminOrganizations'
 import AdminTiers from './pages/admin/AdminTiers'
+import AdminReportDesigner from './pages/admin/AdminReportDesigner'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -57,6 +58,7 @@ export default function App() {
             <Route path="organizations" element={<AdminOrganizations />} />
             <Route path="tiers" element={<AdminTiers />} />
             <Route path="audit-logs" element={<AuditLogs />} />
+            <Route path="report-designer" element={<AdminReportDesigner />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

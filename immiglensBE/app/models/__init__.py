@@ -9,6 +9,7 @@ from app.models.audit_log import AuditLog
 from app.models.notification import NotificationPreference, NotificationLog, NotificationEvent, NotificationChannel, NotifStatus
 from app.models.organization import Organization, OrgMembership, OrgInvitation, OrgRole
 from app.models.change_detection import PostingSnapshot
+from app.models.report_config import ReportConfig
 
 __all__ = [
     "User",
@@ -32,4 +33,5 @@ __all__ = [
     "OrgInvitation",
     "OrgRole",
     "PostingSnapshot",
+    "ReportConfig",
 ]
