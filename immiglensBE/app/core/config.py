@@ -13,18 +13,16 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "http://localhost:4173",
         "http://127.0.0.1:5173",
-        "https://immiglens.vercel.app",
     ]
 
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:12345@localhost/immiglens"
+    DATABASE_URL: str
 
-    SECRET_KEY: str = "change-this-secret-key-in-production"
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
-    SCREENSHOTS_DIR: str = "screenshots"
-    DOCUMENTS_DIR: str = "documents"
-    REPORTS_DIR: str = "reports"
+    SUPABASE_URL: str
+    SUPABASE_SERVICE_KEY: str
 
     MAX_CONCURRENT_SCREENSHOTS: int = 5
     PAGE_TIMEOUT_MS: int = 60_000

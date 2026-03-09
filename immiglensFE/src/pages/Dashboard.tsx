@@ -212,39 +212,42 @@ export default function Dashboard() {
       <p className="section-heading-sm" style={{ marginTop: '1.5rem' }}>Employers</p>
 
       {showForm && (
-        <form className="card form-card" onSubmit={handleCreate}>
-          <h2 className="form-title">New Employer</h2>
-          <div className="form-grid">
-            <div className="field">
-              <label>Business Name *</label>
-              <input value={form.business_name} onChange={e => setForm(p => ({ ...p, business_name: e.target.value }))} required />
+        <div className="admin-modal-overlay" onClick={() => setShowForm(false)}>
+          <form className="admin-modal" style={{ maxWidth: 620 }} onSubmit={handleCreate} onClick={e => e.stopPropagation()}>
+            <h2 className="admin-modal-title">New Employer</h2>
+            <div className="admin-form-grid">
+              <label className="admin-form-label" style={{ gridColumn: 'span 2' }}>
+                Business Name *
+                <input className="admin-input" value={form.business_name} onChange={e => setForm(p => ({ ...p, business_name: e.target.value }))} required />
+              </label>
+              <label className="admin-form-label" style={{ gridColumn: 'span 2' }}>
+                Address *
+                <input className="admin-input" value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} required />
+              </label>
+              <label className="admin-form-label">
+                Contact Person *
+                <input className="admin-input" value={form.contact_person} onChange={e => setForm(p => ({ ...p, contact_person: e.target.value }))} required />
+              </label>
+              <label className="admin-form-label">
+                Contact Email
+                <input className="admin-input" type="email" value={form.contact_email} onChange={e => setForm(p => ({ ...p, contact_email: e.target.value }))} />
+              </label>
+              <label className="admin-form-label">
+                Contact Phone <span style={{ fontWeight: 400 }}>(optional)</span>
+                <input className="admin-input" value={form.contact_phone} onChange={e => setForm(p => ({ ...p, contact_phone: e.target.value }))} />
+              </label>
+              <label className="admin-form-label">
+                Business Number (BN) <span style={{ fontWeight: 400 }}>(optional)</span>
+                <input className="admin-input" value={form.business_number} onChange={e => setForm(p => ({ ...p, business_number: e.target.value }))} placeholder="e.g. 123456789" />
+              </label>
             </div>
-            <div className="field">
-              <label>Address *</label>
-              <input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} required />
+            {error && <p className="error-msg">{error}</p>}
+            <div className="admin-modal-actions">
+              <button type="button" className="admin-btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
+              <button type="submit" className="admin-btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Create Employer'}</button>
             </div>
-            <div className="field">
-              <label>Contact Person *</label>
-              <input value={form.contact_person} onChange={e => setForm(p => ({ ...p, contact_person: e.target.value }))} required />
-            </div>
-            <div className="field">
-              <label>Contact Email</label>
-              <input type="email" value={form.contact_email} onChange={e => setForm(p => ({ ...p, contact_email: e.target.value }))} />
-            </div>
-            <div className="field">
-              <label>Contact Phone</label>
-              <input value={form.contact_phone} onChange={e => setForm(p => ({ ...p, contact_phone: e.target.value }))} />
-            </div>
-            <div className="field">
-              <label>Business Number (BN) <span style={{fontWeight:400, color:'#888'}}>(optional)</span></label>
-              <input value={form.business_number} onChange={e => setForm(p => ({ ...p, business_number: e.target.value }))} placeholder="e.g. 123456789" />
-            </div>
-          </div>
-          {error && <p className="error-msg">{error}</p>}
-          <div className="form-actions">
-            <button className="btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Create Employer'}</button>
-          </div>
-        </form>
+          </form>
+        </div>
       )}
 
       {loading ? (

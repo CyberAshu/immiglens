@@ -1,8 +1,7 @@
 import uuid
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -17,6 +16,7 @@ from app.models.job_posting import JobPosting
 from app.models.report import ReportDocument
 from app.models.user import User
 from app.schemas.report import ReportDocumentOut
+from app.services import storage
 from app.services.pdf import build_pdf
 
 router = APIRouter(
@@ -58,20 +58,19 @@ async def upload_document(
 ):
     await _load_position(employer_id, position_id, current_user, db)
 
-    docs_dir = Path(settings.DOCUMENTS_DIR) / str(position_id)
-    docs_dir.mkdir(parents=True, exist_ok=True)
-
-    suffix = Path(file.filename or "file").suffix
-    stored_name = f"{uuid.uuid4().hex}{suffix}"
-    stored_path = docs_dir / stored_name
+    original_name = file.filename or "file"
+    suffix = original_name.rsplit(".", 1)[-1] if "." in original_name else ""
+    stored_name = f"{uuid.uuid4().hex}.{suffix}" if suffix else uuid.uuid4().hex
+    object_key = f"{position_id}/{stored_name}"
 
     content = await file.read()
-    stored_path.write_bytes(content)
+    content_type = file.content_type or "application/octet-stream"
+    public_url = await storage.upload("documents", object_key, content, content_type)
 
     doc = ReportDocument(
         job_position_id=position_id,
         original_filename=file.filename or stored_name,
-        stored_path=str(stored_path),
+        stored_path=public_url,
     )
     db.add(doc)
     await db.commit()
@@ -96,7 +95,12 @@ async def delete_document(
     doc = result.scalar_one_or_none()
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found.")
-    Path(doc.stored_path).unlink(missing_ok=True)
+    # Extract the Supabase object key from the stored public URL
+    try:
+        bucket_path = doc.stored_path.split("/public/documents/", 1)[1]
+        await storage.delete("documents", [bucket_path])
+    except (IndexError, Exception):
+        pass  # best-effort delete
     await db.delete(doc)
     await db.commit()
 
@@ -115,15 +119,11 @@ async def generate_report(
 
     sorted_rounds = sorted(position.capture_rounds, key=lambda r: r.scheduled_at)
 
-    pdf_path = await build_pdf(
+    pdf_url = await build_pdf(
         employer=employer,
         position=position,
         capture_rounds=sorted_rounds,
         report_documents=position.report_documents,
     )
 
-    return FileResponse(
-        path=str(pdf_path),
-        media_type="application/pdf",
-        filename=pdf_path.name,
-    )
+    return RedirectResponse(url=pdf_url, status_code=302)

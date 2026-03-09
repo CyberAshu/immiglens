@@ -1,14 +1,12 @@
 import asyncio
 import sys
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.core.database import Base, engine
@@ -87,9 +85,6 @@ async def lifespan(app: FastAPI):
 
     await _seed_subscription_tiers()
 
-    for d in [settings.SCREENSHOTS_DIR, settings.DOCUMENTS_DIR, settings.REPORTS_DIR]:
-        Path(d).mkdir(parents=True, exist_ok=True)
-
     await browser_manager.start()
     scheduler.start()
     purge_task = asyncio.create_task(_purge_loop())
@@ -126,5 +121,3 @@ app.include_router(subscriptions_router)
 app.include_router(changes_router)
 app.include_router(screenshots_router)
 
-Path(settings.SCREENSHOTS_DIR).mkdir(parents=True, exist_ok=True)
-app.mount("/screenshots", StaticFiles(directory=settings.SCREENSHOTS_DIR), name="screenshots")

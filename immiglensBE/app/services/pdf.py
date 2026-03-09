@@ -3,6 +3,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import httpx
 from jinja2 import Environment, FileSystemLoader
 from playwright.async_api import async_playwright
 
@@ -11,28 +12,29 @@ from app.models.capture import CaptureRound
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
 from app.models.report import ReportDocument
+from app.services import storage
 
 _template_dir = Path(__file__).parent.parent / "templates"
 _jinja_env = Environment(loader=FileSystemLoader(str(_template_dir)))
-
-_BASE_DIR = Path(__file__).parent.parent.parent  # immiglensBE/
 
 
 def _safe_filename(text: str) -> str:
     return re.sub(r"[^\w\-]", "_", text).strip("_")[:60]
 
 
-def _screenshot_to_data_uri(path: str | None) -> str | None:
-    """Read a screenshot file and return a base64 data URI, or None if unavailable."""
-    if not path:
+async def _screenshot_to_data_uri(url: str | None) -> str | None:
+    """Fetch screenshot from Supabase URL and return a base64 data URI."""
+    if not url:
         return None
-    p = Path(path)
-    if not p.is_absolute():
-        p = (_BASE_DIR / path).resolve()
-    if not p.exists():
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.get(url)
+        if r.status_code != 200:
+            return None
+        data = base64.b64encode(r.content).decode()
+        return f"data:image/png;base64,{data}"
+    except Exception:
         return None
-    data = base64.b64encode(p.read_bytes()).decode()
-    return f"data:image/png;base64,{data}"
 
 
 async def build_pdf(
@@ -40,12 +42,12 @@ async def build_pdf(
     position: JobPosition,
     capture_rounds: list[CaptureRound],
     report_documents: list[ReportDocument],
-) -> Path:
+) -> str:
     # Pre-compute base64 data URIs keyed by capture result id
     screenshot_data: dict[int, str | None] = {}
     for round_ in capture_rounds:
         for result in round_.results:
-            screenshot_data[result.id] = _screenshot_to_data_uri(result.screenshot_path)
+            screenshot_data[result.id] = await _screenshot_to_data_uri(result.screenshot_url)
 
     # Per-platform statistics for the summary table
     platform_stats: dict[int, dict] = {}
@@ -78,13 +80,6 @@ async def build_pdf(
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
     )
 
-    output_dir = (_BASE_DIR / settings.REPORTS_DIR).resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    timestamp = int(datetime.now(timezone.utc).timestamp())
-    safe_name = _safe_filename(f"{employer.business_name}_{position.job_title}")
-    pdf_path = output_dir / f"{safe_name}_{timestamp}.pdf"
-
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=True)
         page = await browser.new_page()
@@ -96,5 +91,8 @@ async def build_pdf(
         )
         await browser.close()
 
-    pdf_path.write_bytes(pdf_bytes)
-    return pdf_path
+    timestamp = int(datetime.now(timezone.utc).timestamp())
+    safe_name = _safe_filename(f"{employer.business_name}_{position.job_title}")
+    pdf_key = f"{safe_name}_{timestamp}.pdf"
+    pdf_url = await storage.upload("reports", pdf_key, pdf_bytes, "application/pdf")
+    return pdf_url

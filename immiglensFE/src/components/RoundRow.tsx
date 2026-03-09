@@ -38,7 +38,8 @@ export function RoundRow({
             <button
               className="btn-ghost btn-sm"
               onClick={e => { e.stopPropagation(); onRun() }}
-              disabled={running}
+              disabled={running || postings.length === 0}
+              title={postings.length === 0 ? 'Add job posting URLs first' : undefined}
             >
               {running ? 'Running…' : 'Capture Now'}
             </button>
@@ -87,12 +88,12 @@ export function RoundRow({
                   </div>
                   {result.screenshot_url && (
                     <a
-                      href={`http://localhost:8000${result.screenshot_url}`}
+                      href={result.screenshot_url}
                       target="_blank"
                       rel="noreferrer"
                     >
                       <img
-                        src={`http://localhost:8000${result.screenshot_url}`}
+                        src={result.screenshot_url}
                         alt={result.url}
                         className="result-thumb"
                       />

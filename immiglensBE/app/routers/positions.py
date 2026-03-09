@@ -81,7 +81,7 @@ async def create_position(
     await db.refresh(position)
     await log_action(db, user_id=current_user.id, action="CREATE",
                      resource_type="position", resource_id=position.id,
-                     new_data={"title": position.title, "employer_id": employer_id})
+                     new_data={"job_title": position.job_title, "employer_id": employer_id})
     await db.commit()
     await schedule_captures(db, position)
     await db.refresh(position, ["job_postings"])
@@ -107,14 +107,14 @@ async def update_position(
     current_user: User = Depends(get_current_user),
 ):
     position = await _get_position_or_404(employer_id, position_id, current_user, db)
-    old = {"title": position.title}
+    old = {"job_title": position.job_title}
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(position, field, value)
     await db.commit()
     await db.refresh(position)
     await log_action(db, user_id=current_user.id, action="UPDATE",
                      resource_type="position", resource_id=position.id,
-                     old_data=old, new_data={"title": position.title})
+                     old_data=old, new_data={"job_title": position.job_title})
     await db.commit()
     return position
 
@@ -129,7 +129,7 @@ async def delete_position(
     position = await _get_position_or_404(employer_id, position_id, current_user, db)
     await log_action(db, user_id=current_user.id, action="DELETE",
                      resource_type="position", resource_id=position.id,
-                     old_data={"title": position.title})
+                     old_data={"job_title": position.job_title})
     await db.delete(position)
     await db.commit()
 

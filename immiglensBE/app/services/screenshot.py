@@ -1,5 +1,6 @@
 import asyncio
 import re
+import tempfile
 import time
 from pathlib import Path
 from urllib.parse import urlparse
@@ -8,6 +9,7 @@ from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from app.core.config import settings
 from app.schemas.screenshot import ScreenshotResult, URLStatus
+from app.services import storage
 from app.services.browser import browser_manager
 
 
@@ -70,16 +72,37 @@ async def _attempt_capture(url: str, dest: Path) -> ScreenshotResult:
             )
 
 
-async def capture(url: str, output_dir: Path, max_attempts: int = 2) -> ScreenshotResult:
-    """Capture a screenshot, automatically retrying once on timeout/failure."""
+async def capture(url: str, max_attempts: int = 2) -> ScreenshotResult:
+    """Capture a screenshot, upload to Supabase Storage, and return public URL."""
     last_result: ScreenshotResult | None = None
     for attempt in range(1, max_attempts + 1):
         filename = _sanitize_filename(url)
-        dest = output_dir / filename
+        tmp_fd, tmp_path_str = tempfile.mkstemp(suffix=".png")
+        import os; os.close(tmp_fd)
+        dest = Path(tmp_path_str)
         result = await _attempt_capture(url, dest)
         if result.status == URLStatus.DONE:
-            return result
-        last_result = result
+            try:
+                img_bytes = dest.read_bytes()
+                public_url = await storage.upload("screenshots", filename, img_bytes, "image/png")
+                return ScreenshotResult(
+                    url=url,
+                    status=URLStatus.DONE,
+                    filename=filename,
+                    screenshot_url=public_url,
+                    duration_ms=result.duration_ms,
+                )
+            except Exception as exc:
+                last_result = ScreenshotResult(
+                    url=url, status=URLStatus.FAILED,
+                    error=f"Storage upload failed: {exc}",
+                    duration_ms=result.duration_ms,
+                )
+            finally:
+                dest.unlink(missing_ok=True)
+        else:
+            dest.unlink(missing_ok=True)
+            last_result = result
         if attempt < max_attempts:
-            await asyncio.sleep(3)  # brief pause before retry
+            await asyncio.sleep(3)
     return last_result  # type: ignore[return-value]

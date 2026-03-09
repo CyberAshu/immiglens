@@ -60,14 +60,22 @@ async def trigger_capture_round(
     await _assert_owns_position(employer_id, position_id, current_user, db)
 
     result = await db.execute(
-        select(CaptureRound).where(
+        select(CaptureRound)
+        .where(
             CaptureRound.id == round_id,
             CaptureRound.job_position_id == position_id,
         )
+        .options(selectinload(CaptureRound.job_position).selectinload(JobPosition.job_postings))
     )
     round_ = result.scalar_one_or_none()
     if round_ is None:
         raise HTTPException(status_code=404, detail="Capture round not found.")
+
+    if not round_.job_position.job_postings:
+        raise HTTPException(
+            status_code=400,
+            detail="No job postings added to this position. Add at least one posting URL before running a capture."
+        )
 
     await force_run_capture_round(round_id)
     await log_action(db, user_id=current_user.id, action="CREATE",

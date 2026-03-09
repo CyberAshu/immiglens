@@ -61,16 +61,10 @@ async def recapture_result(result_id: int) -> None:
         if result is None:
             return
 
-        output_dir = Path(settings.SCREENSHOTS_DIR)
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        screenshot_result = await capture(result.url, output_dir)
+        screenshot_result = await capture(result.url)
 
         result.status = ResultStatus(screenshot_result.status.value)
-        result.screenshot_path = (
-            str(output_dir / screenshot_result.filename)
-            if screenshot_result.filename else None
-        )
+        result.screenshot_path = None
         result.screenshot_url = screenshot_result.screenshot_url
         result.error = screenshot_result.error
         result.duration_ms = screenshot_result.duration_ms
@@ -142,20 +136,15 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
     round_.status = CaptureStatus.RUNNING
     await db.commit()
 
-    output_dir = Path(settings.SCREENSHOTS_DIR)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     snapshots: list[tuple] = []  # (PostingSnapshot, url)
     for posting in round_.job_position.job_postings:
-        screenshot_result = await capture(posting.url, output_dir)
+        screenshot_result = await capture(posting.url)
         capture_result = CaptureResult(
             capture_round_id=round_.id,
             job_posting_id=posting.id,
             url=posting.url,
             status=ResultStatus(screenshot_result.status.value),
-            screenshot_path=str(output_dir / screenshot_result.filename)
-            if screenshot_result.filename
-            else None,
+            screenshot_path=None,
             screenshot_url=screenshot_result.screenshot_url,
             error=screenshot_result.error,
             duration_ms=screenshot_result.duration_ms,
