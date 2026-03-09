@@ -29,4 +29,5 @@ export interface JobPosition {
   wage_stream: string | null
   created_at: string
   job_postings: JobPosting[]
+  report_documents: import('./report').ReportDocument[]
 }

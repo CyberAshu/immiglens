@@ -249,6 +249,28 @@
   font-weight: 600;
 }
 
+.btn-ghost--uploading {
+  opacity: 0.75;
+  cursor: not-allowed;
+  background: #f0f4f8;
+}
+
+.upload-dot-anim {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #003087;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: upload-spin 0.7s linear infinite;
+  margin-right: 0.45rem;
+  vertical-align: middle;
+}
+
+@keyframes upload-spin {
+  to { transform: rotate(360deg); }
+}
+
 .section-top {
   margin-top: 1.5rem;
 }

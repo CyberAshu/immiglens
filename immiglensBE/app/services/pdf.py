@@ -26,6 +26,22 @@ def _safe_filename(text: str) -> str:
     return re.sub(r"[^\w\-]", "_", text).strip("_")[:60]
 
 
+def _is_blank_page(page) -> bool:
+    """Heuristic: a page with no text and no image XObjects is considered blank."""
+    try:
+        text = page.extract_text() or ""
+        if len(text.strip()) > 10:
+            return False
+        resources = page.get("/Resources")
+        if resources:
+            xobjects = resources.get("/XObject")
+            if xobjects and len(xobjects) > 0:
+                return False  # has embedded images / form XObjects
+        return True
+    except Exception:
+        return False
+
+
 def render_report_html(context: dict[str, Any]) -> str:
     """Render the report.html Jinja2 template with the given context dict."""
     template = _jinja_env.get_template("report.html")
@@ -111,6 +127,7 @@ async def build_pdf(
     capture_rounds: list[CaptureRound],
     report_documents: list[ReportDocument],
     db: AsyncSession | None = None,
+    remove_blank_pages: bool = False,
 ) -> str:
     # ── Per-platform statistics for the summary table ─────────────────────
     platform_stats: dict[int, dict] = {}
@@ -150,6 +167,7 @@ async def build_pdf(
         recruitment_end=recruitment_end,
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         config=config,
+        preview_mode=False,
     ))
     main_pdf_bytes = await _html_to_pdf_bytes(html_str)
 
@@ -211,7 +229,15 @@ async def build_pdf(
 
     # ── Write merged PDF and upload to Supabase ───────────────────────────
     output = io.BytesIO()
-    writer.write(output)
+    if remove_blank_pages:
+        # Re-read all pages through a filter that skips blank ones
+        filtered = PdfWriter()
+        for page in writer.pages:
+            if not _is_blank_page(page):
+                filtered.add_page(page)
+        filtered.write(output)
+    else:
+        writer.write(output)
     final_bytes = output.getvalue()
 
     timestamp = int(datetime.now(timezone.utc).timestamp())

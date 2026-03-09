@@ -41,6 +41,12 @@
   .platform-header .pf-url { font-size: 8.5pt; color: #b8cef0; word-break: break-all; margin-top: 2px; }
   .capture-entry { border: 1px solid #c8d2e0; border-radius: 3px; margin-bottom: 8px; overflow: hidden; }
   .capture-meta { background: #f0f4f8; padding: 8px 12px; font-size: 9pt; }
+  .capture-screenshot { display: block; width: 100%; max-width: 100%; border-top: 1px solid #c8d2e0; }
+  .capture-no-screenshot { padding: 10px 12px; font-size: 8.5pt; color: #999; font-style: italic; border-top: 1px solid #e8ecf0; }
+  .capture-pdf-embed { display: block; width: 100%; height: 700px; border: none; border-top: 1px solid #c8d2e0; }
+  .doc-embed-wrap { margin-top: 16px; border: 1px solid #c8d2e0; border-radius: 3px; overflow: hidden; }
+  .doc-embed-label { background: #eef2f8; padding: 7px 12px; font-size: 9pt; font-weight: 600; color: #333; border-bottom: 1px solid #c8d2e0; }
+  .doc-pdf-embed { display: block; width: 100%; height: 900px; border: none; }
   /* ── Appendix ──────────────────────────────────── */
   .appendix-list { padding-left: 20px; font-size: 10pt; }
   .appendix-list li { margin-bottom: 6px; }
@@ -170,7 +176,15 @@
               {% if f.get('show_capture_datetime', true) and round.captured_at %}
               &nbsp;·&nbsp; {{ round.captured_at.strftime('%Y-%m-%d %H:%M UTC') }}
               {% endif %}
+              &nbsp;·&nbsp; <span style="color:#0050aa;">{{ posting.url }}</span>
             </div>
+            {% if preview_mode and result.page_pdf_url %}
+            <iframe class="capture-pdf-embed" src="{{ result.page_pdf_url }}" title="Capture {{ ns.idx }} PDF"></iframe>
+            {% elif result.screenshot_url %}
+            <img class="capture-screenshot" src="{{ result.screenshot_url }}" alt="Capture {{ ns.idx }} screenshot" />
+            {% else %}
+            <div class="capture-no-screenshot">Screenshot not available for this capture.</div>
+            {% endif %}
           </div>
         {% endif %}
       {% endfor %}
@@ -192,6 +206,14 @@
     <li>{{ doc.original_filename }}</li>
     {% endfor %}
   </ol>
+  {% if preview_mode %}
+    {% for doc in report_documents %}
+    <div class="doc-embed-wrap">
+      <div class="doc-embed-label">{{ loop.index }}. {{ doc.original_filename }}</div>
+      <iframe class="doc-pdf-embed" src="{{ doc.stored_path }}" title="{{ doc.original_filename }}"></iframe>
+    </div>
+    {% endfor %}
+  {% endif %}
 </div>
 {% endif %}
 
@@ -218,9 +240,18 @@
       {% endfor %}
     </tbody>
   </table>
+  {% if preview_mode %}
+    {% for doc in job_match_docs %}
+    <div class="doc-embed-wrap" style="margin-top: 20px;">
+      <div class="doc-embed-label">{{ loop.index }}. {{ doc.original_filename }}</div>
+      <iframe class="doc-pdf-embed" src="{{ doc.stored_path }}" title="{{ doc.original_filename }}"></iframe>
+    </div>
+    {% endfor %}
+  {% else %}
   <p style="font-size:8.5pt; color:#555; margin-top:10px;">
     The full content of the above document(s) is attached immediately following this section.
   </p>
+  {% endif %}
   {% else %}
   <p style="font-size:9.5pt; color:#c0392b; font-weight:600;">
     &#9888; No Job Match Activity document has been uploaded for this position.

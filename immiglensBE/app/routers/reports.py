@@ -1,7 +1,8 @@
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -16,8 +17,9 @@ from app.models.job_posting import JobPosting
 from app.models.report import ReportDocument
 from app.models.user import User
 from app.schemas.report import ReportDocumentOut
+from app.schemas.report_config import ReportConfigUpdate
 from app.services import storage
-from app.services.pdf import build_pdf
+from app.services.pdf import build_pdf, render_report_html
 
 router = APIRouter(
     prefix="/api/employers/{employer_id}/positions/{position_id}/reports",
@@ -111,6 +113,7 @@ async def delete_document(
 async def generate_report(
     employer_id: int,
     position_id: int,
+    remove_blank_pages: bool = Query(False),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -136,6 +139,59 @@ async def generate_report(
         capture_rounds=sorted_rounds,
         report_documents=position.report_documents,
         db=db,
+        remove_blank_pages=remove_blank_pages,
     )
 
     return RedirectResponse(url=pdf_url, status_code=302)
+
+
+@router.post("/preview-html", response_class=HTMLResponse)
+async def preview_report_html(
+    employer_id: int,
+    position_id: int,
+    body: ReportConfigUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Render a live HTML preview of the report using real position data and a client-supplied config."""
+    from datetime import timedelta
+    from app.core.config import settings as cfg
+
+    position = await _load_position(employer_id, position_id, current_user, db)
+    emp_result = await db.execute(select(Employer).where(Employer.id == employer_id))
+    employer = emp_result.scalar_one()
+
+    from datetime import datetime, timezone
+    platform_stats: dict[int, dict] = {}
+    for posting in position.job_postings:
+        dates, count = [], 0
+        for round_ in position.capture_rounds:
+            for result in round_.results:
+                if result.job_posting_id == posting.id and result.status == "done":
+                    count += 1
+                    if round_.captured_at:
+                        dates.append(round_.captured_at)
+        platform_stats[posting.id] = {
+            "count": count,
+            "first": min(dates) if dates else None,
+            "last": max(dates) if dates else None,
+        }
+
+    job_match_docs = [d for d in position.report_documents if getattr(d, "doc_type", "supporting") == "job_match"]
+    supporting_docs = [d for d in position.report_documents if getattr(d, "doc_type", "supporting") != "job_match"]
+    sorted_rounds = sorted(position.capture_rounds, key=lambda r: r.scheduled_at)
+    recruitment_end = position.start_date + timedelta(days=cfg.RECRUITMENT_PERIOD_DAYS)
+
+    html = render_report_html(dict(
+        employer=employer,
+        position=position,
+        capture_rounds=sorted_rounds,
+        report_documents=supporting_docs,
+        job_match_docs=job_match_docs,
+        platform_stats=platform_stats,
+        recruitment_end=recruitment_end,
+        generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        config=body.config,
+        preview_mode=True,
+    ))
+    return HTMLResponse(content=html)

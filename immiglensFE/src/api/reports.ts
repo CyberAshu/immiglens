@@ -1,5 +1,6 @@
 import { BASE, authHeaders, request } from './client'
 import type { ReportDocument } from '../types'
+import type { ReportConfigPayload } from '../types/report_config'
 
 export const reports = {
   uploadDocument: async (
@@ -24,6 +25,26 @@ export const reports = {
       { method: 'DELETE' },
     ),
 
-  generateUrl: (employerId: number, positionId: number) =>
-    `${BASE}/api/employers/${employerId}/positions/${positionId}/reports/generate`,
+  generateUrl: (employerId: number, positionId: number, opts?: { removeBlankPages?: boolean }) => {
+    const base = `${BASE}/api/employers/${employerId}/positions/${positionId}/reports/generate`
+    if (opts?.removeBlankPages) return `${base}?remove_blank_pages=true`
+    return base
+  },
+
+  previewHtml: async (
+    employerId: number,
+    positionId: number,
+    config: ReportConfigPayload,
+  ): Promise<string> => {
+    const res = await fetch(
+      `${BASE}/api/employers/${employerId}/positions/${positionId}/reports/preview-html`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ config }),
+      },
+    )
+    if (!res.ok) throw new Error(`Preview failed: ${res.status}`)
+    return res.text()
+  },
 }

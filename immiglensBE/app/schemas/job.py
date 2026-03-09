@@ -3,6 +3,8 @@ from typing import Optional
 
 from pydantic import BaseModel, field_validator
 
+from app.schemas.report import ReportDocumentOut
+
 
 class JobPostingCreate(BaseModel):
     platform: str
@@ -111,3 +113,4 @@ class JobPositionOut(BaseModel):
     wage_stream: Optional[str] = None
     created_at: datetime
     job_postings: list[JobPostingOut] = []
+    report_documents: list[ReportDocumentOut] = []

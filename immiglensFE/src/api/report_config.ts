@@ -4,6 +4,9 @@ import type { ReportConfigData, ReportConfigPayload } from '../types/report_conf
 export const reportConfigApi = {
   get: () => request<ReportConfigData>('/api/admin/report-config'),
 
+  // For non-admin users (read-only current config)
+  getForClient: () => request<ReportConfigData>('/api/report-config'),
+
   update: (config: ReportConfigPayload) =>
     request<ReportConfigData>('/api/admin/report-config', {
       method: 'PATCH',

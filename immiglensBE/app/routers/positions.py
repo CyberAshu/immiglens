@@ -36,7 +36,10 @@ async def _get_position_or_404(
             JobPosition.employer_id == employer_id,
             Employer.user_id == user.id,
         )
-        .options(selectinload(JobPosition.job_postings))
+        .options(
+            selectinload(JobPosition.job_postings),
+            selectinload(JobPosition.report_documents),
+        )
     )
     position = result.scalar_one_or_none()
     if position is None:
@@ -54,7 +57,10 @@ async def list_positions(
         select(JobPosition)
         .join(Employer)
         .where(JobPosition.employer_id == employer_id, Employer.user_id == current_user.id)
-        .options(selectinload(JobPosition.job_postings))
+        .options(
+            selectinload(JobPosition.job_postings),
+            selectinload(JobPosition.report_documents),
+        )
         .order_by(JobPosition.created_at.desc())
     )
     return result.scalars().all()

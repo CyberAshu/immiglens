@@ -12,6 +12,7 @@ import Notifications from './pages/Notifications'
 import Organizations from './pages/Organizations'
 import ChangeHistory from './pages/ChangeHistory'
 import Employers from './pages/Employers'
+import ReportPreview from './pages/ReportPreview'
 import AdminLayout from './pages/admin/AdminLayout'
 import AdminOverview from './pages/admin/AdminOverview'
 import AdminUsers from './pages/admin/AdminUsers'
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="employers" element={<Employers />} />
             <Route path="employers/:employerId" element={<EmployerDetail />} />
             <Route path="employers/:employerId/positions/:positionId" element={<PositionDetail />} />
+            <Route path="employers/:employerId/positions/:positionId/report-preview" element={<ReportPreview />} />
             <Route path="subscriptions" element={<Subscriptions />} />
             <Route path="audit-logs" element={<AuditLogs />} />
             <Route path="notifications" element={<Notifications />} />

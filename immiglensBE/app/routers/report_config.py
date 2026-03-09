@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.dependencies import get_current_user
 from app.models.report_config import DEFAULT_CONFIG, ReportConfig
 from app.models.user import User
 from app.routers.admin import require_admin
@@ -15,6 +16,17 @@ from app.schemas.report_config import ReportConfigOut, ReportConfigUpdate
 from app.services.pdf import render_report_html
 
 router = APIRouter(prefix="/api/admin/report-config", tags=["admin"])
+
+# Read-only config endpoint available to all authenticated users
+client_router = APIRouter(prefix="/api/report-config", tags=["report-config"])
+
+
+@client_router.get("", response_model=ReportConfigOut)
+async def get_report_config_client(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    return await _get_or_create(db)
 
 
 async def _get_or_create(db: AsyncSession) -> ReportConfig:

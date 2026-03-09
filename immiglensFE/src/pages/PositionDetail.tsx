@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { captures as capturesApi, positions as positionsApi, reports as reportsApi } from '../api'
 import { RoundRow } from '../components/RoundRow'
 import type { CaptureRound, JobPosition, ReportDocument } from '../types'
@@ -8,6 +8,8 @@ export default function PositionDetail() {
   const { employerId, positionId } = useParams<{ employerId: string; positionId: string }>()
   const eId = Number(employerId)
   const pId = Number(positionId)
+
+  const navigate = useNavigate()
 
   const [position, setPosition] = useState<JobPosition | null>(null)
   const [rounds, setRounds] = useState<CaptureRound[]>([])
@@ -18,7 +20,8 @@ export default function PositionDetail() {
   const [addingPosting, setAddingPosting] = useState(false)
   const [runningRound, setRunningRound] = useState<number | null>(null)
   const [recapturingResult, setRecapturingResult] = useState<Set<number>>(new Set())
-  const [generatingReport, setGeneratingReport] = useState(false)
+  const [uploadingDoc, setUploadingDoc] = useState(false)
+  const [uploadingJobMatch, setUploadingJobMatch] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const jobMatchRef = useRef<HTMLInputElement>(null)
@@ -28,7 +31,7 @@ export default function PositionDetail() {
       .then(([pos, rds]) => {
         setPosition(pos)
         setRounds(rds)
-        const allDocs: ReportDocument[] = (pos as any).report_documents ?? []
+        const allDocs: ReportDocument[] = pos.report_documents ?? []
         setDocuments(allDocs.filter(d => d.doc_type !== 'job_match'))
         setJobMatchDocs(allDocs.filter(d => d.doc_type === 'job_match'))
       })
@@ -84,9 +87,14 @@ export default function PositionDetail() {
   async function handleUploadDoc(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const doc = await reportsApi.uploadDocument(eId, pId, file, 'supporting')
-    setDocuments(prev => [...prev, doc])
-    if (fileRef.current) fileRef.current.value = ''
+    setUploadingDoc(true)
+    try {
+      const doc = await reportsApi.uploadDocument(eId, pId, file, 'supporting')
+      setDocuments(prev => [...prev, doc])
+    } finally {
+      setUploadingDoc(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
   }
 
   async function handleRemoveDoc(docId: number) {
@@ -97,39 +105,19 @@ export default function PositionDetail() {
   async function handleUploadJobMatch(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const doc = await reportsApi.uploadDocument(eId, pId, file, 'job_match')
-    setJobMatchDocs(prev => [...prev, doc])
-    if (jobMatchRef.current) jobMatchRef.current.value = ''
+    setUploadingJobMatch(true)
+    try {
+      const doc = await reportsApi.uploadDocument(eId, pId, file, 'job_match')
+      setJobMatchDocs(prev => [...prev, doc])
+    } finally {
+      setUploadingJobMatch(false)
+      if (jobMatchRef.current) jobMatchRef.current.value = ''
+    }
   }
 
   async function handleRemoveJobMatch(docId: number) {
     await reportsApi.removeDocument(eId, pId, docId)
     setJobMatchDocs(prev => prev.filter(d => d.id !== docId))
-  }
-
-  async function handleGenerateReport() {
-    setGeneratingReport(true)
-    setError(null)
-    const token = localStorage.getItem('token')
-    const url = reportsApi.generateUrl(eId, pId)
-    try {
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body?.detail ?? `Server error: ${res.status}`)
-      }
-      const blob = await res.blob()
-      const objectUrl = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = objectUrl
-      a.download = `LMIA_Report_${position?.job_title ?? 'report'}.pdf`
-      a.click()
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000)
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to generate report.')
-    } finally {
-      setGeneratingReport(false)
-    }
   }
 
   if (loading) return <div className="loading">Loading…</div>
@@ -157,11 +145,11 @@ export default function PositionDetail() {
         </div>
         <button
           className="btn-primary"
-          onClick={handleGenerateReport}
-          disabled={generatingReport || completedRounds === 0 || jobMatchDocs.length === 0}
+          onClick={() => navigate(`/employers/${eId}/positions/${pId}/report-preview`)}
+          disabled={completedRounds === 0 || jobMatchDocs.length === 0}
           title={jobMatchDocs.length === 0 ? 'Upload a Job Match Activity document first' : undefined}
         >
-          {generatingReport ? 'Generating…' : '⬇ Download Report'}
+          Preview &amp; Download Report
         </button>
       </div>
 
@@ -219,8 +207,10 @@ export default function PositionDetail() {
             </ul>
           )}
           <div className="upload-area">
-            <input type="file" ref={fileRef} onChange={handleUploadDoc} style={{ display: 'none' }} />
-            <button className="btn-ghost" onClick={() => fileRef.current?.click()}>+ Upload Document</button>
+            <input type="file" ref={fileRef} onChange={handleUploadDoc} style={{ display: 'none' }} disabled={uploadingDoc} />
+            <button className="btn-ghost" onClick={() => fileRef.current?.click()} disabled={uploadingDoc}>
+              {uploadingDoc ? <span className="upload-spinner">⏳ Uploading…</span> : '+ Upload Document'}
+            </button>
           </div>
         </section>
       </div>
@@ -247,8 +237,16 @@ export default function PositionDetail() {
           </ul>
         )}
         <div className="upload-area">
-          <input type="file" ref={jobMatchRef} onChange={handleUploadJobMatch} style={{ display: 'none' }} />
-          <button className="btn-ghost" onClick={() => jobMatchRef.current?.click()}>+ Upload Job Match Activity</button>
+          <input type="file" ref={jobMatchRef} onChange={handleUploadJobMatch} style={{ display: 'none' }} disabled={uploadingJobMatch} />
+          <button
+            className={`btn-ghost${uploadingJobMatch ? ' btn-ghost--uploading' : ''}`}
+            onClick={() => jobMatchRef.current?.click()}
+            disabled={uploadingJobMatch}
+          >
+            {uploadingJobMatch
+              ? <><span className="upload-dot-anim" />Uploading, please wait…</>
+              : '+ Upload Job Match Activity'}
+          </button>
         </div>
       </section>
 
