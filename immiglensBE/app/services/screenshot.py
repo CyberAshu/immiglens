@@ -50,7 +50,22 @@ async def _attempt_capture(url: str, dest: Path, pdf_dest: Path) -> ScreenshotRe
                 path=str(pdf_dest),
                 format="A4",
                 print_background=True,
-                margin={"top": "10mm", "bottom": "10mm", "left": "10mm", "right": "10mm"},
+                display_header_footer=True,
+                header_template=(
+                    "<div style='width:100%;font-size:8px;color:#555;padding:0 10mm;"
+                    "font-family:Arial,sans-serif;display:flex;justify-content:space-between;'>"
+                    "<span class='url'></span>"
+                    "<span></span>"
+                    "</div>"
+                ),
+                footer_template=(
+                    "<div style='width:100%;font-size:8px;color:#555;padding:0 10mm;"
+                    "font-family:Arial,sans-serif;display:flex;justify-content:space-between;'>"
+                    "<span class='date'></span>"
+                    "<span>Page <span class='pageNumber'></span> of <span class='totalPages'></span></span>"
+                    "</div>"
+                ),
+                margin={"top": "18mm", "bottom": "14mm", "left": "10mm", "right": "10mm"},
             )
 
             duration = int((time.monotonic() - start) * 1000)

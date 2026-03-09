@@ -1,5 +1,15 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import {
+  Bell,
+  Building2,
+  ClipboardList,
+  CreditCard,
+  LayoutDashboard,
+  LogOut,
+  User,
+  Users,
+} from 'lucide-react'
 import '../App.css'
 
 export default function Layout() {
@@ -23,8 +33,10 @@ export default function Layout() {
           ImmigLens
         </NavLink>
         <div className="nav-right">
-          <span className="nav-user">👤 {user?.full_name}</span>
-          <button className="btn-ghost btn-sm" onClick={handleLogout}>Logout</button>
+          <span className="nav-user"><User size={14} strokeWidth={2} style={{ marginRight: 5, verticalAlign: 'middle' }} />{user?.full_name}</span>
+          <button className="btn-ghost btn-sm" onClick={handleLogout}>
+            <LogOut size={14} strokeWidth={2} style={{ marginRight: 5, verticalAlign: 'middle' }} />Logout
+          </button>
         </div>
       </nav>
 
@@ -33,19 +45,22 @@ export default function Layout() {
         <aside className="sidebar">
           <nav className="sidebar-nav">
             <NavLink to="/dashboard" className={navCls} end>
-              <span className="sidebar-icon">🏠</span>Dashboard
+              <LayoutDashboard size={16} strokeWidth={2} />Dashboard
+            </NavLink>
+            <NavLink to="/employers" className={navCls}>
+              <Building2 size={16} strokeWidth={2} />Employers
             </NavLink>
             <NavLink to="/organizations" className={navCls}>
-              <span className="sidebar-icon">🏢</span>Organizations
+              <Users size={16} strokeWidth={2} />Organizations
             </NavLink>
             <NavLink to="/notifications" className={navCls}>
-              <span className="sidebar-icon">🔔</span>Notifications
+              <Bell size={16} strokeWidth={2} />Notifications
             </NavLink>
             <NavLink to="/audit-logs" className={navCls}>
-              <span className="sidebar-icon">📋</span>Audit Logs
+              <ClipboardList size={16} strokeWidth={2} />Audit Logs
             </NavLink>
             <NavLink to="/subscriptions" className={navCls}>
-              <span className="sidebar-icon">💳</span>My Plan
+              <CreditCard size={16} strokeWidth={2} />My Plan
             </NavLink>
           </nav>
         </aside>

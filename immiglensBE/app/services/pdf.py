@@ -135,12 +135,17 @@ async def build_pdf(
     from app.models.report_config import DEFAULT_CONFIG
     config = await _load_config(db) if db is not None else DEFAULT_CONFIG
 
+    # ── Split documents by type ───────────────────────────────────────────
+    job_match_docs = [d for d in report_documents if getattr(d, "doc_type", "supporting") == "job_match"]
+    supporting_docs = [d for d in report_documents if getattr(d, "doc_type", "supporting") != "job_match"]
+
     # ── Render main report HTML → PDF ─────────────────────────────────────
     html_str = render_report_html(dict(
         employer=employer,
         position=position,
         capture_rounds=capture_rounds,
-        report_documents=report_documents,
+        report_documents=supporting_docs,
+        job_match_docs=job_match_docs,
         platform_stats=platform_stats,
         recruitment_end=recruitment_end,
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
@@ -192,6 +197,17 @@ async def build_pdf(
                             writer.add_page(page)
                     except Exception:
                         pass  # skip corrupt PDFs gracefully
+
+    # ── Embed Job Match Activity PDFs ─────────────────────────────────────
+    for jm_doc in job_match_docs:
+        jm_bytes = await _fetch_pdf_bytes(jm_doc.stored_path)
+        if jm_bytes:
+            try:
+                jm_reader = PdfReader(io.BytesIO(jm_bytes))
+                for page in jm_reader.pages:
+                    writer.add_page(page)
+            except Exception:
+                pass  # skip non-PDF or corrupt attachments gracefully
 
     # ── Write merged PDF and upload to Supabase ───────────────────────────
     output = io.BytesIO()

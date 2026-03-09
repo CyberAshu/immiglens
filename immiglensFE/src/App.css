@@ -227,6 +227,28 @@
   color: #666;
 }
 
+.mandatory-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+  background: #c0392b;
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.card-subtitle {
+  font-size: 0.85rem;
+  color: #666;
+  margin: -0.25rem 0 0.75rem;
+}
+
+.missing-mandatory {
+  color: #c0392b !important;
+  font-weight: 600;
+}
+
 .section-top {
   margin-top: 1.5rem;
 }

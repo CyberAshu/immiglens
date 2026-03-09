@@ -12,6 +12,7 @@ export default function PositionDetail() {
   const [position, setPosition] = useState<JobPosition | null>(null)
   const [rounds, setRounds] = useState<CaptureRound[]>([])
   const [documents, setDocuments] = useState<ReportDocument[]>([])
+  const [jobMatchDocs, setJobMatchDocs] = useState<ReportDocument[]>([])
   const [loading, setLoading] = useState(true)
   const [postingForm, setPostingForm] = useState({ platform: '', url: '' })
   const [addingPosting, setAddingPosting] = useState(false)
@@ -20,12 +21,16 @@ export default function PositionDetail() {
   const [generatingReport, setGeneratingReport] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const jobMatchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     Promise.all([positionsApi.get(eId, pId), capturesApi.list(eId, pId)])
       .then(([pos, rds]) => {
         setPosition(pos)
         setRounds(rds)
+        const allDocs: ReportDocument[] = (pos as any).report_documents ?? []
+        setDocuments(allDocs.filter(d => d.doc_type !== 'job_match'))
+        setJobMatchDocs(allDocs.filter(d => d.doc_type === 'job_match'))
       })
       .finally(() => setLoading(false))
   }, [eId, pId])
@@ -79,7 +84,7 @@ export default function PositionDetail() {
   async function handleUploadDoc(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const doc = await reportsApi.uploadDocument(eId, pId, file)
+    const doc = await reportsApi.uploadDocument(eId, pId, file, 'supporting')
     setDocuments(prev => [...prev, doc])
     if (fileRef.current) fileRef.current.value = ''
   }
@@ -87,6 +92,19 @@ export default function PositionDetail() {
   async function handleRemoveDoc(docId: number) {
     await reportsApi.removeDocument(eId, pId, docId)
     setDocuments(prev => prev.filter(d => d.id !== docId))
+  }
+
+  async function handleUploadJobMatch(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const doc = await reportsApi.uploadDocument(eId, pId, file, 'job_match')
+    setJobMatchDocs(prev => [...prev, doc])
+    if (jobMatchRef.current) jobMatchRef.current.value = ''
+  }
+
+  async function handleRemoveJobMatch(docId: number) {
+    await reportsApi.removeDocument(eId, pId, docId)
+    setJobMatchDocs(prev => prev.filter(d => d.id !== docId))
   }
 
   async function handleGenerateReport() {
@@ -122,7 +140,7 @@ export default function PositionDetail() {
   return (
     <div className="page">
       <div className="breadcrumb">
-        <Link to="/dashboard">Employers</Link> /
+        <Link to="/employers">Employers</Link> /
         <Link to={`/employers/${eId}`}> Employer</Link> /
         {position.job_title}
       </div>
@@ -140,7 +158,8 @@ export default function PositionDetail() {
         <button
           className="btn-primary"
           onClick={handleGenerateReport}
-          disabled={generatingReport || completedRounds === 0}
+          disabled={generatingReport || completedRounds === 0 || jobMatchDocs.length === 0}
+          title={jobMatchDocs.length === 0 ? 'Upload a Job Match Activity document first' : undefined}
         >
           {generatingReport ? 'Generating…' : '⬇ Download Report'}
         </button>
@@ -205,6 +224,33 @@ export default function PositionDetail() {
           </div>
         </section>
       </div>
+
+      {/* ── Job Match Activity ─────────────────────────────────────── */}
+      <section className="card section-top">
+        <h2 className="card-title">
+          Job Match Activity
+          <span className="mandatory-badge">Mandatory</span>
+        </h2>
+        <p className="card-subtitle">
+          Upload the Job Match Activity document (required for the LMIA report).
+        </p>
+        {jobMatchDocs.length === 0 ? (
+          <p className="empty-inline missing-mandatory">⚠ No Job Match Activity document uploaded yet.</p>
+        ) : (
+          <ul className="doc-list">
+            {jobMatchDocs.map(doc => (
+              <li key={doc.id}>
+                <span>{doc.original_filename}</span>
+                <button className="btn-remove" onClick={() => handleRemoveJobMatch(doc.id)}>×</button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="upload-area">
+          <input type="file" ref={jobMatchRef} onChange={handleUploadJobMatch} style={{ display: 'none' }} />
+          <button className="btn-ghost" onClick={() => jobMatchRef.current?.click()}>+ Upload Job Match Activity</button>
+        </div>
+      </section>
 
       <section className="card section-top">
         <h2 className="card-title">

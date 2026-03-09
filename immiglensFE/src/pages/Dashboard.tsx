@@ -4,8 +4,8 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
-import { employers as employersApi, stats as statsApi, subscriptions as subApi } from '../api'
-import type { DashboardStats, Employer, UsageSummary } from '../types'
+import { stats as statsApi, subscriptions as subApi } from '../api'
+import type { DashboardStats, UsageSummary } from '../types'
 import { StatCard } from '../components/StatCard'
 
 function planColor(name: string) {
@@ -25,45 +25,15 @@ const STAT_CARDS = (s: DashboardStats) => [
 ]
 
 export default function Dashboard() {
-  const [list, setList]           = useState<Employer[]>([])
   const [statsData, setStatsData] = useState<DashboardStats | null>(null)
   const [planData, setPlanData]   = useState<UsageSummary | null>(null)
   const [loading, setLoading]     = useState(true)
-  const [showForm, setShowForm]   = useState(false)
-  const [form, setForm]           = useState({ business_name: '', address: '', contact_person: '', contact_email: '', contact_phone: '', business_number: '' })
-  const [saving, setSaving]       = useState(false)
-  const [error, setError]         = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([employersApi.list(), statsApi.get(), subApi.usage()])
-      .then(([emps, s, plan]) => { setList(emps); setStatsData(s); setPlanData(plan) })
+    Promise.all([statsApi.get(), subApi.usage()])
+      .then(([s, plan]) => { setStatsData(s); setPlanData(plan) })
       .finally(() => setLoading(false))
   }, [])
-
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
-    setSaving(true); setError(null)
-    try {
-      const created = await employersApi.create({
-        business_name: form.business_name, address: form.address,
-        contact_person: form.contact_person,
-        contact_email: form.contact_email || null,
-        contact_phone: form.contact_phone || null,
-        business_number: form.business_number || null,
-      })
-      setList(prev => [created, ...prev])
-      setShowForm(false)
-      setForm({ business_name: '', address: '', contact_person: '', contact_email: '', contact_phone: '', business_number: '' })
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to create employer.')
-    } finally { setSaving(false) }
-  }
-
-  async function handleDelete(id: number) {
-    if (!confirm('Delete this employer and all associated data?')) return
-    await employersApi.remove(id)
-    setList(prev => prev.filter(e => e.id !== id))
-  }
 
   const hasChartData = statsData && (
     statsData.capture_breakdown.some(c => c.value > 0) ||
@@ -75,9 +45,6 @@ export default function Dashboard() {
     <div className="page">
       <div className="page-header">
         <h1>Dashboard</h1>
-        <button className="btn-primary" onClick={() => setShowForm(v => !v)}>
-          {showForm ? 'Cancel' : '+ New Employer'}
-        </button>
       </div>
 
       {/* ── Plan strip ────────────────── */}
@@ -208,78 +175,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── Employers section ─────────────────── */}
-      <p className="section-heading-sm" style={{ marginTop: '1.5rem' }}>Employers</p>
-
-      {showForm && (
-        <div className="admin-modal-overlay" onClick={() => setShowForm(false)}>
-          <form className="admin-modal" style={{ maxWidth: 620 }} onSubmit={handleCreate} onClick={e => e.stopPropagation()}>
-            <h2 className="admin-modal-title">New Employer</h2>
-            <div className="admin-form-grid">
-              <label className="admin-form-label" style={{ gridColumn: 'span 2' }}>
-                Business Name *
-                <input className="admin-input" value={form.business_name} onChange={e => setForm(p => ({ ...p, business_name: e.target.value }))} required />
-              </label>
-              <label className="admin-form-label" style={{ gridColumn: 'span 2' }}>
-                Address *
-                <input className="admin-input" value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} required />
-              </label>
-              <label className="admin-form-label">
-                Contact Person *
-                <input className="admin-input" value={form.contact_person} onChange={e => setForm(p => ({ ...p, contact_person: e.target.value }))} required />
-              </label>
-              <label className="admin-form-label">
-                Contact Email
-                <input className="admin-input" type="email" value={form.contact_email} onChange={e => setForm(p => ({ ...p, contact_email: e.target.value }))} />
-              </label>
-              <label className="admin-form-label">
-                Contact Phone <span style={{ fontWeight: 400 }}>(optional)</span>
-                <input className="admin-input" value={form.contact_phone} onChange={e => setForm(p => ({ ...p, contact_phone: e.target.value }))} />
-              </label>
-              <label className="admin-form-label">
-                Business Number (BN) <span style={{ fontWeight: 400 }}>(optional)</span>
-                <input className="admin-input" value={form.business_number} onChange={e => setForm(p => ({ ...p, business_number: e.target.value }))} placeholder="e.g. 123456789" />
-              </label>
-            </div>
-            {error && <p className="error-msg">{error}</p>}
-            <div className="admin-modal-actions">
-              <button type="button" className="admin-btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
-              <button type="submit" className="admin-btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Create Employer'}</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {loading ? (
-        <div className="loading">Loading…</div>
-      ) : list.length === 0 ? (
-        <div className="empty-state">No employers yet. Create your first employer above.</div>
-      ) : (
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Business Name</th>
-                <th>Contact Person</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map(emp => (
-                <tr key={emp.id}>
-                  <td><Link to={`/employers/${emp.id}`} className="table-link">{emp.business_name}</Link></td>
-                  <td>{emp.contact_person}</td>
-                  <td>{emp.contact_email ?? '—'}</td>
-                  <td>{emp.contact_phone ?? '—'}</td>
-                  <td><button className="btn-danger-sm" onClick={() => handleDelete(emp.id)}>Delete</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {loading && <div className="loading">Loading...</div>}
     </div>
   )
 }

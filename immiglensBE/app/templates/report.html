@@ -195,6 +195,40 @@
 </div>
 {% endif %}
 
+{# ══ JOB MATCH ACTIVITY ══════════════════════════════════════════════════ #}
+{% elif block['type'] == 'job_match_activity' %}
+<div class="section" style="page-break-before: always;">
+  <div class="section-heading">{{ block.get('title', 'Job Match Activity') }}</div>
+  {% if job_match_docs %}
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Document</th>
+        <th>Uploaded</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for doc in job_match_docs %}
+      <tr>
+        <td class="center">{{ loop.index }}</td>
+        <td>{{ doc.original_filename }}</td>
+        <td>{{ doc.uploaded_at.strftime('%Y-%m-%d %H:%M UTC') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p style="font-size:8.5pt; color:#555; margin-top:10px;">
+    The full content of the above document(s) is attached immediately following this section.
+  </p>
+  {% else %}
+  <p style="font-size:9.5pt; color:#c0392b; font-weight:600;">
+    &#9888; No Job Match Activity document has been uploaded for this position.
+    This is a mandatory attachment — please upload and regenerate the report.
+  </p>
+  {% endif %}
+</div>
+
 {# ══ CUSTOM TEXT BLOCK ═══════════════════════════════════════════════════ #}
 {% elif block['type'] == 'custom_text' %}
 <div class="custom-text-block">

@@ -64,7 +64,7 @@ export default function EmployerDetail() {
   return (
     <div className="page">
       <div className="breadcrumb">
-        <Link to="/dashboard">Employers</Link> / {employer.business_name}
+        <Link to="/employers">Employers</Link> / {employer.business_name}
       </div>
 
       <div className="page-header">

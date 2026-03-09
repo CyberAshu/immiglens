@@ -11,6 +11,7 @@ import AuditLogs from './pages/AuditLogs'
 import Notifications from './pages/Notifications'
 import Organizations from './pages/Organizations'
 import ChangeHistory from './pages/ChangeHistory'
+import Employers from './pages/Employers'
 import AdminLayout from './pages/admin/AdminLayout'
 import AdminOverview from './pages/admin/AdminOverview'
 import AdminUsers from './pages/admin/AdminUsers'
@@ -42,6 +43,7 @@ export default function App() {
           >
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
+            <Route path="employers" element={<Employers />} />
             <Route path="employers/:employerId" element={<EmployerDetail />} />
             <Route path="employers/:employerId/positions/:positionId" element={<PositionDetail />} />
             <Route path="subscriptions" element={<Subscriptions />} />

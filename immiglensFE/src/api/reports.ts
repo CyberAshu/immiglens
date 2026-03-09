@@ -6,11 +6,12 @@ export const reports = {
     employerId: number,
     positionId: number,
     file: File,
+    docType: 'supporting' | 'job_match' = 'supporting',
   ): Promise<ReportDocument> => {
     const form = new FormData()
     form.append('file', file)
     const res = await fetch(
-      `${BASE}/api/employers/${employerId}/positions/${positionId}/reports/documents`,
+      `${BASE}/api/employers/${employerId}/positions/${positionId}/reports/documents?doc_type=${docType}`,
       { method: 'POST', headers: authHeaders(), body: form },
     )
     if (!res.ok) throw new Error(`Upload failed: ${res.status}`)

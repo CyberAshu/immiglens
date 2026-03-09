@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -53,6 +53,7 @@ async def upload_document(
     employer_id: int,
     position_id: int,
     file: UploadFile = File(...),
+    doc_type: str = Query("supporting", pattern="^(supporting|job_match)$"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -71,6 +72,7 @@ async def upload_document(
         job_position_id=position_id,
         original_filename=file.filename or stored_name,
         stored_path=public_url,
+        doc_type=doc_type,
     )
     db.add(doc)
     await db.commit()
@@ -113,6 +115,15 @@ async def generate_report(
     current_user: User = Depends(get_current_user),
 ):
     position = await _load_position(employer_id, position_id, current_user, db)
+    has_job_match = any(
+        getattr(doc, "doc_type", "supporting") == "job_match"
+        for doc in position.report_documents
+    )
+    if not has_job_match:
+        raise HTTPException(
+            status_code=422,
+            detail="Job Match Activity document is mandatory. Please upload it before generating the report.",
+        )
 
     emp_result = await db.execute(select(Employer).where(Employer.id == employer_id))
     employer = emp_result.scalar_one()

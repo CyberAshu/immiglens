@@ -49,6 +49,12 @@ DEFAULT_CONFIG: dict = {
             },
         },
         {
+            "id": "job_match",
+            "type": "job_match_activity",
+            "enabled": True,
+            "title": "Job Match Activity",
+        },
+        {
             "id": "appendix",
             "type": "appendix",
             "enabled": True,

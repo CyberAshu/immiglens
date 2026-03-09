@@ -8,4 +8,5 @@ class ReportDocumentOut(BaseModel):
 
     id: int
     original_filename: str
+    doc_type: str
     uploaded_at: datetime
