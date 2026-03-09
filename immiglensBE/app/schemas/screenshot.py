@@ -22,6 +22,7 @@ class ScreenshotResult(BaseModel):
     status: URLStatus
     filename: Optional[str] = None
     screenshot_url: Optional[str] = None
+    page_pdf_url: Optional[str] = None
     error: Optional[str] = None
     duration_ms: Optional[int] = None
 

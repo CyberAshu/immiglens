@@ -66,6 +66,7 @@ async def recapture_result(result_id: int) -> None:
         result.status = ResultStatus(screenshot_result.status.value)
         result.screenshot_path = None
         result.screenshot_url = screenshot_result.screenshot_url
+        result.page_pdf_url = screenshot_result.page_pdf_url
         result.error = screenshot_result.error
         result.duration_ms = screenshot_result.duration_ms
         await db.commit()
@@ -146,6 +147,7 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
             status=ResultStatus(screenshot_result.status.value),
             screenshot_path=None,
             screenshot_url=screenshot_result.screenshot_url,
+            page_pdf_url=screenshot_result.page_pdf_url,
             error=screenshot_result.error,
             duration_ms=screenshot_result.duration_ms,
         )

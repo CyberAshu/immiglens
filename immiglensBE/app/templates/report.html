@@ -42,17 +42,17 @@
   .platform-header .pf-url { font-size: 8.5pt; color: #b8cef0; word-break: break-all; margin-top: 2px; }
   .platform-caption { font-size: 9pt; color: #444; font-style: italic; margin: 12px 0 16px; border-left: 3px solid #b8cef0; padding-left: 10px; }
 
-  .capture-entry { border: 1px solid #c8d2e0; border-radius: 3px; margin-bottom: 20px; overflow: hidden; }
+  .capture-entry { border: 1px solid #c8d2e0; border-radius: 3px; margin-bottom: 12px; overflow: hidden; }
   .capture-meta { background: #f0f4f8; padding: 8px 12px; font-size: 9pt; border-bottom: 1px solid #c8d2e0; }
-  .capture-caption { font-size: 8.5pt; font-style: italic; color: #555; padding: 6px 12px; background: #fafbfd; border-bottom: 1px solid #eee; }
-  .screenshot { width: 100%; max-height: 520px; object-fit: contain; object-position: top; display: block; }
-  .no-screenshot { font-size: 9pt; color: #888; font-style: italic; padding: 16px 12px; background: #fafbfd; }
-  .error-note { font-size: 9pt; color: #a00; padding: 6px 12px; background: #fff5f5; border-bottom: 1px solid #fce0e0; }
+  .capture-note { font-size: 8.5pt; font-style: italic; color: #555; padding: 8px 12px; background: #fafbfd; }
+  .error-note { font-size: 9pt; color: #a00; padding: 6px 12px; background: #fff5f5; }
 
   .badge { display: inline-block; font-size: 7.5pt; padding: 1px 7px; border-radius: 3px; font-weight: 700; text-transform: uppercase; }
   .badge-done    { background: #d4edda; color: #155724; }
   .badge-failed  { background: #f8d7da; color: #721c24; }
   .badge-pending { background: #e2e3e5; color: #383d41; }
+  .evidence-notice { margin: 16px 0; padding: 12px 16px; background: #f0f4ff;
+    border-left: 4px solid #003087; border-radius: 0 3px 3px 0; font-size: 9.5pt; color: #333; }
 
   /* ── Attachment + audience slots ───────────────── */
   .attachments { margin-top: 18px; padding: 12px 14px; background: #f7f9fc; border: 1px dashed #aab8cc; border-radius: 3px; }
@@ -173,8 +173,15 @@
 <div class="section">
   <div class="section-heading">Section 3 — Per-Platform Advertising Evidence</div>
 
+  <div class="evidence-notice">
+    Full print-rendered PDFs of each job advertisement capture are included in the
+    <strong>Evidence Appendix</strong> following this report. Each capture is presented as a
+    clean, print-layout rendering of the live job posting page as it appeared at the time of
+    capture, produced by ImmigLens using a headless browser PDF renderer.
+  </div>
+
   {% for posting in position.job_postings %}
-  <div class="platform-block" style="{% if not loop.last %}page-break-after: always;{% endif %} margin-bottom: 32px;">
+  <div class="platform-block" style="margin-bottom: 28px;">
 
     <div class="platform-header">
       <div class="pf-name">{{ posting.platform }}</div>
@@ -182,14 +189,12 @@
     </div>
 
     <p class="platform-caption">
-      "Copy of job advertisement for <strong>{{ position.job_title }}</strong> (NOC {{ position.noc_code }}) posted on
-      {{ posting.platform }}. Advertisement was active during the recruitment window of
-      <strong>{{ position.start_date }}</strong> to <strong>{{ recruitment_end }}</strong>.
-      Screenshots below were captured automatically at each monitoring interval to confirm the advertisement
-      remained publicly accessible throughout the recruitment period, as required for LMIA documentation."
+      Advertisement for <strong>{{ position.job_title }}</strong> (NOC {{ position.noc_code }}) posted on
+      {{ posting.platform }}. Recruitment window: <strong>{{ position.start_date }}</strong>
+      to <strong>{{ recruitment_end }}</strong>.
     </p>
 
-    {# ── Capture screenshots ── #}
+    {# ── Capture log entries (metadata only — PDF evidence in appendix) ── #}
     {% set ns = namespace(found=false, idx=0) %}
     {% for round in capture_rounds %}
       {% for result in round.results %}
@@ -211,26 +216,20 @@
             {% if result.error %}
             <div class="error-note">Capture error: {{ result.error }}</div>
             {% endif %}
-            <div class="capture-caption">
-              "Screenshot of {{ posting.platform }} job listing for {{ position.job_title }}
-              {% if round.captured_at %}
-              — captured on {{ round.captured_at.strftime('%B %d, %Y at %H:%M UTC') }}
-              via automated Playwright headless browser
+            <div class="capture-note">
+              {% if result.status == 'done' %}
+              Print-rendered PDF of this capture follows in the Evidence Appendix (Capture #{{ ns.idx }}).
+              {% else %}
+              Capture did not complete — no evidence PDF available for this round.
               {% endif %}
-              — confirming the advertisement was publicly accessible at time of capture."
             </div>
-            {% if screenshot_data.get(result.id) %}
-            <img class="screenshot" src="{{ screenshot_data[result.id] }}" alt="Screenshot of {{ posting.url }}">
-            {% else %}
-            <div class="no-screenshot">No screenshot available for this capture round.</div>
-            {% endif %}
           </div>
         {% endif %}
       {% endfor %}
     {% endfor %}
 
     {% if not ns.found %}
-    <p class="no-screenshot" style="padding: 16px;">No captures recorded for this platform yet.</p>
+    <p style="font-size:9pt; color:#888; font-style:italic; padding: 12px 0;">No captures recorded for this platform yet.</p>
     {% endif %}
 
     {# ── Supporting attachments ── #}

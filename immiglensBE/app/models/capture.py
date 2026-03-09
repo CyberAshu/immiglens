@@ -68,6 +68,7 @@ class CaptureResult(Base):
     )
     screenshot_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     screenshot_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    page_pdf_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     duration_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
