@@ -29,6 +29,7 @@ export type ReportBlock =
   | { id: string; type: 'summary_table'; enabled: boolean; title: string; fields: SummaryFields }
   | { id: string; type: 'evidence'; enabled: boolean; title: string; fields: EvidenceFields }
   | { id: string; type: 'appendix'; enabled: boolean; title: string }
+  | { id: string; type: 'job_match_activity'; enabled: boolean; title: string }
   | { id: string; type: 'custom_text'; enabled: boolean; heading: string; body: string }
   | { id: string; type: 'divider'; enabled: boolean }
 

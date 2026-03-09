@@ -45,12 +45,13 @@ import type {
 // -- constants --
 
 const BLOCK_META: Record<string, { label: string; Icon: React.ElementType; color: string; desc: string }> = {
-  cover:         { label: 'Cover Page',                Icon: Layout,    color: '#6366f1', desc: 'Employer info, position details and report header' },
-  summary_table: { label: 'Recruitment Summary Table', Icon: Table2,    color: '#0ea5e9', desc: 'Table showing all platforms, dates and capture counts' },
-  evidence:      { label: 'Per-Platform Evidence',     Icon: Search,    color: '#10b981', desc: 'Individual capture logs per job posting platform' },
-  appendix:      { label: 'Appendix',                  Icon: Paperclip, color: '#f59e0b', desc: 'List of uploaded supporting documents' },
-  custom_text:   { label: 'Custom Text',               Icon: PenLine,   color: '#a855f7', desc: 'Your own heading and body text' },
-  divider:       { label: 'Divider Line',              Icon: Minus,     color: '#64748b', desc: 'Visual separator between sections' },
+  cover:              { label: 'Cover Page',                Icon: Layout,    color: '#6366f1', desc: 'Employer info, position details and report header' },
+  summary_table:      { label: 'Recruitment Summary Table', Icon: Table2,    color: '#0ea5e9', desc: 'Table showing all platforms, dates and capture counts' },
+  evidence:           { label: 'Per-Platform Evidence',     Icon: Search,    color: '#10b981', desc: 'Individual capture logs per job posting platform' },
+  job_match_activity: { label: 'Job Match Activity',        Icon: FileText,  color: '#e11d48', desc: 'Mandatory job match document listing — drag to reposition' },
+  appendix:           { label: 'Appendix',                  Icon: Paperclip, color: '#f59e0b', desc: 'List of uploaded supporting documents' },
+  custom_text:        { label: 'Custom Text',               Icon: PenLine,   color: '#a855f7', desc: 'Your own heading and body text' },
+  divider:            { label: 'Divider Line',              Icon: Minus,     color: '#64748b', desc: 'Visual separator between sections' },
 }
 
 const COVER_FIELD_LABELS: Record<keyof CoverFields, string> = {
@@ -167,7 +168,7 @@ function BlockCard({
         </>
       )
     }
-    if (block.type === 'appendix') {
+    if (block.type === 'appendix' || block.type === 'job_match_activity') {
       return (
         <Field label="Section Title">
           <input className="rd-input" value={block.title}

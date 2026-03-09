@@ -24,6 +24,18 @@ async def _get_or_create(db: AsyncSession) -> ReportConfig:
         db.add(row)
         await db.commit()
         await db.refresh(row)
+        return row
+
+    # Inject any new default blocks that are missing from the saved config
+    existing_types = {b["type"] for b in row.config.get("blocks", [])}
+    missing = [b for b in DEFAULT_CONFIG["blocks"] if b["type"] not in existing_types]
+    if missing:
+        merged = list(row.config.get("blocks", [])) + missing
+        row.config = {**row.config, "blocks": merged}
+        row.updated_at = datetime.now(timezone.utc)
+        await db.commit()
+        await db.refresh(row)
+
     return row
 
 

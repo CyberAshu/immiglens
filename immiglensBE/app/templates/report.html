@@ -186,7 +186,7 @@
 {% elif block['type'] == 'appendix' %}
 {% if report_documents %}
 <div class="section" style="page-break-before: always;">
-  <div class="section-heading">{{ block.get('title', 'Appendix — Uploaded Supporting Documents') }}</div>
+  <div class="section-heading">{{ block.get('title', 'Appendix Uploaded Supporting Documents') }}</div>
   <ol class="appendix-list">
     {% for doc in report_documents %}
     <li>{{ doc.original_filename }}</li>
@@ -224,7 +224,7 @@
   {% else %}
   <p style="font-size:9.5pt; color:#c0392b; font-weight:600;">
     &#9888; No Job Match Activity document has been uploaded for this position.
-    This is a mandatory attachment — please upload and regenerate the report.
+    This is a mandatory attachment please upload and regenerate the report.
   </p>
   {% endif %}
 </div>
