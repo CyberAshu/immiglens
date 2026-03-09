@@ -57,6 +57,7 @@ jobs:
           source: "immiglensFE/dist/*"
           target: "/var/www/immiglens"
           strip_components: 2
+          overwrite: true
 
       - name: Reload Nginx
         uses: appleboy/ssh-action@v1.0.3
