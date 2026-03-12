@@ -14,6 +14,7 @@ import {
   Paperclip,
   PenLine,
   RefreshCw,
+  RotateCcw,
   Search,
   Table2,
   TriangleAlert,
@@ -321,6 +322,8 @@ export default function ReportPreview() {
   const [genError, setGenError]       = useState<string | null>(null)
   const [removeBlankPages, setRemoveBlankPages] = useState(true)
 
+  const storageKey = `immlens_report_blocks_${pId}`
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
   const selectedBlock = blocks.find(b => b.id === selectedId) ?? null
 
@@ -335,7 +338,26 @@ export default function ReportPreview() {
     }
   }
 
+  // Auto-save blocks to localStorage whenever they change
   useEffect(() => {
+    if (blocks.length > 0) {
+      localStorage.setItem(storageKey, JSON.stringify(blocks))
+    }
+  }, [blocks])
+
+  useEffect(() => {
+    const saved = localStorage.getItem(storageKey)
+    if (saved) {
+      try {
+        const blks: ReportBlock[] = JSON.parse(saved)
+        setBlocks(blks)
+        setSelectedId(blks[0]?.id ?? null)
+        loadPreview(blks).finally(() => setLoading(false))
+        return
+      } catch {
+        localStorage.removeItem(storageKey)
+      }
+    }
     reportConfigApi.getForClient()
       .then(data => {
         setBlocks(data.config.blocks)
@@ -346,6 +368,22 @@ export default function ReportPreview() {
       .catch(() => setPreviewError('Failed to load report config.'))
       .finally(() => setLoading(false))
   }, [])
+
+  async function resetToDefaults() {
+    localStorage.removeItem(storageKey)
+    setLoading(true)
+    setPreviewError(null)
+    try {
+      const data = await reportConfigApi.getForClient()
+      setBlocks(data.config.blocks)
+      setSelectedId(data.config.blocks[0]?.id ?? null)
+      await loadPreview(data.config.blocks)
+    } catch {
+      setPreviewError('Failed to reset config.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (!previewHtml || !iframeRef.current) return
@@ -369,15 +407,12 @@ export default function ReportPreview() {
   async function handleDownload() {
     setGenerating(true)
     setGenError(null)
-    const token = localStorage.getItem('token')
-    const url = reportsApi.generateUrl(eId, pId, { removeBlankPages })
     try {
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { detail?: string }
-        throw new Error(body?.detail ?? `Server error: ${res.status}`)
-      }
-      const blob = await res.blob()
+      const blob = await reportsApi.generateWithConfig(
+        eId, pId,
+        { blocks } as ReportConfigPayload,
+        { removeBlankPages },
+      )
       const objectUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = objectUrl; a.download = 'LMIA_Report.pdf'; a.click()
@@ -412,6 +447,10 @@ export default function ReportPreview() {
             {previewing
               ? <><Loader2 size={13} className="rp-spin" /> Refreshing…</>
               : <><RefreshCw size={13} /> Refresh Preview</>}
+          </button>
+          <button className="rp-btn rp-btn--ghost" onClick={resetToDefaults} disabled={previewing || loading}
+            title="Discard local edits and reload the default config">
+            <RotateCcw size={13} /> Reset to defaults
           </button>
           <label className="rp-blank-check">
             <input type="checkbox" checked={removeBlankPages}

@@ -180,10 +180,15 @@
             </div>
             {% if preview_mode and result.page_pdf_url %}
             <iframe class="capture-pdf-embed" src="{{ result.page_pdf_url }}" title="Capture {{ ns.idx }} PDF"></iframe>
-            {% elif result.screenshot_url %}
+            {% elif preview_mode and result.screenshot_url %}
             <img class="capture-screenshot" src="{{ result.screenshot_url }}" alt="Capture {{ ns.idx }} screenshot" />
-            {% else %}
+            {% elif preview_mode %}
             <div class="capture-no-screenshot">Screenshot not available for this capture.</div>
+            {% else %}
+            {# PDF download mode: actual captured PDF is interleaved by build_pdf right after this header #}
+            <div style="font-size:8pt;color:#777;padding:4px 12px;background:#f7f9fc;border-top:1px solid #e0e7ef;">
+              Captured page PDF follows on the next page.
+            </div>
             {% endif %}
           </div>
         {% endif %}

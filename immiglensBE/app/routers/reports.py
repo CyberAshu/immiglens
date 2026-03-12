@@ -1,5 +1,4 @@
 import uuid
-from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -13,7 +12,6 @@ from app.core.dependencies import get_current_user
 from app.models.capture import CaptureRound
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
-from app.models.job_posting import JobPosting
 from app.models.report import ReportDocument
 from app.models.user import User
 from app.schemas.report import ReportDocumentOut
@@ -117,6 +115,34 @@ async def generate_report(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    return await _do_generate(
+        employer_id, position_id, remove_blank_pages, None, current_user, db
+    )
+
+
+@router.post("/generate")
+async def generate_report_with_config(
+    employer_id: int,
+    position_id: int,
+    body: ReportConfigUpdate,
+    remove_blank_pages: bool = Query(False),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate PDF using the client-supplied config (mirrors the live preview)."""
+    return await _do_generate(
+        employer_id, position_id, remove_blank_pages, body.config, current_user, db
+    )
+
+
+async def _do_generate(
+    employer_id: int,
+    position_id: int,
+    remove_blank_pages: bool,
+    config_override: dict | None,
+    current_user: User,
+    db: AsyncSession,
+):
     position = await _load_position(employer_id, position_id, current_user, db)
     has_job_match = any(
         getattr(doc, "doc_type", "supporting") == "job_match"
@@ -140,6 +166,7 @@ async def generate_report(
         report_documents=position.report_documents,
         db=db,
         remove_blank_pages=remove_blank_pages,
+        config_override=config_override,
     )
 
     return RedirectResponse(url=pdf_url, status_code=302)

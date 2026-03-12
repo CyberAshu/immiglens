@@ -1,3 +1,4 @@
+import base64
 import io
 import re
 from datetime import datetime, timedelta, timezone
@@ -55,8 +56,34 @@ async def _load_config(db: AsyncSession) -> dict:
     return row.config if row is not None else DEFAULT_CONFIG
 
 
+async def _inline_external_images(html: str) -> str:
+    """Fetch all external <img src="..."> URLs and replace them with base64 data URIs.
+
+    Playwright's headless Chromium sometimes fails to load images from external
+    origins (CORS restrictions, no session cookies, timing).  Embedding them
+    inline guarantees they always appear in the generated PDF.
+    """
+    img_urls = re.findall(r'<img\b[^>]+\bsrc="(https?://[^"]+)"', html, re.IGNORECASE)
+    if not img_urls:
+        return html
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        for url in dict.fromkeys(img_urls):  # unique, order-preserved
+            try:
+                r = await client.get(url)
+                if r.status_code == 200:
+                    content_type = r.headers.get("content-type", "image/png").split(";")[0]
+                    b64 = base64.b64encode(r.content).decode()
+                    data_uri = f"data:{content_type};base64,{b64}"
+                    html = html.replace(f'src="{url}"', f'src="{data_uri}"')
+            except Exception:
+                pass  # leave original URL as fallback
+    return html
+
+
 async def _html_to_pdf_bytes(html: str) -> bytes:
-    """Render an HTML string to PDF bytes via Playwright headless Chromium."""
+    """Render an HTML string to full A4 PDF bytes via Playwright headless Chromium."""
+    html = await _inline_external_images(html)
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=True)
         page = await browser.new_page()
@@ -70,6 +97,76 @@ async def _html_to_pdf_bytes(html: str) -> bytes:
     return pdf_bytes
 
 
+async def _html_to_compact_pdf_bytes(html: str) -> bytes:
+    """Render a short HTML snippet to a compact-height PDF (auto-sized to content)."""
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch(headless=True)
+        page = await browser.new_page()
+        # Render at A4 width, let height be determined by content
+        await page.set_viewport_size({"width": 794, "height": 200})
+        await page.set_content(html, wait_until="networkidle")
+        # Measure actual content height
+        content_height = await page.evaluate("document.body.scrollHeight")
+        height_mm = max(30, int(content_height * 0.264583) + 10)  # px → mm + padding
+        pdf_bytes = await page.pdf(
+            width="210mm",
+            height=f"{height_mm}mm",
+            print_background=True,
+            margin={"top": "6mm", "bottom": "6mm", "left": "15mm", "right": "15mm"},
+        )
+        await browser.close()
+    return pdf_bytes
+
+
+def _make_capture_header_html(
+    section_title: str | None,
+    platform: str | None,
+    platform_url: str | None,
+    capture_idx: int,
+    captured_at: datetime | None,
+    show_datetime: bool,
+    posting_url: str,
+) -> str:
+    """Compact styled capture header rendered just before each captured PDF."""
+    date_str = (
+        f" &nbsp;&middot;&nbsp; {captured_at.strftime('%Y-%m-%d %H:%M UTC')}"
+        if show_datetime and captured_at else ""
+    )
+    section_html = (
+        f'<div class="section-heading">{section_title}</div>'
+        if section_title else ""
+    )
+    platform_html = (
+        f'<div class="platform-header">'
+        f'<div class="pf-name">{platform}</div>'
+        f'<div class="pf-url">{platform_url}</div>'
+        f'</div>'
+        if platform else ""
+    )
+    return f"""<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<style>
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; color: #111; }}
+  .section-heading {{ font-size: 13pt; font-weight: 700; color: #fff; padding: 9px 14px;
+    background: #003087; border-radius: 3px; margin-bottom: 12px; }}
+  .platform-header {{ background: #003087; color: #fff; padding: 10px 14px;
+    border-radius: 3px 3px 0 0; }}
+  .pf-name {{ font-size: 12pt; font-weight: 700; }}
+  .pf-url {{ font-size: 8.5pt; color: #b8cef0; word-break: break-all; margin-top: 2px; }}
+  .capture-meta {{ background: #f0f4f8; padding: 8px 12px; font-size: 9pt;
+    border: 1px solid #c8d2e0; border-top: none; }}
+</style></head><body>
+  {section_html}
+  <div>
+    {platform_html}
+    <div class="capture-meta">
+      <strong>Capture {capture_idx}</strong>{date_str}
+      &nbsp;&middot;&nbsp; <span style="color:#0050aa;">{posting_url}</span>
+    </div>
+  </div>
+</body></html>"""
+
+
 async def _fetch_pdf_bytes(url: str) -> bytes | None:
     """Download PDF bytes from a URL (Supabase public URL)."""
     try:
@@ -80,47 +177,6 @@ async def _fetch_pdf_bytes(url: str) -> bytes | None:
         return None
 
 
-def _make_evidence_separator(
-    employer_name: str,
-    position_title: str,
-    platform: str,
-    url: str,
-    round_number: int,
-    captured_at: datetime | None,
-    status: str,
-) -> str:
-    """Generate a minimal HTML separator page shown before each captured page PDF."""
-    date_str = captured_at.strftime("%B %d, %Y at %H:%M UTC") if captured_at else "—"
-    status_color = {"done": "#155724", "failed": "#721c24"}.get(status, "#383d41")
-    status_bg = {"done": "#d4edda", "failed": "#f8d7da"}.get(status, "#e2e3e5")
-    return f"""<!DOCTYPE html>
-<html><head><meta charset="UTF-8">
-<style>
-  body {{ font-family: Arial, sans-serif; color: #111; margin: 0; padding: 40px 50px; }}
-  .stripe {{ height: 6px; background: #003087; margin-bottom: 30px; }}
-  .label {{ font-size: 9pt; color: #555; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }}
-  .title {{ font-size: 20pt; font-weight: 700; color: #003087; margin-bottom: 4px; }}
-  .sub {{ font-size: 11pt; color: #444; margin-bottom: 24px; }}
-  table {{ width: 100%; border-collapse: collapse; font-size: 10pt; }}
-  td {{ padding: 8px 10px; border: 1px solid #c8d2e0; }}
-  td:first-child {{ font-weight: 600; background: #eef2f8; width: 180px; color: #333; }}
-  .badge {{ display:inline-block; padding: 2px 10px; border-radius: 3px; font-weight:700;
-            font-size: 9pt; background: {status_bg}; color: {status_color}; }}
-</style></head><body>
-  <div class="stripe"></div>
-  <div class="label">LMIA Recruitment Evidence — Capture #{round_number}</div>
-  <div class="title">{platform}</div>
-  <div class="sub">{employer_name} · {position_title}</div>
-  <table>
-    <tr><td>Platform</td><td>{platform}</td></tr>
-    <tr><td>Job Posting URL</td><td style="word-break:break-all; color:#0050aa;">{url}</td></tr>
-    <tr><td>Capture #</td><td>{round_number}</td></tr>
-    <tr><td>Captured At</td><td>{date_str}</td></tr>
-    <tr><td>Status</td><td><span class="badge">{status.upper()}</span></td></tr>
-  </table>
-</body></html>"""
-
-
 async def build_pdf(
     employer: Employer,
     position: JobPosition,
@@ -128,6 +184,7 @@ async def build_pdf(
     report_documents: list[ReportDocument],
     db: AsyncSession | None = None,
     remove_blank_pages: bool = False,
+    config_override: dict | None = None,
 ) -> str:
     # ── Per-platform statistics for the summary table ─────────────────────
     platform_stats: dict[int, dict] = {}
@@ -148,16 +205,21 @@ async def build_pdf(
 
     recruitment_end = position.start_date + timedelta(days=settings.RECRUITMENT_PERIOD_DAYS)
 
-    # ── Load report config from DB ────────────────────────────────────────
+    # ── Load report config (client override takes priority over DB) ───────
     from app.models.report_config import DEFAULT_CONFIG
-    config = await _load_config(db) if db is not None else DEFAULT_CONFIG
+    if config_override is not None:
+        config = config_override
+    else:
+        config = await _load_config(db) if db is not None else DEFAULT_CONFIG
 
     # ── Split documents by type ───────────────────────────────────────────
     job_match_docs = [d for d in report_documents if getattr(d, "doc_type", "supporting") == "job_match"]
     supporting_docs = [d for d in report_documents if getattr(d, "doc_type", "supporting") != "job_match"]
 
-    # ── Render main report HTML → PDF ─────────────────────────────────────
-    html_str = render_report_html(dict(
+    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    # ── Shared context for all HTML renders ───────────────────────────────
+    base_ctx = dict(
         employer=employer,
         position=position,
         capture_rounds=capture_rounds,
@@ -165,67 +227,115 @@ async def build_pdf(
         job_match_docs=job_match_docs,
         platform_stats=platform_stats,
         recruitment_end=recruitment_end,
-        generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
-        config=config,
+        generated_at=generated_at,
         preview_mode=False,
-    ))
-    main_pdf_bytes = await _html_to_pdf_bytes(html_str)
+    )
 
-    # ── Assemble final PDF using pypdf ────────────────────────────────────
+    # ── Assemble final PDF block-by-block so attached PDFs sit immediately
+    #    after their section — matching the preview's inline structure ──────
     writer = PdfWriter()
 
-    # Add all pages from the main report
-    main_reader = PdfReader(io.BytesIO(main_pdf_bytes))
-    for page in main_reader.pages:
-        writer.add_page(page)
+    async def _flush_html(block_list: list[dict]) -> None:
+        """Render a batch of HTML-only blocks and add their pages to writer."""
+        if not block_list:
+            return
+        html = render_report_html({**base_ctx, "config": {**config, "blocks": block_list}})
+        pdf_bytes = await _html_to_pdf_bytes(html)
+        for page in PdfReader(io.BytesIO(pdf_bytes)).pages:
+            writer.add_page(page)
 
-    # For each posting, append: separator page + its captured print-PDFs
-    for posting in position.job_postings:
-        round_number = 0
-        for round_ in capture_rounds:
-            for result in round_.results:
-                if result.job_posting_id != posting.id:
-                    continue
-                if result.status != "done" or not result.page_pdf_url:
-                    continue
+    async def _add_remote_pdf(url: str) -> None:
+        data = await _fetch_pdf_bytes(url)
+        if not data:
+            return
+        try:
+            for page in PdfReader(io.BytesIO(data)).pages:
+                writer.add_page(page)
+        except Exception:
+            pass
 
-                round_number += 1
+    # Walk blocks in config order.
+    # HTML-only blocks are batched; attachment blocks flush the batch first,
+    # render their own section HTML, then immediately insert their PDFs.
+    pending: list[dict] = []
+    _evidence_done = _job_match_done = _appendix_done = False
 
-                # Separator page
-                sep_html = _make_evidence_separator(
-                    employer_name=employer.business_name,
-                    position_title=position.job_title,
-                    platform=posting.platform,
-                    url=posting.url,
-                    round_number=round_number,
-                    captured_at=round_.captured_at,
-                    status=result.status,
-                )
-                sep_bytes = await _html_to_pdf_bytes(sep_html)
-                sep_reader = PdfReader(io.BytesIO(sep_bytes))
-                for page in sep_reader.pages:
-                    writer.add_page(page)
+    for block in config.get("blocks", []):
+        if not block.get("enabled", True):
+            continue
+        btype = block.get("type")
 
-                # Actual captured print-PDF of the job posting page
-                page_pdf_bytes = await _fetch_pdf_bytes(result.page_pdf_url)
-                if page_pdf_bytes:
-                    try:
-                        posting_reader = PdfReader(io.BytesIO(page_pdf_bytes))
-                        for page in posting_reader.pages:
+        if btype == "evidence" and not _evidence_done:
+            await _flush_html(pending); pending = []
+            # Per-capture interleaving: compact header page → actual captured PDF pages
+            f = block.get("fields", {})
+            show_dt = f.get("show_capture_datetime", True)
+            section_title = block.get("title", "Per-Platform Advertising Evidence")
+            is_first_of_section = True
+            for posting in position.job_postings:
+                is_first_of_platform = True
+                cap_idx = 0
+                for round_ in capture_rounds:
+                    for result in round_.results:
+                        if result.job_posting_id != posting.id:
+                            continue
+                        if result.status != "done" or not result.page_pdf_url:
+                            continue
+                        cap_idx += 1
+                        hdr_html = _make_capture_header_html(
+                            section_title=section_title if is_first_of_section else None,
+                            platform=posting.platform if is_first_of_platform else None,
+                            platform_url=posting.url if is_first_of_platform else None,
+                            capture_idx=cap_idx,
+                            captured_at=round_.captured_at,
+                            show_datetime=show_dt,
+                            posting_url=posting.url,
+                        )
+                        hdr_bytes = await _html_to_compact_pdf_bytes(hdr_html)
+                        for page in PdfReader(io.BytesIO(hdr_bytes)).pages:
                             writer.add_page(page)
-                    except Exception:
-                        pass  # skip corrupt PDFs gracefully
+                        await _add_remote_pdf(result.page_pdf_url)
+                        is_first_of_section = False
+                        is_first_of_platform = False
+            _evidence_done = True
 
-    # ── Embed Job Match Activity PDFs ─────────────────────────────────────
-    for jm_doc in job_match_docs:
-        jm_bytes = await _fetch_pdf_bytes(jm_doc.stored_path)
-        if jm_bytes:
-            try:
-                jm_reader = PdfReader(io.BytesIO(jm_bytes))
-                for page in jm_reader.pages:
-                    writer.add_page(page)
-            except Exception:
-                pass  # skip non-PDF or corrupt attachments gracefully
+        elif btype == "job_match_activity" and not _job_match_done:
+            await _flush_html(pending); pending = []
+            await _flush_html([block])
+            for jm_doc in job_match_docs:
+                await _add_remote_pdf(jm_doc.stored_path)
+            _job_match_done = True
+
+        elif btype == "appendix" and not _appendix_done:
+            await _flush_html(pending); pending = []
+            await _flush_html([block])
+            for doc in supporting_docs:
+                await _add_remote_pdf(doc.stored_path)
+            _appendix_done = True
+
+        else:
+            pending.append(block)
+
+    # Flush any remaining HTML-only blocks (custom_text, divider, etc.)
+    await _flush_html(pending)
+
+    # Safety fallback: if any attachment type was absent from the config blocks,
+    # still append its PDFs so documents are never silently dropped.
+    if not _evidence_done:
+        for posting in position.job_postings:
+            for round_ in capture_rounds:
+                for result in round_.results:
+                    if result.job_posting_id != posting.id:
+                        continue
+                    if result.status != "done" or not result.page_pdf_url:
+                        continue
+                    await _add_remote_pdf(result.page_pdf_url)
+    if not _job_match_done:
+        for jm_doc in job_match_docs:
+            await _add_remote_pdf(jm_doc.stored_path)
+    if not _appendix_done:
+        for doc in supporting_docs:
+            await _add_remote_pdf(doc.stored_path)
 
     # ── Write merged PDF and upload to Supabase ───────────────────────────
     output = io.BytesIO()

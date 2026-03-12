@@ -31,6 +31,26 @@ export const reports = {
     return base
   },
 
+  generateWithConfig: async (
+    employerId: number,
+    positionId: number,
+    config: ReportConfigPayload,
+    opts?: { removeBlankPages?: boolean },
+  ): Promise<Blob> => {
+    const base = `${BASE}/api/employers/${employerId}/positions/${positionId}/reports/generate`
+    const qs = opts?.removeBlankPages ? '?remove_blank_pages=true' : ''
+    const res = await fetch(`${base}${qs}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ config }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error((body as { detail?: string })?.detail ?? `Server error: ${res.status}`)
+    }
+    return res.blob()
+  },
+
   previewHtml: async (
     employerId: number,
     positionId: number,
@@ -47,4 +67,5 @@ export const reports = {
     if (!res.ok) throw new Error(`Preview failed: ${res.status}`)
     return res.text()
   },
+
 }
