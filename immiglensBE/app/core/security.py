@@ -43,6 +43,7 @@ def decode_token(token: str) -> int:
 # ── User DB helpers ───────────────────────────────────────────────────────────
 
 async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
+    email = email.strip().lower()
     result = await db.execute(select(User).where(User.email == email))
     return result.scalar_one_or_none()
 
@@ -51,7 +52,7 @@ async def create_user(
     db: AsyncSession, email: str, password: str, full_name: str
 ) -> User:
     user = User(
-        email=email,
+        email=email.strip().lower(),
         hashed_password=hash_password(password),
         full_name=full_name,
     )

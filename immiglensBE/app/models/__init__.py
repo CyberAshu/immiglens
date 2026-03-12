@@ -10,6 +10,8 @@ from app.models.notification import NotificationPreference, NotificationLog, Not
 from app.models.organization import Organization, OrgMembership, OrgInvitation, OrgRole
 from app.models.change_detection import PostingSnapshot
 from app.models.report_config import ReportConfig
+from app.models.otp import OTPRecord
+from app.models.trusted_device import TrustedDevice
 
 __all__ = [
     "User",
@@ -34,4 +36,6 @@ __all__ = [
     "OrgRole",
     "PostingSnapshot",
     "ReportConfig",
+    "OTPRecord",
+    "TrustedDevice",
 ]

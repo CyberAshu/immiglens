@@ -44,5 +44,11 @@ class Settings(BaseSettings):
     # ── Invitation token expiry ───────────────────────────────────────────────
     INVITATION_EXPIRE_HOURS: int = 72
 
+    # ── OTP ──────────────────────────────────────────────────────────────────────
+    OTP_EXPIRE_MINUTES: int = 10
+
+    # ── Trusted device ──────────────────────────────────────────────────────
+    TRUSTED_DEVICE_DAYS: int = 30
+
 
 settings = Settings()

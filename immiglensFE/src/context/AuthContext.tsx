@@ -12,7 +12,7 @@ import type { User } from '../types'
 interface AuthContextValue {
   user: User | null
   token: string | null
-  login: (email: string, password: string) => Promise<void>
+  loginWithToken: (token: string) => Promise<User>
   logout: () => void
   loading: boolean
 }
@@ -33,22 +33,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false))
   }, [token])
 
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await auth.login(email, password)
-    localStorage.setItem('token', res.access_token)
-    setToken(res.access_token)
+  const loginWithToken = useCallback(async (accessToken: string): Promise<User> => {
+    localStorage.setItem('token', accessToken)
+    setToken(accessToken)
     const me = await auth.me()
     setUser(me)
+    return me
   }, [])
 
   const logout = useCallback(() => {
     localStorage.removeItem('token')
+    auth.clearDeviceToken()
     setToken(null)
     setUser(null)
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, loginWithToken, logout, loading }}>
       {children}
     </AuthContext.Provider>
   )
