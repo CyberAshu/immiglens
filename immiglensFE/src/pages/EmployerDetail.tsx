@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { employers as employersApi, positions as positionsApi } from '../api'
+import { employers as employersApi, positions as positionsApi, subscriptions as subscriptionsApi } from '../api'
 import type { Employer, JobPosition } from '../types'
+import AddressAutocomplete from '../components/AddressAutocomplete'
 
 export default function EmployerDetail() {
   const { employerId } = useParams<{ employerId: string }>()
@@ -10,6 +11,8 @@ export default function EmployerDetail() {
   const [employer, setEmployer] = useState<Employer | null>(null)
   const [positionList, setPositionList] = useState<JobPosition[]>([])
   const [loading, setLoading] = useState(true)
+  const [minFreq, setMinFreq] = useState(7)
+  const [isCustomFreq, setIsCustomFreq] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
     job_title: '', noc_code: '', num_positions: 1, start_date: '',
@@ -19,10 +22,14 @@ export default function EmployerDetail() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([employersApi.list(), positionsApi.list(id)])
-      .then(([emps, pos]) => {
+    Promise.all([employersApi.list(), positionsApi.list(id), subscriptionsApi.usage()])
+      .then(([emps, pos, usage]) => {
         setEmployer(emps.find(e => e.id === id) ?? null)
         setPositionList(pos)
+        const freq = usage.tier.min_capture_frequency_days ?? 7
+        setMinFreq(freq)
+        setIsCustomFreq(false)
+        setForm(f => ({ ...f, capture_frequency_days: freq }))
       })
       .finally(() => setLoading(false))
   }, [id])
@@ -44,7 +51,8 @@ export default function EmployerDetail() {
       })
       setPositionList(prev => [created, ...prev])
       setShowForm(false)
-      setForm({ job_title: '', noc_code: '', num_positions: 1, start_date: '', capture_frequency_days: 7, wage: '', wage_stream: '', work_location: '' })
+      setIsCustomFreq(false)
+      setForm({ job_title: '', noc_code: '', num_positions: 1, start_date: '', capture_frequency_days: minFreq, wage: '', wage_stream: '', work_location: '' })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create position.')
     } finally {
@@ -98,12 +106,43 @@ export default function EmployerDetail() {
               <input type="date" value={form.start_date} onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} required />
             </div>
             <div className="field">
-              <label>Capture Frequency (days)</label>
-              <select value={form.capture_frequency_days} onChange={e => setForm(p => ({ ...p, capture_frequency_days: Number(e.target.value) }))}>
-                <option value={7}>Every 7 days</option>
-                <option value={14}>Every 14 days</option>
-                <option value={28}>Every 28 days</option>
+              <label>Capture Frequency</label>
+              <select
+                value={isCustomFreq ? 'custom' : String(form.capture_frequency_days)}
+                onChange={e => {
+                  if (e.target.value === 'custom') {
+                    setIsCustomFreq(true)
+                  } else {
+                    setIsCustomFreq(false)
+                    setForm(p => ({ ...p, capture_frequency_days: Number(e.target.value) }))
+                  }
+                }}
+              >
+                {[...new Set([minFreq, ...[7, 14, 28].filter(f => f >= minFreq)])]
+                  .sort((a, b) => a - b)
+                  .map(f => (
+                    <option key={f} value={f}>Every {f} day{f !== 1 ? 's' : ''}</option>
+                  ))}
+                <option value="custom">Custom...</option>
               </select>
+              {isCustomFreq && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <input
+                    type="number"
+                    min={minFreq}
+                    value={form.capture_frequency_days}
+                    onChange={e => setForm(p => ({ ...p, capture_frequency_days: Math.max(minFreq, Number(e.target.value)) }))}
+                    style={{ width: '80px' }}
+                    required
+                  />
+                  <span style={{ fontSize: '0.85rem', color: '#555' }}>days (min {minFreq})</span>
+                </div>
+              )}
+              {minFreq > 7 && (
+                <span style={{ fontSize: '0.75rem', color: '#888', marginTop: '0.25rem', display: 'block' }}>
+                  Your plan allows a minimum of {minFreq}-day intervals. Upgrade for more frequent captures.
+                </span>
+              )}
             </div>
             <div className="field">
               <label>Wage / Salary <span style={{fontWeight:400, color:'#888'}}>(optional)</span></label>
@@ -122,7 +161,12 @@ export default function EmployerDetail() {
             </div>
             <div className="field">
               <label>Work Location <span style={{fontWeight:400, color:'#888'}}>(optional)</span></label>
-              <input value={form.work_location} onChange={e => setForm(p => ({ ...p, work_location: e.target.value }))} placeholder="City, Province" />
+              <AddressAutocomplete
+                value={form.work_location}
+                onChange={val => setForm(p => ({ ...p, work_location: val }))}
+                placeholder="City, Province"
+                format="city"
+              />
             </div>
           </div>
           {error && <p className="error-msg">{error}</p>}

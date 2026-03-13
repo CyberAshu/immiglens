@@ -17,7 +17,8 @@ from app.schemas.job import (
     JobPostingCreate,
     JobPostingOut,
 )
-from app.services.scheduler import schedule_captures
+from app.core.permissions import check_employer_limit, check_position_limit, check_capture_frequency
+from app.services.scheduler import schedule_rounds_for_position
 
 router = APIRouter(
     prefix="/api/employers/{employer_id}/positions",
@@ -81,6 +82,8 @@ async def create_position(
     if emp_result.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail="Employer not found.")
 
+    await check_capture_frequency(db, current_user, payload.capture_frequency_days)
+
     position = JobPosition(**payload.model_dump(), employer_id=employer_id)
     db.add(position)
     await db.commit()
@@ -89,9 +92,16 @@ async def create_position(
                      resource_type="position", resource_id=position.id,
                      new_data={"job_title": position.job_title, "employer_id": employer_id})
     await db.commit()
-    await schedule_captures(db, position)
-    await db.refresh(position, ["job_postings"])
-    return position
+    await schedule_rounds_for_position(db, position)
+    result = await db.execute(
+        select(JobPosition)
+        .options(
+            selectinload(JobPosition.job_postings),
+            selectinload(JobPosition.report_documents),
+        )
+        .where(JobPosition.id == position.id)
+    )
+    return result.scalar_one()
 
 
 @router.get("/{position_id}", response_model=JobPositionOut)

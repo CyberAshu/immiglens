@@ -64,6 +64,7 @@ class TierCreate(BaseModel):
     max_positions_per_employer: int = 5
     max_postings_per_position: int = 10
     max_captures_per_month: int = 50
+    min_capture_frequency_days: int = 7
 
 
 class TierUpdate(BaseModel):
@@ -72,6 +73,7 @@ class TierUpdate(BaseModel):
     max_positions_per_employer: Optional[int] = None
     max_postings_per_position: Optional[int] = None
     max_captures_per_month: Optional[int] = None
+    min_capture_frequency_days: Optional[int] = None
     is_active: Optional[bool] = None
 
 

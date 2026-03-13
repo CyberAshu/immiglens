@@ -120,3 +120,20 @@ async def check_monthly_capture_limit(db: AsyncSession, user: User) -> None:
             detail=f"Your plan allows a maximum of {tier.max_captures_per_month} "
                    "completed capture(s) per month. Upgrade to continue.",
         )
+
+
+async def check_capture_frequency(db: AsyncSession, user: User, capture_frequency_days: int) -> None:
+    """Ensure the requested capture frequency is allowed by the user's tier.
+    Higher min_capture_frequency_days means less frequent (more restricted).
+    e.g. min=28 → user must wait ≥28 days between captures.
+    """
+    tier = await _get_tier(db, user)
+    min_freq = getattr(tier, "min_capture_frequency_days", 7)
+    if capture_frequency_days < min_freq:
+        raise HTTPException(
+            status_code=_PAYMENT_REQUIRED,
+            detail=(
+                f"Your plan requires a minimum of {min_freq} day(s) between captures. "
+                f"You selected {capture_frequency_days} day(s). Upgrade to capture more frequently."
+            ),
+        )

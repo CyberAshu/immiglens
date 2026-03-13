@@ -137,6 +137,7 @@
         {% if f.get('show_url', true) %}<th>URL</th>{% endif %}
         {% if f.get('show_start_date', true) %}<th>Posting Start Date</th>{% endif %}
         {% if f.get('show_capture_count', true) %}<th style="text-align:center"># Successful Captures</th>{% endif %}
+        {% if f.get('show_ongoing', true) %}<th style="text-align:center">Ongoing</th>{% endif %}
       </tr>
     </thead>
     <tbody>
@@ -147,6 +148,19 @@
         {% if f.get('show_url', true) %}<td class="url-cell">{{ posting.url }}</td>{% endif %}
         {% if f.get('show_start_date', true) %}<td>{{ position.start_date }}</td>{% endif %}
         {% if f.get('show_capture_count', true) %}<td class="center">{{ stats.count }}</td>{% endif %}
+        {% if f.get('show_ongoing', true) %}
+        <td class="center">
+          {% if today is defined %}
+            {% if today <= recruitment_end %}
+            <span style="color:#16a34a;font-weight:700;">&#10003; Yes</span>
+            {% else %}
+            <span style="color:#dc2626;font-weight:700;">&#10007; No</span>
+            {% endif %}
+          {% else %}
+            <span style="color:#888;">—</span>
+          {% endif %}
+        </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>

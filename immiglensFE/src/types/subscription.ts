@@ -6,6 +6,7 @@ export interface SubscriptionTier {
   max_positions_per_employer: number
   max_postings_per_position: number
   max_captures_per_month: number
+  min_capture_frequency_days: number
   is_active: boolean
   created_at: string
 }

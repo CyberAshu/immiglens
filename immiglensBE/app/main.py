@@ -29,7 +29,7 @@ from app.routers.report_config import client_router as report_config_client_rout
 from app.core.database import AsyncSessionLocal
 from app.services.browser import browser_manager
 from app.services.job_store import store
-from app.services.scheduler import scheduler
+from app.services.scheduler import scheduler, recover_pending_rounds
 
 
 _DEFAULT_TIERS = [
@@ -40,6 +40,7 @@ _DEFAULT_TIERS = [
         "max_positions_per_employer": 5,
         "max_postings_per_position": 10,
         "max_captures_per_month": 50,
+        "min_capture_frequency_days": 28,
     },
     {
         "name": "pro",
@@ -48,6 +49,7 @@ _DEFAULT_TIERS = [
         "max_positions_per_employer": 20,
         "max_postings_per_position": 50,
         "max_captures_per_month": 500,
+        "min_capture_frequency_days": 7,
     },
     {
         "name": "enterprise",
@@ -56,6 +58,7 @@ _DEFAULT_TIERS = [
         "max_positions_per_employer": -1,
         "max_postings_per_position": -1,
         "max_captures_per_month": -1,
+        "min_capture_frequency_days": 1,
     },
 ]
 
@@ -89,6 +92,7 @@ async def lifespan(app: FastAPI):
 
     await browser_manager.start()
     scheduler.start()
+    await recover_pending_rounds()
     purge_task = asyncio.create_task(_purge_loop())
 
     yield

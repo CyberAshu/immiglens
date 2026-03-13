@@ -77,6 +77,7 @@ const SUMMARY_FIELDS: { key: keyof SummaryFields; label: string }[] = [
   { key: 'show_url',           label: 'Job Posting URL column'       },
   { key: 'show_start_date',    label: 'Posting Start Date column'    },
   { key: 'show_capture_count', label: '# Successful Captures column' },
+  { key: 'show_ongoing',       label: 'Ongoing (still active) column' },
 ]
 
 const EVIDENCE_FIELDS: { key: keyof EvidenceFields; label: string }[] = [

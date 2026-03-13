@@ -10,6 +10,7 @@ const EMPTY_FORM: TierCreate = {
   max_positions_per_employer: 5,
   max_postings_per_position: 10,
   max_captures_per_month: 50,
+  min_capture_frequency_days: 28,
 }
 
 export default function AdminTiers() {
@@ -51,6 +52,7 @@ export default function AdminTiers() {
       max_positions_per_employer: tier.max_positions_per_employer,
       max_postings_per_position: tier.max_postings_per_position,
       max_captures_per_month: tier.max_captures_per_month,
+      min_capture_frequency_days: tier.min_capture_frequency_days,
     })
     setShowForm(true)
   }
@@ -167,8 +169,10 @@ export default function AdminTiers() {
                   <div className="tier-limit-row">
                     <span>Captures / month</span>
                     <strong>{tier.max_captures_per_month < 0 ? '∞' : tier.max_captures_per_month}</strong>
-                  </div>
-                </div>
+                  </div>                  <div className="tier-limit-row">
+                    <span>Min capture interval</span>
+                    <strong>Every {tier.min_capture_frequency_days} day(s)</strong>
+                  </div>                </div>
                 <div className="tier-card-actions">
                   <button
                     className="admin-btn admin-btn-secondary"
@@ -309,6 +313,17 @@ export default function AdminTiers() {
                   className="admin-input"
                   value={form.max_captures_per_month}
                   onChange={e => setForm(f => ({ ...f, max_captures_per_month: Number(e.target.value) }))}
+                />
+              </label>
+              <label className="admin-form-label">
+                Min Capture Interval (days)
+                <span className="admin-form-hint">Minimum days between captures. Lower = more frequent. -1 = no restriction.</span>
+                <input
+                  type="number"
+                  min={1}
+                  className="admin-input"
+                  value={form.min_capture_frequency_days}
+                  onChange={e => setForm(f => ({ ...f, min_capture_frequency_days: Number(e.target.value) }))}
                 />
               </label>
             </div>

@@ -19,8 +19,33 @@ from app.services.screenshot import capture
 
 scheduler = AsyncIOScheduler()
 
+async def recover_pending_rounds() -> None:
+    """Re-queue all PENDING capture rounds into APScheduler after a server restart.
+    Without this, rounds scheduled before the restart would never fire.
+    """
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(CaptureRound).where(CaptureRound.status == CaptureStatus.PENDING)
+        )
+        rounds = result.scalars().all()
+        now = datetime.now(timezone.utc)
+        requeued = 0
+        for round_ in rounds:
+            # Run immediately if already overdue, otherwise at the scheduled time
+            run_at = max(round_.scheduled_at, now + timedelta(minutes=2))
+            scheduler.add_job(
+                _run_capture_round,
+                trigger=DateTrigger(run_date=run_at),
+                args=[round_.id],
+                id=f"capture_round_{round_.id}",
+                replace_existing=True,
+            )
+            requeued += 1
+        if requeued:
+            print(f"[Scheduler] Re-queued {requeued} pending capture round(s) after restart.")
 
-async def schedule_captures(db: AsyncSession, position: JobPosition) -> None:
+
+async def schedule_rounds_for_position(db: AsyncSession, position: JobPosition) -> None:
     start = datetime.combine(position.start_date, datetime.min.time()).replace(
         tzinfo=timezone.utc
     )

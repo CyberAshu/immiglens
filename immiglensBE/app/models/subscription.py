@@ -23,6 +23,7 @@ class SubscriptionTier(Base):
     max_positions_per_employer: Mapped[int] = mapped_column(Integer, default=5)
     max_postings_per_position: Mapped[int] = mapped_column(Integer, default=10)
     max_captures_per_month: Mapped[int] = mapped_column(Integer, default=50)
+    min_capture_frequency_days: Mapped[int] = mapped_column(Integer, default=7, server_default="7")
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true"
     )

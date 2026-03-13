@@ -10,6 +10,7 @@ class SubscriptionTierOut(BaseModel):
     max_positions_per_employer: int
     max_postings_per_position: int
     max_captures_per_month: int
+    min_capture_frequency_days: int
     is_active: bool
     created_at: datetime
 

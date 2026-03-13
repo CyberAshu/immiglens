@@ -37,6 +37,7 @@ DEFAULT_CONFIG: dict = {
                 "show_url": True,
                 "show_start_date": True,
                 "show_capture_count": True,
+                "show_ongoing": True,
             },
         },
         {

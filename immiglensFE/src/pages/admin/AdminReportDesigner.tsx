@@ -74,6 +74,7 @@ const SUMMARY_FIELD_LABELS: Record<keyof SummaryFields, string> = {
   show_url:           'Job Posting URL column',
   show_start_date:    'Posting Start Date column',
   show_capture_count: '# Successful Captures column',
+  show_ongoing:       'Ongoing (still active) column',
 }
 
 const EVIDENCE_FIELD_LABELS: Record<keyof EvidenceFields, string> = {

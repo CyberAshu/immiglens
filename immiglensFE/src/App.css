@@ -238,6 +238,17 @@
   text-transform: uppercase;
 }
 
+.optional-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+  background: #4b5563;
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .card-subtitle {
   font-size: 0.85rem;
   color: #666;

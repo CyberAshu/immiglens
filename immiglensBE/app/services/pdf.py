@@ -217,6 +217,7 @@ async def build_pdf(
     supporting_docs = [d for d in report_documents if getattr(d, "doc_type", "supporting") != "job_match"]
 
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    today = datetime.now(timezone.utc).date()
 
     # ── Shared context for all HTML renders ───────────────────────────────
     base_ctx = dict(
@@ -227,6 +228,7 @@ async def build_pdf(
         job_match_docs=job_match_docs,
         platform_stats=platform_stats,
         recruitment_end=recruitment_end,
+        today=today,
         generated_at=generated_at,
         preview_mode=False,
     )

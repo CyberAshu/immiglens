@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Building2, Mail, Phone, Plus, Search, Trash2, User } from 'lucide-react'
 import { employers as employersApi } from '../api'
 import type { Employer } from '../types'
+import AddressAutocomplete from '../components/AddressAutocomplete'
 
 export default function Employers() {
   const [list, setList]       = useState<Employer[]>([])
@@ -163,8 +164,13 @@ export default function Employers() {
               </label>
               <label className="admin-form-label" style={{ gridColumn: 'span 2' }}>
                 Address *
-                <input className="admin-input" value={form.address}
-                  onChange={e => setForm(p => ({ ...p, address: e.target.value }))} required />
+                <AddressAutocomplete
+                  className="admin-input"
+                  value={form.address}
+                  onChange={val => setForm(p => ({ ...p, address: val }))}
+                  placeholder="Start typing an address…"
+                  required
+                />
               </label>
               <label className="admin-form-label">
                 Contact Person *

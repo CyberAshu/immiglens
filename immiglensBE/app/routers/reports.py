@@ -217,6 +217,7 @@ async def preview_report_html(
         job_match_docs=job_match_docs,
         platform_stats=platform_stats,
         recruitment_end=recruitment_end,
+        today=datetime.now(timezone.utc).date(),
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         config=body.config,
         preview_mode=True,

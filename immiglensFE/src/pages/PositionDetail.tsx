@@ -146,8 +146,7 @@ export default function PositionDetail() {
         <button
           className="btn-primary"
           onClick={() => navigate(`/employers/${eId}/positions/${pId}/report-preview`)}
-          disabled={completedRounds === 0 || jobMatchDocs.length === 0}
-          title={jobMatchDocs.length === 0 ? 'Upload a Job Match Activity document first' : undefined}
+          disabled={completedRounds === 0}
         >
           Preview &amp; Download Report
         </button>
@@ -219,13 +218,13 @@ export default function PositionDetail() {
       <section className="card section-top">
         <h2 className="card-title">
           Job Match Activity
-          <span className="mandatory-badge">Mandatory</span>
+          <span className="optional-badge">Optional</span>
         </h2>
         <p className="card-subtitle">
-          Upload the Job Match Activity document (required for the LMIA report).
+          Upload the Job Match Activity document to include it in the LMIA report.
         </p>
         {jobMatchDocs.length === 0 ? (
-          <p className="empty-inline missing-mandatory">⚠ No Job Match Activity document uploaded yet.</p>
+          <p className="empty-inline">No Job Match Activity document uploaded yet.</p>
         ) : (
           <ul className="doc-list">
             {jobMatchDocs.map(doc => (

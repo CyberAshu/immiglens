@@ -18,6 +18,7 @@ export interface SummaryFields {
   show_url: boolean
   show_start_date: boolean
   show_capture_count: boolean
+  show_ongoing: boolean
 }
 
 export interface EvidenceFields {
