@@ -19,6 +19,15 @@ import AdminUsers from './pages/admin/AdminUsers'
 import AdminOrganizations from './pages/admin/AdminOrganizations'
 import AdminTiers from './pages/admin/AdminTiers'
 import AdminReportDesigner from './pages/admin/AdminReportDesigner'
+// Landing pages
+import { LandingLayout } from './pages/landing/LandingLayout'
+import { LandingHome } from './pages/landing/LandingHome'
+import { LandingHowItWorks } from './pages/landing/LandingHowItWorks'
+import { LandingPricing } from './pages/landing/LandingPricing'
+import { LandingSecurity } from './pages/landing/LandingSecurity'
+import { LandingFAQ } from './pages/landing/LandingFAQ'
+import { LandingContact } from './pages/landing/LandingContact'
+import { LandingLegal } from './pages/landing/LandingLegal'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -32,27 +41,39 @@ export default function App() {
     <AuthProvider>
       <Router>
         <Routes>
+          {/* ── Public Landing Pages ─────────────── */}
+          <Route path="/" element={<LandingLayout />}>
+            <Route index element={<LandingHome />} />
+            <Route path="how-it-works" element={<LandingHowItWorks />} />
+            <Route path="pricing" element={<LandingPricing />} />
+            <Route path="security" element={<LandingSecurity />} />
+            <Route path="faq" element={<LandingFAQ />} />
+            <Route path="contact" element={<LandingContact />} />
+            <Route path="legal" element={<LandingLegal />} />
+          </Route>
+
+          {/* ── Auth ─────────────────────────────── */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+
+          {/* ── App (protected) ─────────────────── */}
           <Route
-            path="/"
             element={
               <ProtectedRoute>
                 <Layout />
               </ProtectedRoute>
             }
           >
-            <Route index element={<Navigate to="/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="employers" element={<Employers />} />
-            <Route path="employers/:employerId" element={<EmployerDetail />} />
-            <Route path="employers/:employerId/positions/:positionId" element={<PositionDetail />} />
-            <Route path="employers/:employerId/positions/:positionId/report-preview" element={<ReportPreview />} />
-            <Route path="subscriptions" element={<Subscriptions />} />
-            <Route path="audit-logs" element={<AuditLogs />} />
-            <Route path="notifications" element={<Notifications />} />
-            <Route path="organizations" element={<Organizations />} />
-            <Route path="changes/postings/:postingId" element={<ChangeHistory />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/employers" element={<Employers />} />
+            <Route path="/employers/:employerId" element={<EmployerDetail />} />
+            <Route path="/employers/:employerId/positions/:positionId" element={<PositionDetail />} />
+            <Route path="/employers/:employerId/positions/:positionId/report-preview" element={<ReportPreview />} />
+            <Route path="/subscriptions" element={<Subscriptions />} />
+            <Route path="/audit-logs" element={<AuditLogs />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/organizations" element={<Organizations />} />
+            <Route path="/changes/postings/:postingId" element={<ChangeHistory />} />
           </Route>
 
           {/* ── Separate Admin Panel ─────────────── */}
@@ -64,8 +85,6 @@ export default function App() {
             <Route path="audit-logs" element={<AuditLogs />} />
             <Route path="report-designer" element={<AdminReportDesigner />} />
           </Route>
-
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </Router>
     </AuthProvider>

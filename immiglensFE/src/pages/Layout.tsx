@@ -7,6 +7,7 @@ import {
   CreditCard,
   LayoutDashboard,
   LogOut,
+  ShieldCheck,
   User,
   Users,
 } from 'lucide-react'
@@ -29,7 +30,9 @@ export default function Layout() {
       {/* ── Top bar ─────────────────────────────────── */}
       <nav className="navbar">
         <NavLink to="/dashboard" className="nav-brand">
-          <img src="/immiglens.svg" alt="ImmigLens" style={{ height: '28px', width: '28px', marginRight: '8px', verticalAlign: 'middle' }} />
+          <div style={{ background: '#C8A24A', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ShieldCheck size={20} color="#fff" />
+          </div>
           ImmigLens
         </NavLink>
         <div className="nav-right">

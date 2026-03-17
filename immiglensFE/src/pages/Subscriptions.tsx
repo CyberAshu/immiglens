@@ -4,7 +4,7 @@ import type { UsageSummary } from '../types'
 
 function tierColor(name: string) {
   if (name === 'enterprise') return '#f59e0b'
-  if (name === 'pro')        return '#a78bfa'
+  if (name === 'pro')        return '#0B1F3B'
   return '#64748b'
 }
 
@@ -46,8 +46,8 @@ export default function Subscriptions() {
   const { tier } = data
 
   const metrics = [
-    { label: 'Employers',              used: data.employers_used,       max: tier.max_employers,              color: '#6366f1' },
-    { label: 'Total Positions',        used: data.positions_used,       max: tier.max_positions_per_employer === -1 ? -1 : tier.max_employers * tier.max_positions_per_employer, color: '#22d3ee' },
+  { label: 'Employers',              used: data.employers_used,       max: tier.max_employers,              color: '#0B1F3B' },
+  { label: 'Total Positions',        used: data.positions_used,       max: tier.max_positions_per_employer === -1 ? -1 : tier.max_employers * tier.max_positions_per_employer, color: '#C8A24A' },
     { label: 'Captures This Month',    used: data.captures_this_month,  max: tier.max_captures_per_month,     color: '#22c55e' },
   ]
 

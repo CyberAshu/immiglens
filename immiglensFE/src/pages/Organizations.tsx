@@ -3,7 +3,7 @@ import { organizations as orgApi } from '../api'
 import type { OrgInvitation, OrgMembership, OrgRole, Organization } from '../types'
 
 function RoleBadge({ role }: { role: OrgRole }) {
-  const colors: Record<OrgRole, string> = { owner: '#f59e0b', admin: '#a78bfa', viewer: '#22d3ee' }
+  const colors: Record<OrgRole, string> = { owner: '#C8A24A', admin: '#0B1F3B', viewer: '#6b7280' }
   const labels: Record<OrgRole, string> = { owner: 'Owner', admin: 'Org Admin', viewer: 'Viewer' }
   return (
     <span className="role-pill" style={{ color: colors[role], borderColor: colors[role] }}>

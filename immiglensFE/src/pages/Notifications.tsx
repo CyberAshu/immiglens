@@ -161,7 +161,7 @@ export default function Notifications() {
                     <tr key={l.id}>
                       <td className="text-dim mono">{new Date(l.created_at).toLocaleString()}</td>
                       <td>
-                        <span className="status-dot" style={{ color: STATUS_COLOR[l.status] ?? '#888' }}>
+                        <span className="status-dot" style={{ color: STATUS_COLOR[l.status] ?? '#6b7280' }}>
                           ● {l.status}
                         </span>
                       </td>

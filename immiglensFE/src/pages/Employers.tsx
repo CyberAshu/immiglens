@@ -218,7 +218,7 @@ export default function Employers() {
           background: #1e293b; border: 1px solid #334155; border-radius: 7px;
           color: #e2e8f0; font-size: 0.875rem; transition: border-color .15s;
         }
-        .emp-search-input:focus { outline: none; border-color: #6366f1; }
+        .emp-search-input:focus { outline: none; border-color: #0B1F3B; }
         .emp-search-input::placeholder { color: #475569; }
 
         .emp-name-cell { display: flex; align-items: center; gap: 8px; }

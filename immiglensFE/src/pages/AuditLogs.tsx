@@ -6,7 +6,7 @@ const ACTION_COLORS: Record<string, string> = {
   CREATE: '#22c55e',
   UPDATE: '#f59e0b',
   DELETE: '#ef4444',
-  VIEW:   '#6366f1',
+  VIEW:   '#0B1F3B',
 }
 
 const RESOURCE_TYPES = ['', 'employer', 'position', 'posting', 'capture_round', 'organization', 'org_invitation', 'org_member', 'user', 'subscription_tier']
@@ -78,7 +78,7 @@ export default function AuditLogs() {
                   <tr key={log.id}>
                     <td className="mono text-dim">{new Date(log.created_at).toLocaleString()}</td>
                     <td>
-                      <span className="action-badge" style={{ color: ACTION_COLORS[log.action] ?? '#888', borderColor: ACTION_COLORS[log.action] ?? '#444' }}>
+                      <span className="action-badge" style={{ color: ACTION_COLORS[log.action] ?? '#6b7280', borderColor: ACTION_COLORS[log.action] ?? '#d1d5db' }}>
                         {log.action}
                       </span>
                     </td>

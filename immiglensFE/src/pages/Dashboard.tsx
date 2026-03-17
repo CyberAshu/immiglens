@@ -9,18 +9,18 @@ import type { DashboardStats, UsageSummary } from '../types'
 import { StatCard } from '../components/StatCard'
 
 function planColor(name: string) {
-  if (name === 'enterprise') return '#f59e0b'
-  if (name === 'pro')        return '#a78bfa'
-  return '#64748b'
+  if (name === 'enterprise') return '#C8A24A'
+  if (name === 'pro')        return '#0B1F3B'
+  return '#6b7280'
 }
 
 const STAT_CARDS = (s: DashboardStats) => [
-  { label: 'Employers',          value: s.total_employers,    accent: '#6366f1' },
-  { label: 'Job Positions',      value: s.total_positions,    accent: '#22d3ee' },
-  { label: 'Job Board URLs',     value: s.total_job_postings, accent: '#a78bfa' },
+  { label: 'Employers',          value: s.total_employers,    accent: '#0B1F3B' },
+  { label: 'Job Positions',      value: s.total_positions,    accent: '#C8A24A' },
+  { label: 'Job Board URLs',     value: s.total_job_postings, accent: '#1a3352' },
   { label: 'Rounds Completed',   value: `${s.completed_rounds}/${s.total_capture_rounds}`, accent: '#22c55e' },
   { label: 'Rounds Pending',     value: s.pending_rounds,     accent: '#f59e0b' },
-  { label: 'Screenshots',        value: s.total_screenshots,  accent: '#38bdf8' },
+  { label: 'Screenshots',        value: s.total_screenshots,  accent: '#0B1F3B' },
   { label: 'Failed Captures',    value: s.failed_screenshots, accent: '#ef4444', warn: true },
 ]
 
@@ -103,12 +103,12 @@ export default function Dashboard() {
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{ background: '#1a1a2e', border: '1px solid #2e2e44', borderRadius: 8, fontSize: 12 }}
-                  itemStyle={{ color: '#e8e8f0' }}
+                  contentStyle={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}
+                  itemStyle={{ color: '#1E2329' }}
                 />
                 <Legend
                   iconType="circle" iconSize={8}
-                  wrapperStyle={{ fontSize: 11, color: '#aaa', paddingTop: 8 }}
+                  wrapperStyle={{ fontSize: 11, color: '#6b7280', paddingTop: 8 }}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -120,18 +120,18 @@ export default function Dashboard() {
               <div className="chart-title">Screenshots by Employer</div>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={statsData.employer_breakdown} barGap={4} barCategoryGap="30%">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e1e2e" />
-                  <XAxis dataKey="name" tick={{ fill: '#888', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: '#888', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                  <XAxis dataKey="name" tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip
-                    cursor={{ fill: 'rgba(99,102,241,0.08)' }}
-                    contentStyle={{ background: '#1a1a2e', border: '1px solid #2e2e44', borderRadius: 8, fontSize: 12 }}
-                    itemStyle={{ color: '#e8e8f0' }}
+                    cursor={{ fill: 'rgba(11,31,59,0.04)' }}
+                    contentStyle={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}
+                    itemStyle={{ color: '#1E2329' }}
                   />
-                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, color: '#aaa' }} />
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, color: '#6b7280' }} />
                   <Bar dataKey="screenshots" name="Successful" fill="#22c55e" radius={[4,4,0,0]} />
                   <Bar dataKey="failed"      name="Failed"     fill="#ef4444" radius={[4,4,0,0]} />
-                  <Bar dataKey="positions"   name="Positions"  fill="#6366f1" radius={[4,4,0,0]} />
+                  <Bar dataKey="positions"   name="Positions"  fill="#0B1F3B" radius={[4,4,0,0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -149,24 +149,24 @@ export default function Dashboard() {
                       <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
                     </linearGradient>
                     <linearGradient id="gradPending" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#6366f1" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                      <stop offset="5%"  stopColor="#C8A24A" stopOpacity={0.3}/>
+                      <stop offset="95%"  stopColor="#C8A24A" stopOpacity={0}/>
                     </linearGradient>
                     <linearGradient id="gradFailed" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%"  stopColor="#ef4444" stopOpacity={0.3}/>
                       <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e1e2e" />
-                  <XAxis dataKey="date" tick={{ fill: '#888', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fill: '#888', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                  <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
                   <Tooltip
-                    contentStyle={{ background: '#1a1a2e', border: '1px solid #2e2e44', borderRadius: 8, fontSize: 12 }}
-                    itemStyle={{ color: '#e8e8f0' }}
+                    contentStyle={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}
+                    itemStyle={{ color: '#1E2329' }}
                   />
-                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, color: '#aaa' }} />
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, color: '#6b7280' }} />
                   <Area type="monotone" dataKey="completed" name="Completed" stroke="#22c55e" fill="url(#gradCompleted)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="pending"   name="Pending"   stroke="#6366f1" fill="url(#gradPending)"   strokeWidth={2} dot={false} />
+                  <Area type="monotone" dataKey="pending"   name="Pending"   stroke="#C8A24A" fill="url(#gradPending)"   strokeWidth={2} dot={false} />
                   <Area type="monotone" dataKey="failed"    name="Failed"    stroke="#ef4444" fill="url(#gradFailed)"    strokeWidth={2} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
