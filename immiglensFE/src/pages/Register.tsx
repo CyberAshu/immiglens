@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { auth } from '../api'
+import { ShieldCheck } from 'lucide-react'
 
 function pwStrengthLevel(pw: string): 0 | 1 | 2 | 3 {
   if (!pw) return 0
@@ -45,13 +46,17 @@ export default function Register() {
     <div className="auth-page">
       <div className="auth-card">
 
-        {/* Brand */}
-        <div className="auth-logo">
-          <div className="auth-logo-mark">IL</div>
-          <span className="auth-logo-text">ImmigLens</span>
+        {/* Brand — centered icon */}
+        <div className="auth-logo" style={{ justifyContent: 'center', marginBottom: '2rem' }}>
+          <Link to="/" style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '0.6rem', textDecoration: 'none' }}>
+            <div className="auth-logo-mark" style={{ width: 52, height: 52, borderRadius: 14, fontSize: 'unset', boxShadow: '0 4px 20px rgba(11,31,59,0.25)' }}>
+              <ShieldCheck size={26} color="#C8A24A" strokeWidth={2.5} />
+            </div>
+            <span className="auth-logo-text" style={{ fontSize: '1.1rem' }}>ImmigLens</span>
+          </Link>
         </div>
 
-        <div className="auth-header">
+        <div className="auth-header" style={{ textAlign: 'center' }}>
           <h1 className="auth-title">Create account</h1>
           <p className="auth-sub">Start tracking LMIA recruitment proof</p>
         </div>
@@ -131,11 +136,10 @@ export default function Register() {
           </button>
         </form>
 
-        <p className="auth-alt">
+        <p className="auth-alt" style={{ textAlign: 'center' }}>
           Already have an account?{' '}
           <Link to="/login">Sign in</Link>
         </p>
-        <p className="auth-brand-note">LMIA Recruitment Proof System</p>
 
       </div>
     </div>
