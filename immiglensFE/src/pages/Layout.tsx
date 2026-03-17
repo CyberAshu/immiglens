@@ -39,15 +39,20 @@ export default function Layout() {
       {/* ── Top bar ─────────────────────────────────── */}
       <nav className="navbar">
         <NavLink to="/dashboard" className="nav-brand">
-          <div style={{ background: '#C8A24A', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <ShieldCheck size={20} color="#fff" />
+          <div className="nav-brand-icon">
+            <ShieldCheck size={18} color="#fff" strokeWidth={2.5} />
           </div>
           ImmigLens
         </NavLink>
         <div className="nav-right">
-          <span className="nav-user"><User size={14} strokeWidth={2} />{user?.full_name}</span>
-          <button className="btn-ghost btn-sm" onClick={handleLogout}>
-            <LogOut size={14} strokeWidth={2} />Logout
+          <span className="nav-user">
+            <span className="nav-user-avatar"><User size={13} strokeWidth={2.5} /></span>
+            {user?.full_name}
+          </span>
+          <div className="nav-divider" />
+          <button className="nav-logout" onClick={handleLogout}>
+            <LogOut size={13} strokeWidth={2} />
+            Logout
           </button>
         </div>
       </nav>
@@ -55,24 +60,29 @@ export default function Layout() {
       <div className="app-body">
         {/* ── Sidebar ─────────────────────────────────── */}
         <aside className="sidebar">
+          <span className="sidebar-section-label">Navigation</span>
           <nav className="sidebar-nav">
             <NavLink to="/dashboard" className={navCls} end>
-              <LayoutDashboard size={16} strokeWidth={2} />Dashboard
+              <LayoutDashboard size={15} strokeWidth={2} />Dashboard
             </NavLink>
             <NavLink to="/employers" className={navCls}>
-              <Building2 size={16} strokeWidth={2} />Employers
+              <Building2 size={15} strokeWidth={2} />Employers
             </NavLink>
             <NavLink to="/organizations" className={navCls}>
-              <Users size={16} strokeWidth={2} />Organizations
+              <Users size={15} strokeWidth={2} />Organizations
             </NavLink>
             <NavLink to="/notifications" className={navCls}>
-              <Bell size={16} strokeWidth={2} />Notifications
+              <Bell size={15} strokeWidth={2} />Notifications
             </NavLink>
             <NavLink to="/audit-logs" className={navCls}>
-              <ClipboardList size={16} strokeWidth={2} />Audit Logs
+              <ClipboardList size={15} strokeWidth={2} />Audit Logs
             </NavLink>
+          </nav>
+          <div className="sidebar-separator" />
+          <span className="sidebar-section-label">Account</span>
+          <nav className="sidebar-nav">
             <NavLink to="/subscriptions" className={navCls}>
-              <CreditCard size={16} strokeWidth={2} />My Plan
+              <CreditCard size={15} strokeWidth={2} />My Plan
             </NavLink>
           </nav>
         </aside>
