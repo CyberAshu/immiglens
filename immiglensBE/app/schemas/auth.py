@@ -3,11 +3,8 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, field_validator
 
 
-def _normalize_gmail(v: str) -> str:
-    normalized = v.strip().lower()
-    if not normalized.endswith("@gmail.com"):
-        raise ValueError("Only Gmail addresses (@gmail.com) are accepted.")
-    return normalized
+def _normalize_email(v: str) -> str:
+    return v.strip().lower()
 
 
 class RegisterRequest(BaseModel):
@@ -17,8 +14,8 @@ class RegisterRequest(BaseModel):
 
     @field_validator("email", mode="before")
     @classmethod
-    def validate_gmail(cls, v: str) -> str:
-        return _normalize_gmail(v)
+    def normalize_email(cls, v: str) -> str:
+        return _normalize_email(v)
 
 
 class LoginRequest(BaseModel):
@@ -28,8 +25,8 @@ class LoginRequest(BaseModel):
 
     @field_validator("email", mode="before")
     @classmethod
-    def validate_gmail(cls, v: str) -> str:
-        return _normalize_gmail(v)
+    def normalize_email(cls, v: str) -> str:
+        return _normalize_email(v)
 
 
 class OTPVerifyRequest(BaseModel):
@@ -39,8 +36,8 @@ class OTPVerifyRequest(BaseModel):
 
     @field_validator("email", mode="before")
     @classmethod
-    def validate_gmail(cls, v: str) -> str:
-        return _normalize_gmail(v)
+    def normalize_email(cls, v: str) -> str:
+        return _normalize_email(v)
 
 
 class TokenResponse(BaseModel):

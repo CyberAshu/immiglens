@@ -316,14 +316,14 @@ export default function Login() {
 
         <form onSubmit={handleCredentials} className="auth-form">
           <div className="auth-field">
-            <label className="auth-label">Gmail Address</label>
+            <label className="auth-label">Work Email</label>
             <input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
               autoFocus
-              placeholder="you@gmail.com"
+              placeholder="you@company.com"
             />
           </div>
 
