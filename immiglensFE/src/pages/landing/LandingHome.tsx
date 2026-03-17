@@ -9,137 +9,175 @@ import {
   ListTodo,
   Download,
   Settings,
+  User,
   Users,
   Briefcase,
   Building,
-  Link as LinkIcon,
 } from 'lucide-react'
 import { FeatureCard, StepCard, CTABand, PricingCard } from './LandingUI'
 
-// ── Hero Mockup (matches SupportCode/Mockups.tsx) ──────────────────────────────
+// ── Hero Mockup — mirrors the real app dashboard ─────────────────────────────
 function HeroMockup() {
+  const stats = [
+    { label: 'Employers',      value: '4',   accent: '#0B1F3B' },
+    { label: 'Job Positions',  value: '8',   accent: '#C8A24A' },
+    { label: 'Job Board URLs', value: '12',  accent: '#1a3352' },
+    { label: 'Rounds Done',    value: '6/8', accent: '#22c55e' },
+    { label: 'Pending',        value: '2',   accent: '#f59e0b' },
+    { label: 'Screenshots',    value: '47',  accent: '#0B1F3B' },
+  ]
+  const sidebarLinks = ['Dashboard','Employers','Organizations','Notifications','Audit Logs']
+  const bars = [
+    { name: 'Maple',  done: 100, failed: 13 },
+    { name: 'NorCan', done: 75,  failed: 0  },
+    { name: 'Peak',   done: 63,  failed: 13 },
+    { name: 'Bright', done: 56,  failed: 6  },
+  ]
+
   return (
     <div className="relative w-full max-w-2xl mx-auto xl:max-w-none">
-      <div className="absolute inset-0 bg-gradient-to-tr from-brand-gold/20 to-brand-navy/5 rounded-3xl transform rotate-3 scale-105 z-0 pointer-events-none transition-transform duration-700 hover:rotate-6" />
+      {/* Glow backdrop */}
+      <div className="absolute inset-0 bg-gradient-to-tr from-brand-gold/20 to-brand-navy/5 rounded-3xl transform rotate-3 scale-105 z-0 pointer-events-none transition-transform duration-700" />
 
-      <div className="relative z-10 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col h-[500px]">
-        {/* App Header */}
-        <div className="h-14 border-b border-gray-100 flex items-center justify-between px-6 bg-gray-50/50">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-brand-navy rounded-lg flex items-center justify-center text-brand-gold">
-              <span className="text-xs font-bold">LV</span>
+      {/* Shell */}
+      <div className="relative z-10 rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col select-none"
+        style={{ height: 490, background: '#F6F4EF' }}>
+
+        {/* ── Navbar ── */}
+        <div className="flex items-center justify-between flex-shrink-0 px-5"
+          style={{ height: 52, background: '#0B1F3B', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center flex-shrink-0"
+              style={{ width: 30, height: 30, borderRadius: 9, background: 'linear-gradient(135deg,#C8A24A,#e0b95a)', boxShadow: '0 2px 8px rgba(200,162,74,0.35)' }}>
+              <Shield size={14} color="#fff" strokeWidth={2.5} />
             </div>
-            <span className="font-semibold text-brand-navy">Dashboard</span>
+            <span style={{ fontWeight: 800, color: '#fff', fontSize: 13, letterSpacing: '-0.4px' }}>ImmigLens</span>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-xs font-medium px-3 py-1.5 bg-brand-offwhite text-brand-charcoal rounded-md border border-gray-200 shadow-sm">
-              Active Postings <span className="font-bold text-brand-navy">8/25</span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.82)', fontSize: 11 }}>
+              <div className="flex items-center justify-center"
+                style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(200,162,74,0.2)', border: '1px solid rgba(200,162,74,0.4)' }}>
+                <User size={11} color="#C8A24A" />
+              </div>
+              Sarah Chen
             </div>
-            <div className="w-8 h-8 rounded-full bg-gray-200 border-2 border-white shadow-sm flex items-center justify-center text-gray-500">
-              <Settings size={14} />
-            </div>
+            <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)' }} />
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 5, padding: '3px 8px' }}>Logout</div>
           </div>
         </div>
 
+        {/* ── Body ── */}
         <div className="flex flex-1 overflow-hidden">
+
           {/* Sidebar */}
-          <div className="w-48 border-r border-gray-100 bg-gray-50/30 p-4 hidden sm:flex flex-col gap-2">
-            {[
-              { icon: FileText, label: 'Job Positions', active: true },
-              { icon: Clock, label: 'Schedules' },
-              { icon: Download, label: 'Reports' },
-              { icon: Settings, label: 'Settings' },
-            ].map((item, i) => (
-              <div
-                key={i}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  item.active ? 'bg-brand-navy text-white shadow-md' : 'text-brand-charcoal hover:bg-gray-100'
-                }`}
-              >
-                <item.icon size={16} />
-                <span className="font-medium">{item.label}</span>
+          <div className="flex flex-col flex-shrink-0 py-4 px-2.5"
+            style={{ width: 152, background: '#0B1F3B', borderRight: '1px solid rgba(255,255,255,0.07)' }}>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)', padding: '0 8px', marginBottom: 6 }}>Navigation</div>
+            {sidebarLinks.map((label, i) => (
+              <div key={label} className="relative flex items-center gap-2 rounded-lg" style={{
+                padding: '7px 10px', marginBottom: 2,
+                background: i === 0 ? 'rgba(200,162,74,0.14)' : 'transparent',
+                color: i === 0 ? '#d4aa55' : 'rgba(255,255,255,0.42)',
+                fontSize: 11, fontWeight: i === 0 ? 600 : 500,
+              }}>
+                {i === 0 && <div style={{ position: 'absolute', left: 0, top: '20%', bottom: '20%', width: 3, background: '#C8A24A', borderRadius: '0 3px 3px 0' }} />}
+                <div style={{ width: 14, height: 14, borderRadius: 4, background: i === 0 ? 'rgba(200,162,74,0.25)' : 'rgba(255,255,255,0.06)', flexShrink: 0 }} />
+                {label}
               </div>
             ))}
+            <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '8px 6px' }} />
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)', padding: '0 8px', marginBottom: 6 }}>Account</div>
+            <div className="flex items-center gap-2 rounded-lg" style={{ padding: '7px 10px', color: 'rgba(255,255,255,0.38)', fontSize: 11 }}>
+              <div style={{ width: 14, height: 14, borderRadius: 4, background: 'rgba(255,255,255,0.06)', flexShrink: 0 }} />
+              My Plan
+            </div>
           </div>
 
-          {/* Main Content */}
-          <div className="flex-1 p-6 bg-white overflow-y-auto">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h2 className="text-xl font-bold text-brand-navy">Software Engineer</h2>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Active
-                  </span>
-                  <span className="text-sm text-gray-500 flex items-center gap-1">
-                    <Clock size={14} /> Every 14 days for 8 weeks
-                  </span>
+          {/* Main content */}
+          <div className="flex-1 overflow-hidden flex flex-col gap-3 p-4" style={{ background: '#F6F4EF' }}>
+
+            {/* Page title */}
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#0B1F3B', lineHeight: 1 }}>Dashboard</div>
+
+            {/* Plan strip */}
+            <div className="flex items-center gap-3 flex-shrink-0" style={{
+              background: '#fff', border: '1px solid #e5e7eb', borderLeft: '3px solid #C8A24A',
+              borderRadius: 10, padding: '7px 14px', fontSize: 10,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+            }}>
+              <div className="flex items-center gap-1.5">
+                <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#C8A24A' }} />
+                <span style={{ fontWeight: 700, color: '#0B1F3B', fontSize: 11 }}>Pro Plan</span>
+              </div>
+              <div style={{ width: 1, height: 14, background: '#e5e7eb' }} />
+              <span style={{ color: '#6b7280' }}>Employers <strong style={{ color: '#0B1F3B' }}>4/10</strong></span>
+              <span style={{ color: '#6b7280' }}>Captures <strong style={{ color: '#0B1F3B' }}>47/50</strong></span>
+              <span style={{ color: '#6b7280' }}>Positions <strong style={{ color: '#0B1F3B' }}>8</strong></span>
+              <span style={{ color: '#C8A24A', fontWeight: 600, marginLeft: 'auto', fontSize: 10 }}>View Plan →</span>
+            </div>
+
+            {/* Stat cards */}
+            <div className="grid grid-cols-3 gap-2 flex-shrink-0">
+              {stats.map(s => (
+                <div key={s.label} style={{
+                  background: '#fff', borderRadius: 10, padding: '8px 12px',
+                  border: '1px solid #e5e7eb', borderTop: `3px solid ${s.accent}`,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                }}>
+                  <div style={{ fontSize: 9, color: '#9ca3af', fontWeight: 600, marginBottom: 3 }}>{s.label}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: s.accent, lineHeight: 1 }}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Charts */}
+            <div className="flex gap-2" style={{ flex: 1, minHeight: 0 }}>
+
+              {/* Donut */}
+              <div style={{ width: 120, background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9ca3af', marginBottom: 6 }}>Capture Status</div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="72" height="72" viewBox="0 0 70 70">
+                    <circle cx="35" cy="35" r="25" fill="none" stroke="#f3f4f6" strokeWidth="10"/>
+                    <circle cx="35" cy="35" r="25" fill="none" stroke="#22c55e" strokeWidth="10"
+                      strokeDasharray="94 63" transform="rotate(-90 35 35)"/>
+                    <circle cx="35" cy="35" r="25" fill="none" stroke="#C8A24A" strokeWidth="10"
+                      strokeDasharray="25 132" strokeDashoffset="-94" transform="rotate(-90 35 35)"/>
+                    <circle cx="35" cy="35" r="25" fill="none" stroke="#ef4444" strokeWidth="10"
+                      strokeDasharray="10 147" strokeDashoffset="-119" transform="rotate(-90 35 35)"/>
+                    <text x="35" y="39" textAnchor="middle" fill="#0B1F3B" fontSize="12" fontWeight="700">47</text>
+                  </svg>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  {[{ c: '#22c55e', l: 'Done 60%' }, { c: '#C8A24A', l: 'Pending 16%' }, { c: '#ef4444', l: 'Failed 6%' }].map(x => (
+                    <div key={x.l} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#6b7280' }}>
+                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: x.c, flexShrink: 0 }} />{x.l}
+                    </div>
+                  ))}
                 </div>
               </div>
-              <div className="bg-brand-gold text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm cursor-default">
-                <Download size={16} /> Generate LMIA Report (PDF)
-              </div>
-            </div>
 
-            {/* Tracked Postings */}
-            <div className="bg-brand-offwhite rounded-xl p-5 mb-6 border border-gray-100 shadow-sm">
-              <h3 className="text-sm font-bold text-brand-navy mb-3 flex items-center gap-2">
-                <LinkIcon size={16} /> Tracked Postings (3)
-              </h3>
-              <div className="space-y-2">
-                {['Indeed', 'Job Bank', 'LinkedIn'].map((platform, i) => (
-                  <div key={i} className="flex items-center justify-between bg-white px-4 py-2.5 rounded-lg border border-gray-100 shadow-sm">
-                    <div className="flex items-center gap-3">
-                      <div className="w-6 h-6 rounded bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600">
-                        {platform[0]}
+              {/* Bar chart */}
+              <div style={{ flex: 1, background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: '10px 12px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9ca3af', marginBottom: 8 }}>Screenshots by Employer</div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: 8, padding: '0 4px' }}>
+                  {bars.map(d => (
+                    <div key={d.name} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                      <div style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 2 }}>
+                        <div style={{ width: 9, height: `${d.done}px`, background: '#22c55e', borderRadius: '3px 3px 0 0' }} />
+                        {d.failed > 0 && <div style={{ width: 9, height: `${d.failed}px`, background: '#ef4444', borderRadius: '3px 3px 0 0' }} />}
                       </div>
-                      <span className="text-sm font-medium text-brand-charcoal">{platform}</span>
+                      <div style={{ fontSize: 8, color: '#9ca3af', marginTop: 3 }}>{d.name}</div>
                     </div>
-                    <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-0.5 rounded border border-green-100">Verified</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Capture Timeline */}
-            <div>
-              <h3 className="text-sm font-bold text-brand-navy mb-4">Capture Timeline</h3>
-              <div className="relative pl-4 border-l-2 border-brand-navy/10 space-y-6">
-                {[
-                  { date: 'Oct 12, 2023', time: '10:00 AM', status: 'completed' },
-                  { date: 'Oct 26, 2023', time: '10:00 AM', status: 'completed' },
-                  { date: 'Nov 09, 2023', time: '10:00 AM', status: 'scheduled' },
-                ].map((capture, i) => (
-                  <div key={i} className="relative">
-                    <div className={`absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full border-2 ${
-                      capture.status === 'completed' ? 'bg-brand-gold border-brand-gold' : 'bg-white border-gray-300'
-                    }`} />
-                    <div className="bg-white border border-gray-100 rounded-lg p-4 shadow-sm">
-                      <div className="flex justify-between items-center mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-brand-navy">{capture.date}</span>
-                          <span className="text-xs text-gray-500">{capture.time}</span>
-                        </div>
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
-                          capture.status === 'completed'
-                            ? 'bg-green-50 text-green-700 border-green-200'
-                            : 'bg-gray-50 text-gray-600 border-gray-200'
-                        }`}>
-                          {capture.status === 'completed' ? 'Captured (3/3)' : 'Scheduled'}
-                        </span>
-                      </div>
-                      {capture.status === 'completed' && (
-                        <div className="flex gap-2 mt-3">
-                          {[1, 2, 3].map((img) => (
-                            <div key={img} className="w-12 h-10 bg-gray-100 rounded border border-gray-200 flex items-center justify-center">
-                              <FileText size={14} className="text-gray-400" />
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 10, marginTop: 8, paddingTop: 6, borderTop: '1px solid #f3f4f6' }}>
+                  {[{ c: '#22c55e', l: 'Successful' }, { c: '#ef4444', l: 'Failed' }].map(x => (
+                    <div key={x.l} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#6b7280' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: 2, background: x.c }} />{x.l}
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -148,9 +186,9 @@ function HeroMockup() {
     </div>
   )
 }
-
 export function LandingHome() {
   return (
+
     <div className="flex flex-col min-h-screen w-full overflow-hidden">
       {/* A) HERO */}
       <section className="relative pt-24 pb-32 lg:pt-36 lg:pb-40 overflow-hidden">
