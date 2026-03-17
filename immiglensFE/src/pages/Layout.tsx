@@ -1,5 +1,7 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { BackToTop } from '../components/BackToTop'
 import {
   Bell,
   Building2,
@@ -16,6 +18,13 @@ import '../App.css'
 export default function Layout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const mainRef = useRef<HTMLElement>(null)
+  const location = useLocation()
+
+  // Scroll page-main to top on every route change
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [location.pathname])
 
   function handleLogout() {
     logout()
@@ -36,9 +45,9 @@ export default function Layout() {
           ImmigLens
         </NavLink>
         <div className="nav-right">
-          <span className="nav-user"><User size={14} strokeWidth={2} style={{ marginRight: 5, verticalAlign: 'middle' }} />{user?.full_name}</span>
+          <span className="nav-user"><User size={14} strokeWidth={2} />{user?.full_name}</span>
           <button className="btn-ghost btn-sm" onClick={handleLogout}>
-            <LogOut size={14} strokeWidth={2} style={{ marginRight: 5, verticalAlign: 'middle' }} />Logout
+            <LogOut size={14} strokeWidth={2} />Logout
           </button>
         </div>
       </nav>
@@ -69,9 +78,10 @@ export default function Layout() {
         </aside>
 
         {/* ── Main content ────────────────────────────── */}
-        <main className="page-main">
+        <main className="page-main" ref={mainRef}>
           <Outlet />
         </main>
+        <BackToTop scrollRef={mainRef} />
       </div>
     </div>
   )

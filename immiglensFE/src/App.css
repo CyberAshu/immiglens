@@ -49,7 +49,10 @@
 
 .nav-user {
   font-size: 0.85rem;
-  color: rgba(255,255,255,0.55);
+  color: rgba(255,255,255,0.75);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .nav-admin-link {
@@ -519,6 +522,9 @@ button.btn-primary {
   transition: background 0.15s, opacity 0.15s;
   font-family: inherit;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 button.btn-primary:hover:not(:disabled) { background: #1a3352; }
@@ -535,6 +541,9 @@ button.btn-ghost {
   transition: border-color 0.15s, color 0.15s;
   font-family: inherit;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 button.btn-ghost:hover:not(:disabled) { border-color: #0B1F3B; color: #0B1F3B; }
@@ -1271,6 +1280,7 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   background: #0B1F3B; color: #fff; border: none; border-radius: 6px;
   padding: 0.5rem 1.1rem; font-size: 0.88rem; font-weight: 600; cursor: pointer;
   transition: background 0.15s; font-family: inherit; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 0.35rem;
 }
 .btn-primary:hover   { background: #1a3352; }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -1279,12 +1289,14 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   background: transparent; color: #C8A24A; border: 1px solid rgba(200,162,74,0.4);
   border-radius: 6px; padding: 0.5rem 1.1rem; font-size: 0.88rem; font-weight: 600; cursor: pointer;
   transition: background 0.15s; font-family: inherit;
+  display: inline-flex; align-items: center; gap: 0.35rem;
 }
 .btn-secondary:hover { background: rgba(200,162,74,0.08); }
 
 .btn-ghost   { background: transparent; border: 1px solid #d1d5db; color: #6b7280;
                border-radius: 6px; padding: 0.5rem 1rem; font-size: 0.85rem; cursor: pointer;
-               transition: border-color 0.15s, color 0.15s; font-family: inherit; white-space: nowrap; }
+               transition: border-color 0.15s, color 0.15s; font-family: inherit; white-space: nowrap;
+               display: inline-flex; align-items: center; gap: 0.35rem; }
 .btn-ghost:hover { border-color: #0B1F3B; color: #0B1F3B; }
 .btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-xs    { padding: 0.2rem 0.5rem !important; font-size: 0.75rem !important; }
@@ -2094,9 +2106,9 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
 .sub-admin-note {
   margin: 0.75rem 0 0;
   font-size: 0.82rem;
-  color: #666;
+  color: #4b5563;
   padding: 0.55rem 0.85rem;
-  background: #111120;
+  background: #f0f4ff;
   border-radius: 6px;
-  border-left: 2px solid #2a2a3a;
+  border-left: 3px solid #0B1F3B;
 }

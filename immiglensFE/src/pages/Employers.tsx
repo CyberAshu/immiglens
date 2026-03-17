@@ -63,7 +63,7 @@ export default function Employers() {
           <p className="page-subtitle">{list.length} employer{list.length !== 1 ? 's' : ''} tracked</p>
         </div>
         <button className="btn-primary" onClick={() => setShowForm(true)}>
-          <Plus size={15} strokeWidth={2.5} style={{ marginRight: 6 }} />
+          <Plus size={15} strokeWidth={2.5} />
           New Employer
         </button>
       </div>
