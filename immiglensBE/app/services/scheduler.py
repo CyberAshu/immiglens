@@ -121,6 +121,10 @@ async def _run_capture_round(round_id: int) -> None:
         round_ = result.scalar_one_or_none()
         if round_ is None or round_.status != CaptureStatus.PENDING:
             return
+        if not round_.job_position.job_postings:
+            # No job board URLs added yet — leave PENDING so the user can
+            # trigger it manually once they add at least one posting.
+            return
         await _execute_round(db, round_)
 
 

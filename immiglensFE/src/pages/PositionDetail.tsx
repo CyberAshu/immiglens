@@ -18,6 +18,9 @@ export default function PositionDetail() {
   const [loading, setLoading] = useState(true)
   const [postingForm, setPostingForm] = useState({ platform: '', url: '' })
   const [addingPosting, setAddingPosting] = useState(false)
+  const [editingPostingId, setEditingPostingId] = useState<number | null>(null)
+  const [editPostingForm, setEditPostingForm] = useState({ platform: '', url: '' })
+  const [savingPostingId, setSavingPostingId] = useState<number | null>(null)
   const [runningRound, setRunningRound] = useState<number | null>(null)
   const [recapturingResult, setRecapturingResult] = useState<Set<number>>(new Set())
   const [uploadingDoc, setUploadingDoc] = useState(false)
@@ -50,6 +53,24 @@ export default function PositionDetail() {
       setError(err instanceof Error ? err.message : 'Failed to add posting.')
     } finally {
       setAddingPosting(false)
+    }
+  }
+
+  async function handleUpdatePosting(e: React.FormEvent, postingId: number) {
+    e.preventDefault()
+    setSavingPostingId(postingId)
+    setError(null)
+    try {
+      const updated = await positionsApi.updatePosting(eId, pId, postingId, editPostingForm)
+      setPosition(prev => prev ? {
+        ...prev,
+        job_postings: prev.job_postings.map(p => p.id === postingId ? updated : p),
+      } : prev)
+      setEditingPostingId(null)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update posting.')
+    } finally {
+      setSavingPostingId(null)
     }
   }
 
@@ -156,23 +177,79 @@ export default function PositionDetail() {
 
       <div className="two-col">
         <section className="card">
-          <h2 className="card-title">Job Boards</h2>
+          <h2 className="card-title">
+            Job Boards
+            {position.job_postings.length > 0 && (
+              <span className="card-title-sub">{position.job_postings.length} linked</span>
+            )}
+          </h2>
           {position.job_postings.length === 0 ? (
             <p className="empty-inline">No job boards linked yet.</p>
           ) : (
             <ul className="posting-list">
               {position.job_postings.map(p => (
                 <li key={p.id}>
-                  <div>
-                    <span className="posting-platform">{p.platform}</span>
-                    <a href={p.url} target="_blank" rel="noreferrer" className="posting-url">{p.url}</a>
-                  </div>
-                  <button className="btn-remove" onClick={() => handleRemovePosting(p.id)}>×</button>
+                  {editingPostingId === p.id ? (
+                    <form
+                      style={{ display: 'flex', gap: '0.5rem', flex: 1, flexWrap: 'wrap' }}
+                      onSubmit={e => handleUpdatePosting(e, p.id)}
+                    >
+                      <input
+                        placeholder="Platform"
+                        value={editPostingForm.platform}
+                        onChange={e => setEditPostingForm(f => ({ ...f, platform: e.target.value }))}
+                        required
+                        style={{ width: '120px', flex: '0 0 120px' }}
+                      />
+                      <input
+                        placeholder="URL"
+                        value={editPostingForm.url}
+                        onChange={e => setEditPostingForm(f => ({ ...f, url: e.target.value }))}
+                        required
+                        style={{ flex: 1, minWidth: '160px' }}
+                      />
+                      <button className="btn-primary btn-sm" type="submit" disabled={savingPostingId === p.id}>
+                        {savingPostingId === p.id ? 'Saving…' : 'Save'}
+                      </button>
+                      <button
+                        className="btn-ghost btn-sm"
+                        type="button"
+                        onClick={() => setEditingPostingId(null)}
+                      >
+                        Cancel
+                      </button>
+                    </form>
+                  ) : (
+                    <>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span className="posting-platform">{p.platform}</span>
+                        <a href={p.url} target="_blank" rel="noreferrer" className="posting-url">{p.url}</a>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                        <span style={{
+                          fontSize: '0.72rem', fontWeight: 700, color: '#16a34a',
+                          background: '#f0fdf4', border: '1px solid #bbf7d0',
+                          borderRadius: 10, padding: '2px 8px', whiteSpace: 'nowrap',
+                        }}>✓ Submitted</span>
+                        <button
+                          className="btn-ghost btn-sm"
+                          onClick={() => {
+                            setEditingPostingId(p.id)
+                            setEditPostingForm({ platform: p.platform, url: p.url })
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button className="btn-remove" onClick={() => handleRemovePosting(p.id)}>×</button>
+                      </div>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>
           )}
           <form className="add-posting-form" onSubmit={handleAddPosting}>
+            <p style={{ margin: '0.75rem 0 0.5rem', fontSize: '0.78rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Add Job Board</p>
             <input
               placeholder="Platform (e.g. Indeed)"
               value={postingForm.platform}
@@ -180,7 +257,7 @@ export default function PositionDetail() {
               required
             />
             <input
-              placeholder="URL"
+              placeholder="https://..."
               value={postingForm.url}
               onChange={e => setPostingForm(p => ({ ...p, url: e.target.value }))}
               required
@@ -211,43 +288,42 @@ export default function PositionDetail() {
               {uploadingDoc ? <span className="upload-spinner">⏳ Uploading…</span> : '+ Upload Document'}
             </button>
           </div>
+
+          <div style={{ borderTop: '1px solid #f3f4f6', marginTop: '1.25rem', paddingTop: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#0B1F3B' }}>Job Match Activity</span>
+              <span className="optional-badge">Optional</span>
+            </div>
+            <p className="card-subtitle" style={{ marginBottom: '0.65rem' }}>
+              Upload the Job Match Activity document to include it in the LMIA report.
+            </p>
+            {jobMatchDocs.length === 0 ? (
+              <p className="empty-inline">No Job Match Activity document uploaded yet.</p>
+            ) : (
+              <ul className="doc-list">
+                {jobMatchDocs.map(doc => (
+                  <li key={doc.id}>
+                    <span>{doc.original_filename}</span>
+                    <button className="btn-remove" onClick={() => handleRemoveJobMatch(doc.id)}>×</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="upload-area">
+              <input type="file" ref={jobMatchRef} onChange={handleUploadJobMatch} style={{ display: 'none' }} disabled={uploadingJobMatch} />
+              <button
+                className={`btn-ghost${uploadingJobMatch ? ' btn-ghost--uploading' : ''}`}
+                onClick={() => jobMatchRef.current?.click()}
+                disabled={uploadingJobMatch}
+              >
+                {uploadingJobMatch
+                  ? <><span className="upload-dot-anim" />Uploading, please wait…</>
+                  : '+ Upload Job Match Activity'}
+              </button>
+            </div>
+          </div>
         </section>
       </div>
-
-      {/* ── Job Match Activity ─────────────────────────────────────── */}
-      <section className="card section-top">
-        <h2 className="card-title">
-          Job Match Activity
-          <span className="optional-badge">Optional</span>
-        </h2>
-        <p className="card-subtitle">
-          Upload the Job Match Activity document to include it in the LMIA report.
-        </p>
-        {jobMatchDocs.length === 0 ? (
-          <p className="empty-inline">No Job Match Activity document uploaded yet.</p>
-        ) : (
-          <ul className="doc-list">
-            {jobMatchDocs.map(doc => (
-              <li key={doc.id}>
-                <span>{doc.original_filename}</span>
-                <button className="btn-remove" onClick={() => handleRemoveJobMatch(doc.id)}>×</button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="upload-area">
-          <input type="file" ref={jobMatchRef} onChange={handleUploadJobMatch} style={{ display: 'none' }} disabled={uploadingJobMatch} />
-          <button
-            className={`btn-ghost${uploadingJobMatch ? ' btn-ghost--uploading' : ''}`}
-            onClick={() => jobMatchRef.current?.click()}
-            disabled={uploadingJobMatch}
-          >
-            {uploadingJobMatch
-              ? <><span className="upload-dot-anim" />Uploading, please wait…</>
-              : '+ Upload Job Match Activity'}
-          </button>
-        </div>
-      </section>
 
       <section className="card section-top">
         <h2 className="card-title">

@@ -97,7 +97,7 @@
     <tr><td>Wage Stream</td><td>{{ position.wage_stream }}</td></tr>
     {% endif %}
     {% if f.get('show_wage', true) and position.wage %}
-    <tr><td>Advertised Wage</td><td>{{ position.wage }}</td></tr>
+    <tr><td>Advertised Wage</td><td>{{ position.wage if (position.wage | string).startswith(('$','CAD','USD','€','£')) else 'CAD $' ~ position.wage }}</td></tr>
     {% endif %}
     {% if f.get('show_work_location', true) %}
     <tr><td>Work Location</td><td>{{ position.work_location if position.work_location else employer.address }}</td></tr>

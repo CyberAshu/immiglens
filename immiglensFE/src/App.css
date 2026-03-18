@@ -672,6 +672,21 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .btn-danger-sm:hover { background: #fee2e2; }
 
+.btn-icon-danger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid transparent;
+  padding: 5px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #9ca3af;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.btn-icon-danger:hover { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+
 /* ===== Auth ===== */
 .pattern-dots {
   background-image: radial-gradient(circle, rgba(11,31,59,0.07) 1px, transparent 1px);

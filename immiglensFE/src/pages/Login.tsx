@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { auth } from '../api'
 import { ShieldCheck } from 'lucide-react'
@@ -13,10 +13,6 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase()
 }
 
-function isGmail(email: string): boolean {
-  return email.endsWith('@gmail.com')
-}
-
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0')
   const s = (seconds % 60).toString().padStart(2, '0')
@@ -26,8 +22,10 @@ function formatTime(seconds: number): string {
 export default function Login() {
   const { loginWithToken } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const prefillEmail = (location.state as { email?: string } | null)?.email ?? ''
   const [step, setStep] = useState<Step>('credentials')
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(prefillEmail)
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [digits, setDigits] = useState<string[]>(Array(OTP_DIGITS).fill(''))
@@ -97,10 +95,6 @@ export default function Login() {
     e.preventDefault()
     setError(null)
     const normalized = normalizeEmail(email)
-    if (!isGmail(normalized)) {
-      setError('Only Gmail addresses (@gmail.com) are supported.')
-      return
-    }
     setLoading(true)
     try {
       const res = await auth.requestOtp(normalized, password)

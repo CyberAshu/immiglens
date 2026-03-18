@@ -144,16 +144,6 @@ async def _do_generate(
     db: AsyncSession,
 ):
     position = await _load_position(employer_id, position_id, current_user, db)
-    has_job_match = any(
-        getattr(doc, "doc_type", "supporting") == "job_match"
-        for doc in position.report_documents
-    )
-    if not has_job_match:
-        raise HTTPException(
-            status_code=422,
-            detail="Job Match Activity document is mandatory. Please upload it before generating the report.",
-        )
-
     emp_result = await db.execute(select(Employer).where(Employer.id == employer_id))
     employer = emp_result.scalar_one()
 

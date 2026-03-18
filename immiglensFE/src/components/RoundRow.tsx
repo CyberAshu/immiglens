@@ -19,7 +19,15 @@ export function RoundRow({
   recapturing,
 }: RoundRowProps) {
   const [expanded, setExpanded] = useState(false)
-  const date = new Date(round.scheduled_at).toLocaleDateString('en-CA')
+
+  function fmtDate(iso: string) {
+    return new Date(iso).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' })
+  }
+  function fmtDateTime(iso: string) {
+    return new Date(iso).toLocaleString('en-CA', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+  }
+
+  const date = fmtDate(round.scheduled_at)
 
   return (
     <div className={`round-row round-row--${round.status}`}>
@@ -29,7 +37,7 @@ export function RoundRow({
           <span className="round-date">{date}</span>
           {round.captured_at && (
             <span className="round-captured">
-              captured {new Date(round.captured_at).toLocaleString()}
+              captured {fmtDateTime(round.captured_at)}
             </span>
           )}
         </div>
@@ -51,7 +59,24 @@ export function RoundRow({
       {expanded && (
         <div className="round-results">
           {round.results.length === 0 ? (
-            <p className="empty-inline">No results yet.</p>
+            round.status === 'completed' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <p className="empty-inline" style={{ color: '#f59e0b' }}>
+                  ⚠️ Capture ran but no job board URLs were linked at the time — no screenshots were taken.
+                </p>
+                <button
+                  className="btn-ghost btn-sm"
+                  style={{ alignSelf: 'flex-start' }}
+                  onClick={() => onRun()}
+                  disabled={running || postings.length === 0}
+                  title={postings.length === 0 ? 'Add job posting URLs first' : 'Re-run this capture'}
+                >
+                  {running ? 'Running…' : 'Re-run Capture'}
+                </button>
+              </div>
+            ) : (
+              <p className="empty-inline">No results yet.</p>
+            )
           ) : (
             round.results.map(result => {
               const posting = postings.find(p => p.id === result.job_posting_id)

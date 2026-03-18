@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { Trash2 } from 'lucide-react'
 import { employers as employersApi, positions as positionsApi, subscriptions as subscriptionsApi } from '../api'
 import type { Employer, JobPosition } from '../types'
 import AddressAutocomplete from '../components/AddressAutocomplete'
@@ -16,7 +17,7 @@ export default function EmployerDetail() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({
     job_title: '', noc_code: '', num_positions: 1, start_date: '',
-    capture_frequency_days: 7, wage: '', wage_stream: '', work_location: '',
+    capture_frequency_days: 7, wage: '', wage_period: 'hr', wage_stream: '', work_location: '',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -45,14 +46,14 @@ export default function EmployerDetail() {
         num_positions: Number(form.num_positions),
         start_date: form.start_date,
         capture_frequency_days: Number(form.capture_frequency_days),
-        wage: form.wage || null,
+        wage: form.wage ? `CAD $${form.wage}/${form.wage_period}` : null,
         wage_stream: form.wage_stream || null,
-        work_location: form.work_location || null,
+        work_location: form.work_location,
       })
       setPositionList(prev => [created, ...prev])
       setShowForm(false)
       setIsCustomFreq(false)
-      setForm({ job_title: '', noc_code: '', num_positions: 1, start_date: '', capture_frequency_days: minFreq, wage: '', wage_stream: '', work_location: '' })
+      setForm({ job_title: '', noc_code: '', num_positions: 1, start_date: '', capture_frequency_days: minFreq, wage: '', wage_period: 'hr', wage_stream: '', work_location: '' })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create position.')
     } finally {
@@ -80,100 +81,112 @@ export default function EmployerDetail() {
           <h1>{employer.business_name}</h1>
           <p className="sub-text">{employer.address} · {employer.contact_person}</p>
         </div>
-        <button className="btn-primary" onClick={() => setShowForm(v => !v)}>
-          {showForm ? 'Cancel' : '+ New Position'}
+        <button className="btn-primary" onClick={() => setShowForm(true)}>
+          + New Position
         </button>
       </div>
 
       {showForm && (
-        <form className="card form-card" onSubmit={handleCreate}>
-          <h2 className="form-title">New Job Position</h2>
-          <div className="form-grid">
-            <div className="field">
-              <label>Job Title *</label>
-              <input value={form.job_title} onChange={e => setForm(p => ({ ...p, job_title: e.target.value }))} required />
-            </div>
-            <div className="field">
-              <label>NOC Code *</label>
-              <input value={form.noc_code} onChange={e => setForm(p => ({ ...p, noc_code: e.target.value }))} required placeholder="e.g. 13100" />
-            </div>
-            <div className="field">
-              <label>Number of Positions *</label>
-              <input type="number" min={1} value={form.num_positions} onChange={e => setForm(p => ({ ...p, num_positions: Number(e.target.value) }))} required />
-            </div>
-            <div className="field">
-              <label>Start Date *</label>
-              <input type="date" value={form.start_date} onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} required />
-            </div>
-            <div className="field">
-              <label>Capture Frequency</label>
-              <select
-                value={isCustomFreq ? 'custom' : String(form.capture_frequency_days)}
-                onChange={e => {
-                  if (e.target.value === 'custom') {
-                    setIsCustomFreq(true)
-                  } else {
-                    setIsCustomFreq(false)
-                    setForm(p => ({ ...p, capture_frequency_days: Number(e.target.value) }))
-                  }
-                }}
-              >
-                {[...new Set([minFreq, ...[7, 14, 28].filter(f => f >= minFreq)])]
-                  .sort((a, b) => a - b)
-                  .map(f => (
+        <div className="admin-modal-overlay" onClick={() => setShowForm(false)}>
+          <form className="admin-modal" style={{ maxWidth: 660 }} onSubmit={handleCreate} onClick={e => e.stopPropagation()}>
+            <h2 className="admin-modal-title">New Job Position</h2>
+            <div className="admin-form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+              <label className="admin-form-label">
+                Job Title *
+                <input className="admin-input" value={form.job_title} onChange={e => setForm(p => ({ ...p, job_title: e.target.value }))} required />
+              </label>
+              <label className="admin-form-label">
+                NOC Code *
+                <input className="admin-input" value={form.noc_code} onChange={e => setForm(p => ({ ...p, noc_code: e.target.value }))} required placeholder="e.g. 13100" />
+              </label>
+              <label className="admin-form-label">
+                Number of Positions *
+                <input className="admin-input" type="number" min={1} value={form.num_positions} onChange={e => setForm(p => ({ ...p, num_positions: Number(e.target.value) }))} required />
+              </label>
+              <label className="admin-form-label">
+                Start Date *
+                <input className="admin-input" type="date" value={form.start_date} min={new Date().toISOString().split('T')[0]} onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} required />
+              </label>
+              <label className="admin-form-label">
+                Capture Frequency
+                <select
+                  className="admin-input"
+                  value={isCustomFreq ? 'custom' : String(form.capture_frequency_days)}
+                  onChange={e => {
+                    if (e.target.value === 'custom') { setIsCustomFreq(true) }
+                    else { setIsCustomFreq(false); setForm(p => ({ ...p, capture_frequency_days: Number(e.target.value) })) }
+                  }}
+                >
+                  {[...new Set([minFreq, ...[7, 14, 28].filter(f => f >= minFreq)])].sort((a, b) => a - b).map(f => (
                     <option key={f} value={f}>Every {f} day{f !== 1 ? 's' : ''}</option>
                   ))}
-                <option value="custom">Custom...</option>
-              </select>
-              {isCustomFreq && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <input
-                    type="number"
-                    min={minFreq}
-                    value={form.capture_frequency_days}
-                    onChange={e => setForm(p => ({ ...p, capture_frequency_days: Math.max(minFreq, Number(e.target.value)) }))}
-                    style={{ width: '80px' }}
-                    required
-                  />
-                  <span style={{ fontSize: '0.85rem', color: '#555' }}>days (min {minFreq})</span>
-                </div>
-              )}
-              {minFreq > 7 && (
-                <span style={{ fontSize: '0.75rem', color: '#888', marginTop: '0.25rem', display: 'block' }}>
-                  Your plan allows a minimum of {minFreq}-day intervals. Upgrade for more frequent captures.
-                </span>
-              )}
+                  <option value="custom">Custom...</option>
+                </select>
+                {isCustomFreq && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.4rem' }}>
+                    <input className="admin-input" type="number" min={minFreq} value={form.capture_frequency_days}
+                      onChange={e => setForm(p => ({ ...p, capture_frequency_days: Math.max(minFreq, Number(e.target.value)) }))}
+                      style={{ width: 80 }} required />
+                    <span style={{ fontSize: '0.82rem', color: '#6b7280' }}>days (min {minFreq})</span>
+                  </div>
+                )}
+                {minFreq > 7 && (
+                  <span style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.2rem', display: 'block' }}>
+                    Your plan minimum is {minFreq} days.
+                  </span>
+                )}
+              </label>
+              <label className="admin-form-label">
+                Rate (CAD $) <span style={{ fontWeight: 400 }}>(optional)</span>
+                <input
+                  className="admin-input"
+                  type="number" min={0} step={0.01}
+                  value={form.wage}
+                  onChange={e => setForm(p => ({ ...p, wage: e.target.value }))}
+                  placeholder="e.g. 25.00"
+                />
+              </label>
+              <label className="admin-form-label">
+                Pay Period <span style={{ fontWeight: 400 }}>(optional)</span>
+                <select className="admin-input" value={form.wage_period} onChange={e => setForm(p => ({ ...p, wage_period: e.target.value }))}>
+                  <option value="hr">Per hour</option>
+                  <option value="yr">Per year</option>
+                  <option value="month">Per month</option>
+                  <option value="week">Per week</option>
+                </select>
+              </label>
+              <label className="admin-form-label">
+                Wage Stream <span style={{ fontWeight: 400 }}>(optional)</span>
+                <select className="admin-input" value={form.wage_stream} onChange={e => setForm(p => ({ ...p, wage_stream: e.target.value }))}>
+                  <option value="">— Select —</option>
+                  <option value="high-wage">High-Wage</option>
+                  <option value="low-wage">Low-Wage</option>
+                  <option value="global-talent">Global Talent Stream</option>
+                  <option value="agricultural">Agricultural Stream</option>
+                  <option value="seasonal">Seasonal Agricultural Worker Program</option>
+                </select>
+              </label>
+              <label className="admin-form-label" style={{ gridColumn: 'span 2' }}>
+                Work Location *
+                <AddressAutocomplete
+                  className="admin-input"
+                  value={form.work_location}
+                  onChange={val => setForm(p => ({ ...p, work_location: val }))}
+                  placeholder="Start typing an address…"
+                  format="address"
+                  required
+                />
+              </label>
             </div>
-            <div className="field">
-              <label>Wage / Salary <span style={{fontWeight:400, color:'#888'}}>(optional)</span></label>
-              <input value={form.wage} onChange={e => setForm(p => ({ ...p, wage: e.target.value }))} placeholder="e.g. $25.00/hr" />
+            {error && <p className="error-msg" style={{ margin: '0 0 1rem' }}>{error}</p>}
+            <div className="admin-modal-actions">
+              <button type="button" className="btn-ghost" onClick={() => { setShowForm(false); setError(null) }}>Cancel</button>
+              <button type="submit" className="btn-primary" disabled={saving}>
+                {saving ? 'Saving…' : 'Create Position'}
+              </button>
             </div>
-            <div className="field">
-              <label>Wage Stream <span style={{fontWeight:400, color:'#888'}}>(optional)</span></label>
-              <select value={form.wage_stream} onChange={e => setForm(p => ({ ...p, wage_stream: e.target.value }))}>
-                <option value="">— Select —</option>
-                <option value="high-wage">High-Wage</option>
-                <option value="low-wage">Low-Wage</option>
-                <option value="global-talent">Global Talent Stream</option>
-                <option value="agricultural">Agricultural Stream</option>
-                <option value="seasonal">Seasonal Agricultural Worker Program</option>
-              </select>
-            </div>
-            <div className="field">
-              <label>Work Location <span style={{fontWeight:400, color:'#888'}}>(optional)</span></label>
-              <AddressAutocomplete
-                value={form.work_location}
-                onChange={val => setForm(p => ({ ...p, work_location: val }))}
-                placeholder="City, Province"
-                format="city"
-              />
-            </div>
-          </div>
-          {error && <p className="error-msg">{error}</p>}
-          <div className="form-actions">
-            <button className="btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Create Position'}</button>
-          </div>
-        </form>
+          </form>
+        </div>
       )}
 
       {positionList.length === 0 ? (
@@ -202,7 +215,13 @@ export default function EmployerDetail() {
                   <td>{pos.job_postings.length}</td>
                   <td>Every {pos.capture_frequency_days} days</td>
                   <td>
-                    <button className="btn-danger-sm" onClick={() => handleDelete(pos.id)}>Delete</button>
+                    <button
+                      className="btn-icon-danger"
+                      onClick={() => handleDelete(pos.id)}
+                      title="Delete position"
+                    >
+                      <Trash2 size={14} strokeWidth={2} />
+                    </button>
                   </td>
                 </tr>
               ))}

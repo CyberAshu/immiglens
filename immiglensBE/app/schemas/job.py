@@ -35,6 +35,30 @@ class JobPostingOut(BaseModel):
     created_at: datetime
 
 
+class JobPostingUpdate(BaseModel):
+    platform: Optional[str] = None
+    url: Optional[str] = None
+
+    @field_validator("url", mode="before")
+    @classmethod
+    def url_must_be_http(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        v = v.strip()
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("URL must start with http:// or https://")
+        return v
+
+    @field_validator("platform", mode="before")
+    @classmethod
+    def platform_not_empty(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        if not v.strip():
+            raise ValueError("Platform cannot be empty")
+        return v.strip()
+
+
 class JobPositionCreate(BaseModel):
     job_title: str
     noc_code: str
@@ -42,8 +66,16 @@ class JobPositionCreate(BaseModel):
     start_date: date
     capture_frequency_days: int = 7
     wage: Optional[str] = None
-    work_location: Optional[str] = None
+    work_location: str
     wage_stream: Optional[str] = None
+
+    @field_validator("start_date")
+    @classmethod
+    def start_date_not_in_past(cls, v: date) -> date:
+        from datetime import date as _date
+        if v < _date.today():
+            raise ValueError("start_date cannot be in the past")
+        return v
 
     @field_validator("num_positions")
     @classmethod

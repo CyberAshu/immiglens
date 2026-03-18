@@ -35,4 +35,15 @@ export const positions = {
       `/api/employers/${employerId}/positions/${positionId}/postings/${postingId}`,
       { method: 'DELETE' },
     ),
+
+  updatePosting: (
+    employerId: number,
+    positionId: number,
+    postingId: number,
+    data: { platform?: string; url?: string },
+  ) =>
+    request<JobPosting>(
+      `/api/employers/${employerId}/positions/${positionId}/postings/${postingId}`,
+      { method: 'PATCH', body: JSON.stringify(data) },
+    ),
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { auth } from '../api'
-import { ShieldCheck } from 'lucide-react'
+import { ShieldCheck, MailCheck } from 'lucide-react'
 
 function pwStrengthLevel(pw: string): 0 | 1 | 2 | 3 {
   if (!pw) return 0
@@ -17,29 +17,65 @@ export default function Register() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [registered, setRegistered] = useState(false)
+  const [registeredEmail, setRegisteredEmail] = useState('')
 
   const strength = pwStrengthLevel(password)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    const normalized = email.trim().toLowerCase()
-    if (!normalized.endsWith('@gmail.com')) {
-      setError('Only Gmail addresses (@gmail.com) are supported.')
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.')
       return
     }
+    const normalized = email.trim().toLowerCase()
     setLoading(true)
     try {
       await auth.register(normalized, password, fullName)
-      navigate('/login')
+      setRegisteredEmail(normalized)
+      setRegistered(true)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Registration failed.')
     } finally {
       setLoading(false)
     }
+  }
+
+  if (registered) {
+    return (
+      <div className="auth-page">
+        <div className="auth-card" style={{ textAlign: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
+            <div style={{ width: 64, height: 64, borderRadius: 16, background: 'linear-gradient(135deg,#0b1f3b,#1a3a6b)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(11,31,59,0.25)' }}>
+              <MailCheck size={30} color="#C8A24A" strokeWidth={2} />
+            </div>
+          </div>
+          <h1 className="auth-title" style={{ marginBottom: '0.5rem' }}>Account created!</h1>
+          <p className="auth-sub" style={{ marginBottom: '1.5rem' }}>
+            Welcome aboard. Here's what happens next:
+          </p>
+          <div style={{ background: 'rgba(200,162,74,0.08)', border: '1px solid rgba(200,162,74,0.25)', borderRadius: 10, padding: '1rem 1.25rem', marginBottom: '1.75rem', textAlign: 'left' }}>
+            <ol style={{ margin: 0, paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.9rem', color: 'var(--text-secondary, #64748b)' }}>
+              <li>Click <strong>Sign in</strong> below and enter your password.</li>
+              <li>A <strong>6-digit verification code</strong> will be sent to <strong>{registeredEmail}</strong>.</li>
+              <li>Enter the code to complete sign-in and verify your email.</li>
+            </ol>
+          </div>
+          <button
+            className="btn-primary btn-block auth-submit"
+            onClick={() => navigate('/login', { state: { email: registeredEmail } })}
+          >
+            Sign in now →
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -119,6 +155,34 @@ export default function Register() {
                 </div>
                 <span className="pw-strength-label">{PW_STRENGTH_LABELS[strength]}</span>
               </div>
+            )}
+          </div>
+
+          <div className="auth-field">
+            <label className="auth-label">Confirm Password</label>
+            <div className="auth-pw-wrap">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                required
+                placeholder="Re-enter your password"
+                className="auth-pw-input"
+              />
+              <button
+                type="button"
+                className="auth-pw-toggle"
+                onClick={() => setShowConfirmPassword(p => !p)}
+                tabIndex={-1}
+                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+              >
+                {showConfirmPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            {confirmPassword.length > 0 && (
+              <p style={{ fontSize: '0.78rem', marginTop: '0.3rem', color: password === confirmPassword ? '#22c55e' : '#ef4444' }}>
+                {password === confirmPassword ? '✓ Passwords match' : '✗ Passwords do not match'}
+              </p>
             )}
           </div>
 

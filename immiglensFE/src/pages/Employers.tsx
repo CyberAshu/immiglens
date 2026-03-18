@@ -196,8 +196,8 @@ export default function Employers() {
             </div>
             {error && <p className="error-msg">{error}</p>}
             <div className="admin-modal-actions">
-              <button type="button" className="admin-btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
-              <button type="submit" className="admin-btn-primary" disabled={saving}>
+              <button type="button" className="btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
+              <button type="submit" className="btn-primary" disabled={saving}>
                 {saving ? 'Saving...' : 'Create Employer'}
               </button>
             </div>
@@ -215,29 +215,29 @@ export default function Employers() {
         }
         .emp-search-input {
           width: 100%; max-width: 360px; padding: 8px 12px 8px 34px;
-          background: #1e293b; border: 1px solid #334155; border-radius: 7px;
-          color: #e2e8f0; font-size: 0.875rem; transition: border-color .15s;
+          background: #ffffff; border: 1px solid #d1d5db; border-radius: 7px;
+          color: #1e293b; font-size: 0.875rem; transition: border-color .15s;
         }
-        .emp-search-input:focus { outline: none; border-color: #0B1F3B; }
-        .emp-search-input::placeholder { color: #475569; }
+        .emp-search-input:focus { outline: none; border-color: #0B1F3B; box-shadow: 0 0 0 3px rgba(11,31,59,0.08); }
+        .emp-search-input::placeholder { color: #9ca3af; }
 
         .emp-name-cell { display: flex; align-items: center; gap: 8px; }
         .emp-avatar {
-          width: 26px; height: 26px; border-radius: 6px; background: #1e293b;
-          border: 1px solid #334155; display: flex; align-items: center;
-          justify-content: center; color: #64748b; flex-shrink: 0;
+          width: 28px; height: 28px; border-radius: 7px; background: #f1f5f9;
+          border: 1px solid #e2e8f0; display: flex; align-items: center;
+          justify-content: center; color: #475569; flex-shrink: 0;
         }
-        .emp-cell-icon { display: flex; align-items: center; gap: 6px; }
-        .emp-empty { color: #475569; }
+        .emp-cell-icon { display: flex; align-items: center; gap: 6px; color: #374151; }
+        .emp-empty { color: #9ca3af; }
 
         .btn-icon-danger {
           display: flex; align-items: center; justify-content: center;
-          background: none; border: none; padding: 5px; border-radius: 5px;
-          cursor: pointer; color: #64748b; transition: all .15s;
+          background: none; border: 1px solid transparent; padding: 5px; border-radius: 5px;
+          cursor: pointer; color: #9ca3af; transition: all .15s;
         }
-        .btn-icon-danger:hover { background: #431414; color: #f87171; }
+        .btn-icon-danger:hover { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
 
-        .page-subtitle { font-size: 0.82rem; color: #64748b; margin: 2px 0 0; }
+        .page-subtitle { font-size: 0.82rem; color: #6b7280; margin: 2px 0 0; }
       `}</style>
     </div>
   )

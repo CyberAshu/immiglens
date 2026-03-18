@@ -11,9 +11,16 @@ interface NominatimResult {
     village?: string
     municipality?: string
     state?: string
+    'ISO3166-2-lvl4'?: string  // e.g. "CA-BC"
     postcode?: string
     country?: string
   }
+}
+
+function provinceAbbr(r: NominatimResult): string {
+  const iso = r.address['ISO3166-2-lvl4']  // "CA-BC", "CA-ON", …
+  if (iso) return iso.split('-').pop() ?? r.address.state ?? ''
+  return r.address.state ?? ''
 }
 
 interface Props {
@@ -56,12 +63,17 @@ export default function AddressAutocomplete({
 
   function formatResult(r: NominatimResult): string {
     if (format === 'city') {
-      const { city, town, village, municipality, state } = r.address
+      const { city, town, village, municipality } = r.address
       const place = city ?? town ?? village ?? municipality ?? ''
-      return [place, state].filter(Boolean).join(', ')
+      const province = provinceAbbr(r)
+      return [place, province].filter(Boolean).join(', ')
     }
-    // full address: strip trailing ", Canada"
-    return r.display_name.replace(/, Canada$/, '')
+    const { house_number, road, city, town, village, municipality, postcode } = r.address
+    const street = [house_number, road].filter(Boolean).join(' ')
+    const cityName = city ?? town ?? village ?? municipality ?? ''
+    const province = provinceAbbr(r)
+    const cityProvince = [cityName, [province, postcode].filter(Boolean).join(' ')].filter(Boolean).join(', ')
+    return [street, cityProvince].filter(Boolean).join(', ')
   }
 
   function handleInput(val: string) {

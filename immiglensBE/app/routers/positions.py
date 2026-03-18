@@ -16,6 +16,7 @@ from app.schemas.job import (
     JobPositionUpdate,
     JobPostingCreate,
     JobPostingOut,
+    JobPostingUpdate,
 )
 from app.core.permissions import check_employer_limit, check_position_limit, check_capture_frequency
 from app.services.scheduler import schedule_rounds_for_position
@@ -167,6 +168,37 @@ async def add_posting(
                      resource_type="posting", resource_id=posting.id,
                      new_data={"url": posting.url, "position_id": position_id})
     await db.commit()
+    return posting
+
+
+@router.patch("/{position_id}/postings/{posting_id}", response_model=JobPostingOut)
+async def update_posting(
+    employer_id: int,
+    position_id: int,
+    posting_id: int,
+    payload: JobPostingUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    await _get_position_or_404(employer_id, position_id, current_user, db)
+    result = await db.execute(
+        select(JobPosting).where(
+            JobPosting.id == posting_id,
+            JobPosting.job_position_id == position_id,
+        )
+    )
+    posting = result.scalar_one_or_none()
+    if posting is None:
+        raise HTTPException(status_code=404, detail="Posting not found.")
+    if payload.platform is not None:
+        posting.platform = payload.platform
+    if payload.url is not None:
+        posting.url = payload.url
+    await log_action(db, user_id=current_user.id, action="UPDATE",
+                     resource_type="posting", resource_id=posting.id,
+                     new_data={"url": posting.url})
+    await db.commit()
+    await db.refresh(posting)
     return posting
 
 
