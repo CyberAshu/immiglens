@@ -68,11 +68,11 @@ export default function AddressAutocomplete({
       const province = provinceAbbr(r)
       return [place, province].filter(Boolean).join(', ')
     }
-    const { house_number, road, city, town, village, municipality, postcode } = r.address
+    const { house_number, road, city, town, village, municipality } = r.address
     const street = [house_number, road].filter(Boolean).join(' ')
     const cityName = city ?? town ?? village ?? municipality ?? ''
     const province = provinceAbbr(r)
-    const cityProvince = [cityName, [province, postcode].filter(Boolean).join(' ')].filter(Boolean).join(', ')
+    const cityProvince = [cityName, province].filter(Boolean).join(', ')
     return [street, cityProvince].filter(Boolean).join(', ')
   }
 
