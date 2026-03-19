@@ -8,6 +8,7 @@ interface RoundRowProps {
   running: boolean
   onRecapture: (roundId: number, resultId: number) => void
   recapturing: Set<number>
+  allowCapture: boolean
 }
 
 export function RoundRow({
@@ -17,6 +18,7 @@ export function RoundRow({
   running,
   onRecapture,
   recapturing,
+  allowCapture,
 }: RoundRowProps) {
   const [expanded, setExpanded] = useState(false)
 
@@ -42,7 +44,7 @@ export function RoundRow({
           )}
         </div>
         <div className="round-row-right">
-          {round.status === 'pending' && (
+          {round.status === 'pending' && allowCapture && (
             <button
               className="btn-ghost btn-sm"
               onClick={e => { e.stopPropagation(); onRun() }}
@@ -50,6 +52,16 @@ export function RoundRow({
               title={postings.length === 0 ? 'Add job posting URLs first' : undefined}
             >
               {running ? 'Running…' : 'Capture Now'}
+            </button>
+          )}
+          {round.status === 'failed' && (
+            <button
+              className="btn-ghost btn-sm"
+              onClick={e => { e.stopPropagation(); onRun() }}
+              disabled={running || postings.length === 0}
+              title={postings.length === 0 ? 'Add job posting URLs first' : 'Re-run this failed capture'}
+            >
+              {running ? 'Running…' : 'Re-run Capture'}
             </button>
           )}
           <span className="round-toggle">{expanded ? '▲' : '▼'}</span>

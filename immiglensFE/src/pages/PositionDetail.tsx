@@ -147,6 +147,10 @@ export default function PositionDetail() {
   if (!position) return <div className="page"><p>Position not found.</p></div>
 
   const completedRounds = rounds.filter(r => r.status === 'completed').length
+  const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999)
+  const firstPendingId = rounds
+    .filter(r => r.status === 'pending' && new Date(r.scheduled_at) <= todayEnd)
+    .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())[0]?.id ?? null
 
   return (
     <div className="page">
@@ -351,6 +355,7 @@ export default function PositionDetail() {
                 running={runningRound === round.id}
                 onRecapture={handleRecaptureResult}
                 recapturing={recapturingResult}
+                allowCapture={round.id === firstPendingId}
               />
             ))}
           </div>
