@@ -36,7 +36,6 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 MAX_OTP_ATTEMPTS = 5
 
 
-# ── OTP helpers ─────────────────────────────────────────────────────────────────
 
 def _generate_otp() -> str:
     """6-digit OTP using a cryptographically secure RNG."""
@@ -54,7 +53,6 @@ def _verify_token(value: str, stored_hash: str) -> bool:
 
 def _send_otp_email(to_email: str, otp: str) -> None:
     if not settings.SMTP_HOST:
-        # Development fallback: print to console
         print(f"[DEV OTP] {to_email} → {otp}")
         return
     msg = MIMEText(
@@ -74,7 +72,6 @@ def _send_otp_email(to_email: str, otp: str) -> None:
         smtp.send_message(msg)
 
 
-# ── Routes ───────────────────────────────────────────────────────────────────────
 
 @router.post("/register", response_model=UserOut, status_code=201)
 async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)):
@@ -95,7 +92,6 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials.")
 
-    # ── Trusted-device fast path ───────────────────────
     if payload.device_token:
         now = datetime.now(timezone.utc)
         token_hash = _hash_token(payload.device_token)
@@ -108,12 +104,18 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
         )
         trusted = td_result.scalar_one_or_none()
         if trusted:
+            trusted.expires_at = now + timedelta(days=settings.TRUSTED_DEVICE_DAYS)
+            await db.execute(
+                delete(TrustedDevice).where(
+                    TrustedDevice.user_id == user.id,
+                    TrustedDevice.expires_at <= now,
+                )
+            )
+            await db.commit()
             logger.info("Trusted device login for %s", payload.email)
             return TokenResponse(access_token=create_access_token(user.id))
         logger.info("Device token invalid/expired for %s, requiring OTP", payload.email)
 
-    # ── Normal OTP flow ────────────────────────────────
-    # Invalidate any prior OTPs for this user
     await db.execute(delete(OTPRecord).where(OTPRecord.user_id == user.id))
 
     otp = _generate_otp()
@@ -161,7 +163,6 @@ async def verify_otp(
     if not record:
         raise HTTPException(status_code=401, detail="Invalid or expired verification code.")
 
-    # Brute-force guard
     if record.attempts >= MAX_OTP_ATTEMPTS:
         await db.execute(delete(OTPRecord).where(OTPRecord.id == record.id))
         await db.commit()
@@ -180,10 +181,9 @@ async def verify_otp(
 
     record.used = True
 
-    # ── Trusted-device token ────────────────────────────
     raw_device_token: str | None = None
     if payload.remember_device:
-        raw_device_token = secrets.token_hex(32)  # 64-char hex, 256 bits entropy
+        raw_device_token = secrets.token_hex(32)
         db.add(
             TrustedDevice(
                 user_id=user.id,
