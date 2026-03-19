@@ -4,6 +4,8 @@ import { captures as capturesApi, positions as positionsApi, reports as reportsA
 import { RoundRow } from '../components/RoundRow'
 import type { CaptureRound, JobPosition, ReportDocument } from '../types'
 
+const MAX_URLS_PER_POSTING = 7
+
 export default function PositionDetail() {
   const { employerId, positionId } = useParams<{ employerId: string; positionId: string }>()
   const eId = Number(employerId)
@@ -179,9 +181,9 @@ export default function PositionDetail() {
         <section className="card">
           <h2 className="card-title">
             Job Boards
-            {position.job_postings.length > 0 && (
-              <span className="card-title-sub">{position.job_postings.length} linked</span>
-            )}
+            <span className="card-title-sub">
+              {position.job_postings.length} / {MAX_URLS_PER_POSTING} URLs
+            </span>
           </h2>
           {position.job_postings.length === 0 ? (
             <p className="empty-inline">No job boards linked yet.</p>
@@ -248,24 +250,30 @@ export default function PositionDetail() {
               ))}
             </ul>
           )}
-          <form className="add-posting-form" onSubmit={handleAddPosting}>
-            <p style={{ margin: '0.75rem 0 0.5rem', fontSize: '0.78rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Add Job Board</p>
-            <input
-              placeholder="Platform (e.g. Indeed)"
-              value={postingForm.platform}
-              onChange={e => setPostingForm(p => ({ ...p, platform: e.target.value }))}
-              required
-            />
-            <input
-              placeholder="https://..."
-              value={postingForm.url}
-              onChange={e => setPostingForm(p => ({ ...p, url: e.target.value }))}
-              required
-            />
-            <button className="btn-primary" disabled={addingPosting} type="submit">
-              {addingPosting ? '…' : 'Add'}
-            </button>
-          </form>
+          {position.job_postings.length >= MAX_URLS_PER_POSTING ? (
+            <p style={{ margin: '0.75rem 0 0', fontSize: '0.82rem', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
+              Maximum of {MAX_URLS_PER_POSTING} job board URLs reached. Remove one to add another.
+            </p>
+          ) : (
+            <form className="add-posting-form" onSubmit={handleAddPosting}>
+              <p style={{ margin: '0.75rem 0 0.5rem', fontSize: '0.78rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Add Job Board</p>
+              <input
+                placeholder="Platform (e.g. Indeed)"
+                value={postingForm.platform}
+                onChange={e => setPostingForm(p => ({ ...p, platform: e.target.value }))}
+                required
+              />
+              <input
+                placeholder="https://..."
+                value={postingForm.url}
+                onChange={e => setPostingForm(p => ({ ...p, url: e.target.value }))}
+                required
+              />
+              <button className="btn-primary" disabled={addingPosting} type="submit">
+                {addingPosting ? '…' : 'Add'}
+              </button>
+            </form>
+          )}
         </section>
 
         <section className="card">

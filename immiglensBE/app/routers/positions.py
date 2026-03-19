@@ -18,7 +18,7 @@ from app.schemas.job import (
     JobPostingOut,
     JobPostingUpdate,
 )
-from app.core.permissions import check_employer_limit, check_position_limit, check_capture_frequency
+from app.core.permissions import check_employer_limit, check_position_limit, check_capture_frequency, check_posting_limit
 from app.services.scheduler import schedule_rounds_for_position
 
 router = APIRouter(
@@ -160,6 +160,7 @@ async def add_posting(
     current_user: User = Depends(get_current_user),
 ):
     await _get_position_or_404(employer_id, position_id, current_user, db)
+    await check_posting_limit(db, current_user, position_id)
     posting = JobPosting(**payload.model_dump(), job_position_id=position_id)
     db.add(posting)
     await db.commit()

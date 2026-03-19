@@ -122,6 +122,38 @@ async def check_monthly_capture_limit(db: AsyncSession, user: User) -> None:
         )
 
 
+MAX_URLS_PER_POSTING = 7
+
+
+async def check_posting_limit(db: AsyncSession, user: User, position_id: int) -> None:
+    """Enforce a hard cap of MAX_URLS_PER_POSTING job board URLs per position,
+    and also the tier's max_postings_per_position when it is more restrictive.
+    """
+    from app.models.job_posting import JobPosting
+
+    tier = await _get_tier(db, user)
+
+    count = (
+        await db.execute(
+            select(func.count())
+            .select_from(JobPosting)
+            .where(JobPosting.job_position_id == position_id)
+        )
+    ).scalar_one()
+
+    # Effective limit: tier value (if set) capped at MAX_URLS_PER_POSTING
+    if tier.max_postings_per_position == -1:
+        effective_limit = MAX_URLS_PER_POSTING
+    else:
+        effective_limit = min(tier.max_postings_per_position, MAX_URLS_PER_POSTING)
+
+    if count >= effective_limit:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"A maximum of {effective_limit} job board URL(s) are allowed per position.",
+        )
+
+
 async def check_capture_frequency(db: AsyncSession, user: User, capture_frequency_days: int) -> None:
     """Ensure the requested capture frequency is allowed by the user's tier.
     Higher min_capture_frequency_days means less frequent (more restricted).
