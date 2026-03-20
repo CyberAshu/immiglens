@@ -13,6 +13,7 @@ from app.models.report_config import ReportConfig
 from app.models.otp import OTPRecord
 from app.models.trusted_device import TrustedDevice
 from app.models.noc_code import NocCode
+from app.models.password_reset import PasswordResetToken
 
 __all__ = [
     "User",
@@ -40,4 +41,5 @@ __all__ = [
     "OTPRecord",
     "TrustedDevice",
     "NocCode",
+    "PasswordResetToken",
 ]

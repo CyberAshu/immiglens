@@ -23,7 +23,8 @@ export default function Login() {
   const { loginWithToken } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const prefillEmail = (location.state as { email?: string } | null)?.email ?? ''
+  const prefillEmail = (location.state as { email?: string; passwordReset?: boolean } | null)?.email ?? ''
+  const passwordResetSuccess = (location.state as { passwordReset?: boolean } | null)?.passwordReset ?? false
   const [step, setStep] = useState<Step>('credentials')
   const [email, setEmail] = useState(prefillEmail)
   const [password, setPassword] = useState('')
@@ -314,7 +315,13 @@ export default function Login() {
           <p className="auth-sub">Log in to your ImmigLens account</p>
         </div>
 
-        <form onSubmit={handleCredentials} className="auth-form">
+          {passwordResetSuccess && (
+            <div style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: '0.75rem 1rem', marginBottom: '0.5rem', color: '#15803d', fontSize: '0.9rem', textAlign: 'center' }}>
+              ✓ Password updated successfully. Please sign in.
+            </div>
+          )}
+
+          <form onSubmit={handleCredentials} className="auth-form">
           <div className="auth-field">
             <label className="auth-label">Work Email</label>
             <input
@@ -347,6 +354,11 @@ export default function Login() {
               >
                 {showPassword ? 'Hide' : 'Show'}
               </button>
+            </div>
+            <div style={{ textAlign: 'right', marginTop: '0.35rem' }}>
+              <Link to="/forgot-password" style={{ fontSize: '0.82rem', color: '#C8A24A', textDecoration: 'none' }}>
+                Forgot password?
+              </Link>
             </div>
           </div>
 

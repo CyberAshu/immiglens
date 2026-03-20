@@ -50,5 +50,8 @@ class Settings(BaseSettings):
     # ── Trusted device ──────────────────────────────────────────────────────
     TRUSTED_DEVICE_DAYS: int = 30
 
+    FRONTEND_URL: str = "http://35.183.11.44"
+    PASSWORD_RESET_EXPIRE_HOURS: int = 1
+
 
 settings = Settings()

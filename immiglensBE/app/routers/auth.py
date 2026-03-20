@@ -17,15 +17,19 @@ from app.core.security import (
     create_access_token,
     create_user,
     get_user_by_email,
+    hash_password,
     verify_password,
 )
 from app.models.otp import OTPRecord
+from app.models.password_reset import PasswordResetToken
 from app.models.trusted_device import TrustedDevice
 from app.models.user import User
 from app.schemas.auth import (
+    ForgotPasswordRequest,
     LoginRequest,
     OTPVerifyRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     TokenResponse,
     UserOut,
 )
@@ -71,6 +75,28 @@ def _send_otp_email(to_email: str, otp: str) -> None:
             smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         smtp.send_message(msg)
 
+
+
+def _send_reset_email(to_email: str, reset_url: str) -> None:
+    if not settings.SMTP_HOST:
+        print(f"[DEV RESET] {to_email} → {reset_url}")
+        return
+    msg = MIMEText(
+        f"You requested a password reset for your ImmigLens account.\n\n"
+        f"Click the link below to set a new password:\n{reset_url}\n\n"
+        f"This link expires in {settings.PASSWORD_RESET_EXPIRE_HOURS} hour(s).\n"
+        f"If you did not request this, you can safely ignore this email."
+    )
+    msg["Subject"] = "ImmigLens – Reset your password"
+    msg["From"] = settings.SMTP_FROM
+    msg["To"] = to_email
+    ctx = ssl.create_default_context()
+    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as smtp:
+        if settings.SMTP_USE_TLS:
+            smtp.starttls(context=ctx)
+        if settings.SMTP_USER:
+            smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+        smtp.send_message(msg)
 
 
 @router.post("/register", response_model=UserOut, status_code=201)
@@ -204,3 +230,84 @@ async def verify_otp(
 @router.get("/me", response_model=UserOut)
 async def me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.post("/forgot-password", status_code=200)
+async def forgot_password(
+    payload: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)
+):
+    """Send a password-reset link to the user's email.
+    Always returns success to prevent email enumeration.
+    """
+    _GENERIC_MSG = {"message": "If that email is registered, a reset link has been sent."}
+
+    user = await get_user_by_email(db, payload.email)
+    if not user:
+        return _GENERIC_MSG
+
+    # Invalidate any existing reset tokens for this user
+    await db.execute(
+        delete(PasswordResetToken).where(PasswordResetToken.user_id == user.id)
+    )
+
+    raw_token = secrets.token_hex(32)  # 64 hex chars, URL-safe
+    db.add(
+        PasswordResetToken(
+            user_id=user.id,
+            token_hash=_hash_token(raw_token),
+            expires_at=datetime.now(timezone.utc)
+            + timedelta(hours=settings.PASSWORD_RESET_EXPIRE_HOURS),
+        )
+    )
+    await db.commit()
+
+    reset_url = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
+    logger.debug("Password reset token generated for %s", payload.email)
+    try:
+        _send_reset_email(payload.email, reset_url)
+        logger.info("Password reset email dispatched to %s", payload.email)
+    except Exception as exc:
+        logger.warning("Password reset email failed for %s: %s", payload.email, exc)
+
+    return _GENERIC_MSG
+
+
+@router.post("/reset-password", status_code=200)
+async def reset_password(
+    payload: ResetPasswordRequest, db: AsyncSession = Depends(get_db)
+):
+    """Validate the reset token and update the user's password."""
+    if len(payload.new_password) < 8:
+        raise HTTPException(status_code=422, detail="Password must be at least 8 characters.")
+
+    token_hash = _hash_token(payload.token)
+    now = datetime.now(timezone.utc)
+
+    result = await db.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == token_hash,
+            PasswordResetToken.expires_at > now,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link. Please request a new one.")
+
+    user = await db.get(User, record.user_id)
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link.")
+
+    user.hashed_password = hash_password(payload.new_password)
+
+    # Consume the token and clear all trusted devices (security: force re-auth)
+    await db.execute(
+        delete(PasswordResetToken).where(PasswordResetToken.user_id == record.user_id)
+    )
+    await db.execute(
+        delete(TrustedDevice).where(TrustedDevice.user_id == record.user_id)
+    )
+    await db.commit()
+
+    logger.info("Password reset completed for user_id=%s", record.user_id)
+    return {"message": "Password updated successfully. You can now sign in."}
+

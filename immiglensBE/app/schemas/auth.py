@@ -40,6 +40,20 @@ class OTPVerifyRequest(BaseModel):
         return _normalize_email(v)
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return _normalize_email(v)
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
