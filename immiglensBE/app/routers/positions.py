@@ -124,15 +124,26 @@ async def update_position(
     current_user: User = Depends(get_current_user),
 ):
     position = await _get_position_or_404(employer_id, position_id, current_user, db)
-    old = {"job_title": position.job_title}
-    for field, value in payload.model_dump(exclude_unset=True).items():
-        setattr(position, field, value)
+
+    updates = payload.model_dump(exclude_unset=True)
+    old_data: dict = {}
+    new_data: dict = {}
+    for field, new_val in updates.items():
+        old_val = getattr(position, field)
+        if old_val != new_val:
+            old_data[field] = old_val.isoformat() if hasattr(old_val, 'isoformat') else old_val
+            new_data[field] = new_val.isoformat() if hasattr(new_val, 'isoformat') else new_val
+        setattr(position, field, new_val)
+
     await db.commit()
     await db.refresh(position)
-    await log_action(db, user_id=current_user.id, action="UPDATE",
-                     resource_type="position", resource_id=position.id,
-                     old_data=old, new_data={"job_title": position.job_title})
-    await db.commit()
+
+    if old_data:
+        await log_action(db, user_id=current_user.id, action="UPDATE",
+                         resource_type="position", resource_id=position.id,
+                         old_data=old_data, new_data=new_data)
+        await db.commit()
+
     return position
 
 

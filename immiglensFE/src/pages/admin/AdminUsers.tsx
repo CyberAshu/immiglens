@@ -3,6 +3,8 @@ import { useAuth } from '../../context/AuthContext'
 import { admin as adminApi } from '../../api'
 import type { AdminUserRecord } from '../../types'
 
+const PAGE_SIZE = 25
+
 export default function AdminUsers() {
   const { user } = useAuth()
   const [users, setUsers]           = useState<AdminUserRecord[]>([])
@@ -11,6 +13,7 @@ export default function AdminUsers() {
   const [error, setError]           = useState<string | null>(null)
   const [search, setSearch]         = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user'>('all')
+  const [page, setPage]             = useState(1)
 
   useEffect(() => {
     adminApi.users()
@@ -46,6 +49,11 @@ export default function AdminUsers() {
     return matchSearch && matchRole
   }), [users, search, roleFilter])
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  useMemo(() => { setPage(1) }, [search, roleFilter])
+
   if (loading) return <div className="loading">Loading users…</div>
 
   return (
@@ -77,7 +85,7 @@ export default function AdminUsers() {
           <option value="admin">Superadmins only</option>
           <option value="user">Regular users only</option>
         </select>
-        <span className="filter-count">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
+        <span className="filter-count">{filtered.length} result{filtered.length !== 1 ? 's' : ''}{totalPages > 1 ? ` · page ${page}/${totalPages}` : ''}</span>
       </div>
 
       <div className="table-wrap">
@@ -102,7 +110,7 @@ export default function AdminUsers() {
                 </td>
               </tr>
             )}
-            {filtered.map(u => (
+            {paginated.map(u => (
               <tr key={u.id}>
                 <td style={{ fontWeight: 500 }}>{u.full_name}</td>
                 <td style={{ color: '#888', fontSize: '0.88rem' }}>{u.email}</td>
@@ -142,6 +150,18 @@ export default function AdminUsers() {
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+          <button className="btn-ghost btn-sm" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
+            ← Prev
+          </button>
+          <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>Page {page} / {totalPages}</span>
+          <button className="btn-ghost btn-sm" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>
+            Next →
+          </button>
+        </div>
+      )}
     </div>
   )
 }

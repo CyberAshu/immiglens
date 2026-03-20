@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react'
 import { admin } from '../../api/admin'
 import type { AdminOrgOut } from '../../types'
 
+const PAGE_SIZE = 20
+
 export default function AdminOrganizations() {
   const [orgs, setOrgs] = useState<AdminOrgOut[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [expanded, setExpanded] = useState<number | null>(null)
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     admin.allOrgs()
@@ -32,6 +35,9 @@ export default function AdminOrganizations() {
     o.owner_email.toLowerCase().includes(search.toLowerCase())
   )
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
   if (loading) return <div className="admin-loading">Loading organizations…</div>
   if (error)   return <div className="admin-error">{error}</div>
 
@@ -50,7 +56,7 @@ export default function AdminOrganizations() {
           className="admin-search"
           placeholder="Search by name or owner…"
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => { setSearch(e.target.value); setPage(1) }}
         />
       </div>
 
@@ -69,7 +75,7 @@ export default function AdminOrganizations() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(org => (
+              {paginated.map(org => (
                 <>
                   <tr key={org.id} className={expanded === org.id ? 'admin-row-expanded' : ''}>
                     <td>
@@ -142,6 +148,18 @@ export default function AdminOrganizations() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+          <button className="btn-ghost btn-sm" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
+            ← Prev
+          </button>
+          <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>Page {page} / {totalPages}</span>
+          <button className="btn-ghost btn-sm" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>
+            Next →
+          </button>
         </div>
       )}
     </div>

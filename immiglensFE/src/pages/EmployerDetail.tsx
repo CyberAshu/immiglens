@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { employers as employersApi, positions as positionsApi, subscriptions as subscriptionsApi } from '../api'
 import type { Employer, JobPosition } from '../types'
 import AddressAutocomplete from '../components/AddressAutocomplete'
@@ -15,6 +15,7 @@ export default function EmployerDetail() {
   const [minFreq, setMinFreq] = useState(7)
   const [isCustomFreq, setIsCustomFreq] = useState(false)
   const [showForm, setShowForm] = useState(false)
+  const [editingPosition, setEditingPosition] = useState<JobPosition | null>(null)
   const [form, setForm] = useState({
     job_title: '', noc_code: '', num_positions: 1, start_date: '',
     capture_frequency_days: 7, wage: '', wage_period: 'hr', wage_stream: '', work_location: '',
@@ -34,6 +35,43 @@ export default function EmployerDetail() {
       })
       .finally(() => setLoading(false))
   }, [id])
+
+  const EMPTY_FORM = { job_title: '', noc_code: '', num_positions: 1, start_date: '', capture_frequency_days: minFreq, wage: '', wage_period: 'hr', wage_stream: '', work_location: '' }
+
+  function parseWage(wageFull: string | null): { wage: string; wage_period: string } {
+    if (!wageFull) return { wage: '', wage_period: 'hr' }
+    const match = wageFull.match(/CAD \$([0-9.]+)\/(\w+)/)
+    if (match) return { wage: match[1], wage_period: match[2] }
+    return { wage: '', wage_period: 'hr' }
+  }
+
+  function openEdit(pos: JobPosition) {
+    const { wage, wage_period } = parseWage(pos.wage)
+    const freq = pos.capture_frequency_days
+    const isCustom = ![7, 14, 28, minFreq].includes(freq)
+    setIsCustomFreq(isCustom)
+    setForm({
+      job_title: pos.job_title,
+      noc_code: pos.noc_code,
+      num_positions: pos.num_positions,
+      start_date: pos.start_date,
+      capture_frequency_days: freq,
+      wage,
+      wage_period,
+      wage_stream: pos.wage_stream ?? '',
+      work_location: pos.work_location ?? '',
+    })
+    setEditingPosition(pos)
+    setShowForm(true)
+    setError(null)
+  }
+
+  function closeModal() {
+    setShowForm(false)
+    setEditingPosition(null)
+    setIsCustomFreq(false)
+    setError(null)
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -61,6 +99,31 @@ export default function EmployerDetail() {
     }
   }
 
+  async function handleUpdate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingPosition) return
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await positionsApi.update(id, editingPosition.id, {
+        job_title: form.job_title,
+        noc_code: form.noc_code,
+        num_positions: Number(form.num_positions),
+        start_date: form.start_date,
+        capture_frequency_days: Number(form.capture_frequency_days),
+        wage: form.wage ? `CAD $${form.wage}/${form.wage_period}` : null,
+        wage_stream: form.wage_stream || null,
+        work_location: form.work_location,
+      })
+      setPositionList(prev => prev.map(p => p.id === updated.id ? updated : p))
+      closeModal()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update position.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function handleDelete(posId: number) {
     if (!confirm('Delete this job position and all captures?')) return
     await positionsApi.remove(id, posId)
@@ -81,15 +144,15 @@ export default function EmployerDetail() {
           <h1>{employer.business_name}</h1>
           <p className="sub-text">{employer.address} · {employer.contact_person}</p>
         </div>
-        <button className="btn-primary" onClick={() => setShowForm(true)}>
+        <button className="btn-primary" onClick={() => { setForm(EMPTY_FORM); setEditingPosition(null); setIsCustomFreq(false); setError(null); setShowForm(true) }}>
           + New Position
         </button>
       </div>
 
       {showForm && (
-        <div className="admin-modal-overlay" onClick={() => setShowForm(false)}>
-          <form className="admin-modal" style={{ maxWidth: 660 }} onSubmit={handleCreate} onClick={e => e.stopPropagation()}>
-            <h2 className="admin-modal-title">New Job Position</h2>
+        <div className="admin-modal-overlay" onClick={closeModal}>
+          <form className="admin-modal" style={{ maxWidth: 660 }} onSubmit={editingPosition ? handleUpdate : handleCreate} onClick={e => e.stopPropagation()}>
+            <h2 className="admin-modal-title">{editingPosition ? 'Edit Job Position' : 'New Job Position'}</h2>
             <div className="admin-form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
               <label className="admin-form-label">
                 Job Title *
@@ -105,7 +168,9 @@ export default function EmployerDetail() {
               </label>
               <label className="admin-form-label">
                 Start Date *
-                <input className="admin-input" type="date" value={form.start_date} min={new Date().toISOString().split('T')[0]} onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} required />
+                <input className="admin-input" type="date" value={form.start_date}
+                  {...(!editingPosition ? { min: new Date().toISOString().split('T')[0] } : {})}
+                  onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} required />
               </label>
               <label className="admin-form-label">
                 Capture Frequency
@@ -180,9 +245,9 @@ export default function EmployerDetail() {
             </div>
             {error && <p className="error-msg" style={{ margin: '0 0 1rem' }}>{error}</p>}
             <div className="admin-modal-actions">
-              <button type="button" className="btn-ghost" onClick={() => { setShowForm(false); setError(null) }}>Cancel</button>
+              <button type="button" className="btn-ghost" onClick={closeModal}>Cancel</button>
               <button type="submit" className="btn-primary" disabled={saving}>
-                {saving ? 'Saving…' : 'Create Position'}
+                {saving ? 'Saving…' : editingPosition ? 'Save Changes' : 'Create Position'}
               </button>
             </div>
           </form>
@@ -215,13 +280,22 @@ export default function EmployerDetail() {
                   <td>{pos.job_postings.length}</td>
                   <td>Every {pos.capture_frequency_days} days</td>
                   <td>
-                    <button
-                      className="btn-icon-danger"
-                      onClick={() => handleDelete(pos.id)}
-                      title="Delete position"
-                    >
-                      <Trash2 size={14} strokeWidth={2} />
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <button
+                        className="btn-icon"
+                        onClick={() => openEdit(pos)}
+                        title="Edit position"
+                      >
+                        <Pencil size={14} strokeWidth={2} />
+                      </button>
+                      <button
+                        className="btn-icon-danger"
+                        onClick={() => handleDelete(pos.id)}
+                        title="Delete position"
+                      >
+                        <Trash2 size={14} strokeWidth={2} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

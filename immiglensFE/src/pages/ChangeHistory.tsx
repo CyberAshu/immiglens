@@ -4,6 +4,8 @@ import { changes as changesApi } from '../api'
 import type { ChangeHistoryItem } from '../types'
 import { BASE } from '../api/client'
 
+const PAGE_SIZE = 20
+
 function ChangeIndicator({ changed }: { changed: boolean | null }) {
   if (changed === null) return <span className="change-badge change-badge--first">FIRST</span>
   if (changed)          return <span className="change-badge change-badge--changed">CHANGED</span>
@@ -16,6 +18,7 @@ export default function ChangeHistory() {
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
+  const [page, setPage]       = useState(1)
 
   useEffect(() => {
     if (!postingId) return
@@ -25,8 +28,11 @@ export default function ChangeHistory() {
       .finally(() => setLoading(false))
   }, [postingId])
 
-  const changed = history.filter(h => h.has_changed === true).length
-  const same    = history.filter(h => h.has_changed === false).length
+  const changed    = history.filter(h => h.has_changed === true).length
+  const same        = history.filter(h => h.has_changed === false).length
+  const totalPages  = Math.max(1, Math.ceil(history.length / PAGE_SIZE))
+  const pageOffset  = (page - 1) * PAGE_SIZE
+  const paginated   = history.slice(pageOffset, pageOffset + PAGE_SIZE)
 
   return (
     <div className="page">
@@ -67,12 +73,12 @@ export default function ChangeHistory() {
             ? <div className="card"><p className="empty-hint">No snapshots yet for this posting.</p></div>
             : (
               <div className="change-timeline">
-                {history.map((item, idx) => (
+                {paginated.map((item, idx) => (
                   <div key={item.snapshot_id} className={`change-item ${item.has_changed ? 'change-item--changed' : ''}`}>
                     <div className="change-dot" />
                     <div className="change-content">
                       <div className="change-meta">
-                        <span className="change-seq">#{history.length - idx}</span>
+                        <span className="change-seq">#{history.length - pageOffset - idx}</span>
                         <span className="change-time">{new Date(item.captured_at).toLocaleString()}</span>
                         <ChangeIndicator changed={item.has_changed} />
                       </div>
@@ -101,6 +107,18 @@ export default function ChangeHistory() {
                 ))}
               </div>
             )}
+
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'center', marginTop: '1.5rem' }}>
+              <button className="btn-ghost btn-sm" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
+                ← Prev
+              </button>
+              <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>Page {page} / {totalPages}</span>
+              <button className="btn-ghost btn-sm" onClick={() => setPage(p => p + 1)} disabled={page === totalPages}>
+                Next →
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>

@@ -11,6 +11,7 @@ const ACTION_COLORS: Record<string, string> = {
 
 const RESOURCE_TYPES = ['', 'employer', 'position', 'posting', 'capture_round', 'organization', 'org_invitation', 'org_member', 'user', 'subscription_tier']
 const ACTIONS        = ['', 'CREATE', 'UPDATE', 'DELETE', 'VIEW']
+const PAGE_SIZE      = 20
 
 export default function AuditLogs() {
   const [logs, setLogs]           = useState<AuditLog[]>([])
@@ -19,16 +20,19 @@ export default function AuditLogs() {
   const [resourceType, setResourceType] = useState('')
   const [action, setAction]       = useState('')
   const [expanded, setExpanded]   = useState<number | null>(null)
+  const [page, setPage]           = useState(1)
+  const [hasMore, setHasMore]     = useState(false)
 
-  function load() {
+  function load(p: number) {
     setLoading(true)
-    auditApi.list({ resource_type: resourceType || undefined, action: action || undefined, limit: 100 })
-      .then(setLogs)
+    auditApi.list({ resource_type: resourceType || undefined, action: action || undefined, limit: PAGE_SIZE, offset: (p - 1) * PAGE_SIZE })
+      .then(data => { setLogs(data); setHasMore(data.length === PAGE_SIZE) })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [resourceType, action])
+  useEffect(() => { setPage(1) }, [resourceType, action])
+  useEffect(() => { load(page) }, [page, resourceType, action])
 
   return (
     <div className="page">
@@ -49,7 +53,7 @@ export default function AuditLogs() {
           <option value="">All Actions</option>
           {ACTIONS.slice(1).map(a => <option key={a} value={a}>{a}</option>)}
         </select>
-        <span className="filter-count">{logs.length} result{logs.length !== 1 ? 's' : ''}</span>
+        <span className="filter-count">{logs.length} result{logs.length !== 1 ? 's' : ''}{page > 1 || hasMore ? ` (page ${page})` : ''}</span>
       </div>
 
       {error   && <div className="error-msg">{error}</div>}
@@ -126,6 +130,18 @@ export default function AuditLogs() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {!loading && !error && (page > 1 || hasMore) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+          <button className="btn-ghost btn-sm" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
+            ← Prev
+          </button>
+          <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>Page {page}</span>
+          <button className="btn-ghost btn-sm" onClick={() => setPage(p => p + 1)} disabled={!hasMore}>
+            Next →
+          </button>
         </div>
       )}
     </div>
