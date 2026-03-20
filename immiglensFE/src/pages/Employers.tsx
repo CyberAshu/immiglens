@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Building2, Mail, Phone, Plus, Search, Trash2, User } from 'lucide-react'
+import { Building2, Mail, Pencil, Phone, Plus, Search, Trash2, User } from 'lucide-react'
 import { employers as employersApi } from '../api'
 import type { Employer } from '../types'
 import AddressAutocomplete from '../components/AddressAutocomplete'
@@ -9,6 +9,7 @@ export default function Employers() {
   const [list, setList]       = useState<Employer[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editingEmployer, setEditingEmployer] = useState<Employer | null>(null)
   const [query, setQuery]     = useState('')
   const [form, setForm]       = useState({
     business_name: '', address: '', contact_person: '',
@@ -22,6 +23,28 @@ export default function Employers() {
       .then(setList)
       .finally(() => setLoading(false))
   }, [])
+
+  const EMPTY_FORM = { business_name: '', address: '', contact_person: '', contact_email: '', contact_phone: '', business_number: '' }
+
+  function openEdit(emp: Employer) {
+    setForm({
+      business_name:   emp.business_name,
+      address:         emp.address,
+      contact_person:  emp.contact_person,
+      contact_email:   emp.contact_email  ?? '',
+      contact_phone:   emp.contact_phone  ?? '',
+      business_number: emp.business_number ?? '',
+    })
+    setEditingEmployer(emp)
+    setShowForm(true)
+    setError(null)
+  }
+
+  function closeModal() {
+    setShowForm(false)
+    setEditingEmployer(null)
+    setError(null)
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -40,6 +63,26 @@ export default function Employers() {
       setForm({ business_name: '', address: '', contact_person: '', contact_email: '', contact_phone: '', business_number: '' })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create employer.')
+    } finally { setSaving(false) }
+  }
+
+  async function handleUpdate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingEmployer) return
+    setSaving(true); setError(null)
+    try {
+      const updated = await employersApi.update(editingEmployer.id, {
+        business_name:   form.business_name,
+        address:         form.address,
+        contact_person:  form.contact_person,
+        contact_email:   form.contact_email  || null,
+        contact_phone:   form.contact_phone  || null,
+        business_number: form.business_number || null,
+      })
+      setList(prev => prev.map(e => e.id === updated.id ? updated : e))
+      closeModal()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update employer.')
     } finally { setSaving(false) }
   }
 
@@ -62,7 +105,7 @@ export default function Employers() {
           <h1>Employers</h1>
           <p className="page-subtitle">{list.length} employer{list.length !== 1 ? 's' : ''} tracked</p>
         </div>
-        <button className="btn-primary" onClick={() => setShowForm(true)}>
+        <button className="btn-primary" onClick={() => { setForm(EMPTY_FORM); setEditingEmployer(null); setError(null); setShowForm(true) }}>
           <Plus size={15} strokeWidth={2.5} />
           New Employer
         </button>
@@ -136,13 +179,14 @@ export default function Employers() {
                       : <span className="emp-empty">—</span>}
                   </td>
                   <td>
-                    <button
-                      className="btn-icon-danger"
-                      onClick={() => handleDelete(emp.id)}
-                      title="Delete employer"
-                    >
-                      <Trash2 size={14} strokeWidth={2} />
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <button className="btn-icon" onClick={() => openEdit(emp)} title="Edit employer">
+                        <Pencil size={14} strokeWidth={2} />
+                      </button>
+                      <button className="btn-icon-danger" onClick={() => handleDelete(emp.id)} title="Delete employer">
+                        <Trash2 size={14} strokeWidth={2} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -151,11 +195,11 @@ export default function Employers() {
         </div>
       )}
 
-      {/* create modal */}
+      {/* create / edit modal */}
       {showForm && (
-        <div className="admin-modal-overlay" onClick={() => setShowForm(false)}>
-          <form className="admin-modal" style={{ maxWidth: 620 }} onSubmit={handleCreate} onClick={e => e.stopPropagation()}>
-            <h2 className="admin-modal-title">New Employer</h2>
+        <div className="admin-modal-overlay" onClick={closeModal}>
+          <form className="admin-modal" style={{ maxWidth: 620 }} onSubmit={editingEmployer ? handleUpdate : handleCreate} onClick={e => e.stopPropagation()}>
+            <h2 className="admin-modal-title">{editingEmployer ? 'Edit Employer' : 'New Employer'}</h2>
             <div className="admin-form-grid">
               <label className="admin-form-label" style={{ gridColumn: 'span 2' }}>
                 Business Name *
@@ -196,9 +240,9 @@ export default function Employers() {
             </div>
             {error && <p className="error-msg">{error}</p>}
             <div className="admin-modal-actions">
-              <button type="button" className="btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
+              <button type="button" className="btn-ghost" onClick={closeModal}>Cancel</button>
               <button type="submit" className="btn-primary" disabled={saving}>
-                {saving ? 'Saving...' : 'Create Employer'}
+                {saving ? 'Saving…' : editingEmployer ? 'Save Changes' : 'Create Employer'}
               </button>
             </div>
           </form>
