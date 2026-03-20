@@ -46,7 +46,7 @@ export function NocSearch({ value, onSelect, placeholder = 'Search NOC code or t
   }
 
   function handleSelect(noc: NocCodeOut) {
-    const label = `${noc.code} — ${noc.title}`
+    const label = noc.code
     setSelectedLabel(label)
     setQuery('')
     setResults([])
