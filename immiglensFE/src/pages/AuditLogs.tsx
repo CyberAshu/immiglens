@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { auditLogs as auditApi } from '../api'
 import type { AuditLog } from '../types'
 
@@ -78,8 +78,8 @@ export default function AuditLogs() {
                 <tr><td colSpan={7} className="empty-cell">No audit logs found.</td></tr>
               )}
               {logs.map(log => (
-                <>
-                  <tr key={log.id}>
+                <Fragment key={log.id}>
+                  <tr>
                     <td className="mono text-dim">{new Date(log.created_at).toLocaleString()}</td>
                     <td>
                       <span className="action-badge" style={{ color: ACTION_COLORS[log.action] ?? '#6b7280', borderColor: ACTION_COLORS[log.action] ?? '#d1d5db' }}>
@@ -107,7 +107,7 @@ export default function AuditLogs() {
                     </td>
                   </tr>
                   {expanded === log.id && (
-                    <tr key={`${log.id}-diff`}>
+                    <tr>
                       <td colSpan={7} className="diff-row">
                         <div className="diff-grid">
                           {log.old_data && (
@@ -126,7 +126,7 @@ export default function AuditLogs() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

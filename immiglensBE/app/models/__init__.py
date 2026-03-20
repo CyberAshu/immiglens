@@ -12,6 +12,7 @@ from app.models.change_detection import PostingSnapshot
 from app.models.report_config import ReportConfig
 from app.models.otp import OTPRecord
 from app.models.trusted_device import TrustedDevice
+from app.models.noc_code import NocCode
 
 __all__ = [
     "User",
@@ -38,4 +39,5 @@ __all__ = [
     "ReportConfig",
     "OTPRecord",
     "TrustedDevice",
+    "NocCode",
 ]

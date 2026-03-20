@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { admin } from '../../api/admin'
 import type { AdminOrgOut } from '../../types'
 
@@ -76,8 +76,8 @@ export default function AdminOrganizations() {
             </thead>
             <tbody>
               {paginated.map(org => (
-                <>
-                  <tr key={org.id} className={expanded === org.id ? 'admin-row-expanded' : ''}>
+                <Fragment key={org.id}>
+                  <tr className={expanded === org.id ? 'admin-row-expanded' : ''}>
                     <td>
                       <button
                         className="admin-link-btn"
@@ -106,7 +106,7 @@ export default function AdminOrganizations() {
                     </td>
                   </tr>
                   {expanded === org.id && (
-                    <tr key={`members-${org.id}`} className="admin-row-detail">
+                    <tr className="admin-row-detail">
                       <td colSpan={5}>
                         <div className="admin-members-panel">
                           <strong>Members ({org.members.length})</strong>
@@ -144,7 +144,7 @@ export default function AdminOrganizations() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

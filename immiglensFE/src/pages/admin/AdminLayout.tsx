@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react'
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useUpload } from '../../context/UploadContext'
 import { BackToTop } from '../../components/BackToTop'
 import {
   BarChart2,
+  BookOpen,
   ClipboardList,
   CreditCard,
   Building2,
@@ -17,6 +19,7 @@ import '../../App.css'
 
 export default function AdminLayout() {
   const { user, logout, loading } = useAuth()
+  const { uploading, progress } = useUpload()
   const navigate = useNavigate()
   const mainRef = useRef<HTMLElement>(null)
   const location = useLocation()
@@ -84,6 +87,9 @@ export default function AdminLayout() {
             <NavLink to="/admin/report-designer" className={navCls}>
               <Paintbrush size={15} strokeWidth={2} />Report Designer
             </NavLink>
+            <NavLink to="/admin/noc-codes" className={navCls}>
+              <BookOpen size={15} strokeWidth={2} />NOC Codes
+            </NavLink>
           </nav>
           <div className="sidebar-separator" />
           <span className="sidebar-section-label">Quick Link</span>
@@ -100,6 +106,30 @@ export default function AdminLayout() {
         </main>
         <BackToTop scrollRef={mainRef} />
       </div>
+
+      {/* ── Floating upload progress ─────────────── */}
+      {uploading && progress && (
+        <div style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 99999,
+          background: '#1a3352', color: '#fff', borderRadius: 12,
+          padding: '0.9rem 1.2rem', minWidth: 280, boxShadow: '0 8px 32px rgba(0,0,0,0.28)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', marginBottom: '0.5rem' }}>
+            <span style={{ fontWeight: 600 }}>Uploading NOC Codes…</span>
+            <span style={{ opacity: 0.8 }}>{progress.done} / {progress.total} ({Math.round(progress.done / progress.total * 100)}%)</span>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 99, height: 6, overflow: 'hidden' }}>
+            <div style={{
+              background: 'linear-gradient(90deg, #C8A24A, #f0c060)',
+              height: '100%',
+              width: `${Math.round(progress.done / progress.total * 100)}%`,
+              transition: 'width 0.3s ease',
+              borderRadius: 99,
+            }} />
+          </div>
+          <div style={{ fontSize: '0.72rem', opacity: 0.6, marginTop: '0.4rem' }}>Safe to navigate — upload continues in background</div>
+        </div>
+      )}
     </div>
   )
 }

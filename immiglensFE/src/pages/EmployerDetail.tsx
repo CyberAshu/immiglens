@@ -4,6 +4,7 @@ import { Pencil, Trash2 } from 'lucide-react'
 import { employers as employersApi, positions as positionsApi, subscriptions as subscriptionsApi } from '../api'
 import type { Employer, JobPosition } from '../types'
 import AddressAutocomplete from '../components/AddressAutocomplete'
+import { NocSearch } from '../components/NocSearch'
 
 export default function EmployerDetail() {
   const { employerId } = useParams<{ employerId: string }>()
@@ -154,13 +155,22 @@ export default function EmployerDetail() {
           <form className="admin-modal" style={{ maxWidth: 660 }} onSubmit={editingPosition ? handleUpdate : handleCreate} onClick={e => e.stopPropagation()}>
             <h2 className="admin-modal-title">{editingPosition ? 'Edit Job Position' : 'New Job Position'}</h2>
             <div className="admin-form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
-              <label className="admin-form-label">
-                Job Title *
-                <input className="admin-input" value={form.job_title} onChange={e => setForm(p => ({ ...p, job_title: e.target.value }))} required />
+              <label className="admin-form-label" style={{ gridColumn: '1 / -1' }}>
+                NOC Code *
+                <NocSearch
+                  value={form.noc_code}
+                  onSelect={(code, title) => setForm(p => ({ ...p, noc_code: code, job_title: title }))}
+                  required
+                />
+                {form.noc_code && (
+                  <span style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.2rem', display: 'block' }}>
+                    Selected: <strong>{form.noc_code}</strong>
+                  </span>
+                )}
               </label>
               <label className="admin-form-label">
-                NOC Code *
-                <input className="admin-input" value={form.noc_code} onChange={e => setForm(p => ({ ...p, noc_code: e.target.value }))} required placeholder="e.g. 13100" />
+                Job Title *
+                <input className="admin-input" value={form.job_title} onChange={e => setForm(p => ({ ...p, job_title: e.target.value }))} required placeholder="Auto-filled from NOC, or type manually" />
               </label>
               <label className="admin-form-label">
                 Number of Positions *

@@ -26,6 +26,8 @@ from app.routers.stats import router as stats_router
 from app.routers.subscriptions import router as subscriptions_router
 from app.routers.report_config import router as report_config_router
 from app.routers.report_config import client_router as report_config_client_router
+from app.routers.noc_codes import router as noc_codes_router
+from app.routers.noc_codes import admin_router as admin_noc_codes_router
 from app.core.database import AsyncSessionLocal
 from app.services.browser import browser_manager
 from app.services.job_store import store
@@ -127,4 +129,6 @@ app.include_router(subscriptions_router)
 app.include_router(changes_router)
 app.include_router(report_config_router)
 app.include_router(report_config_client_router)
+app.include_router(noc_codes_router)
+app.include_router(admin_noc_codes_router)
 

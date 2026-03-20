@@ -1,5 +1,6 @@
 import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { UploadProvider } from './context/UploadContext'
 import Layout from './pages/Layout'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -19,6 +20,7 @@ import AdminUsers from './pages/admin/AdminUsers'
 import AdminOrganizations from './pages/admin/AdminOrganizations'
 import AdminTiers from './pages/admin/AdminTiers'
 import AdminReportDesigner from './pages/admin/AdminReportDesigner'
+import AdminNocCodes from './pages/admin/AdminNocCodes'
 // Landing pages
 import { LandingLayout } from './pages/landing/LandingLayout'
 import { LandingHome } from './pages/landing/LandingHome'
@@ -39,6 +41,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <AuthProvider>
+      <UploadProvider>
       <Router>
         <Routes>
           {/* ── Public Landing Pages ─────────────── */}
@@ -84,9 +87,11 @@ export default function App() {
             <Route path="tiers" element={<AdminTiers />} />
             <Route path="audit-logs" element={<AuditLogs />} />
             <Route path="report-designer" element={<AdminReportDesigner />} />
+            <Route path="noc-codes" element={<AdminNocCodes />} />
           </Route>
         </Routes>
       </Router>
+      </UploadProvider>
     </AuthProvider>
   )
 }
