@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { notifications as notifApi } from '../api'
+import { useAuth } from '../context/AuthContext'
 import type { NotificationChannel, NotificationEvent, NotificationLog, NotificationPreference } from '../types'
 
 const EVENTS: NotificationEvent[]    = ['capture_complete', 'capture_failed', 'posting_changed', 'round_started']
@@ -18,6 +19,7 @@ function EventLabel({ e }: { e: NotificationEvent }) {
 }
 
 export default function Notifications() {
+  const { user } = useAuth()
   const [prefs, setPrefs]     = useState<NotificationPreference[]>([])
   const [logs, setLogs]       = useState<NotificationLog[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,6 +29,11 @@ export default function Notifications() {
   const [form, setForm]       = useState<{ event_type: NotificationEvent; channel: NotificationChannel; destination: string }>({
     event_type: 'capture_complete', channel: 'email', destination: '',
   })
+
+  // Pre-fill destination with the user's signup email once known
+  useEffect(() => {
+    if (user?.email) setForm(f => ({ ...f, destination: f.destination || user.email }))
+  }, [user?.email])
 
   useEffect(() => {
     Promise.all([notifApi.listPreferences(), notifApi.listLogs()])
@@ -41,7 +48,7 @@ export default function Notifications() {
       const created = await notifApi.createPreference(form)
       setPrefs(prev => [...prev, created])
       setShowForm(false)
-      setForm({ event_type: 'capture_complete', channel: 'email', destination: '' })
+      setForm({ event_type: 'capture_complete', channel: 'email', destination: user?.email ?? '' })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to save.')
     } finally { setSaving(false) }
@@ -50,12 +57,6 @@ export default function Notifications() {
   async function handleToggle(id: number, current: boolean) {
     const updated = await notifApi.togglePreference(id, !current)
     setPrefs(prev => prev.map(p => p.id === id ? updated : p))
-  }
-
-  async function handleDelete(id: number) {
-    if (!confirm('Remove this notification rule?')) return
-    await notifApi.deletePreference(id)
-    setPrefs(prev => prev.filter(p => p.id !== id))
   }
 
   if (loading) return <div className="loading">Loading…</div>
@@ -88,7 +89,10 @@ export default function Notifications() {
             <div className="form-group">
               <label className="form-label">Channel</label>
               <select className="form-input" value={form.channel}
-                onChange={e => setForm(f => ({ ...f, channel: e.target.value as NotificationChannel }))}>
+                onChange={e => {
+                  const ch = e.target.value as NotificationChannel
+                  setForm(f => ({ ...f, channel: ch, destination: ch === 'email' ? (user?.email ?? '') : '' }))
+                }}>
                 {CHANNELS.map(ch => <option key={ch} value={ch}>{ch}</option>)}
               </select>
             </div>
@@ -118,7 +122,7 @@ export default function Notifications() {
             <div className="table-wrap" style={{ border: 'none' }}>
               <table className="data-table">
                 <thead>
-                  <tr><th>Event</th><th>Channel</th><th>Destination</th><th>Active</th><th></th></tr>
+                  <tr><th>Event</th><th>Channel</th><th>Destination</th><th>Active</th></tr>
                 </thead>
                 <tbody>
                   {prefs.map(p => (
@@ -128,15 +132,15 @@ export default function Notifications() {
                       <td className="mono text-dim">{p.destination}</td>
                       <td>
                         <button
-                          className={`toggle-btn ${p.is_active ? 'toggle-btn--on' : 'toggle-btn--off'}`}
+                          className={`toggle-switch ${p.is_active ? 'toggle-switch--on' : 'toggle-switch--off'}`}
                           onClick={() => handleToggle(p.id, p.is_active)}
+                          aria-label={p.is_active ? 'Disable notification' : 'Enable notification'}
+                          title={p.is_active ? 'Click to disable' : 'Click to enable'}
                         >
-                          {p.is_active ? 'ON' : 'OFF'}
+                          <span className="toggle-switch-thumb" />
                         </button>
                       </td>
-                      <td>
-                        <button className="btn-ghost btn-xs btn-danger" onClick={() => handleDelete(p.id)}>Remove</button>
-                      </td>
+
                     </tr>
                   ))}
                 </tbody>

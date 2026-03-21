@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { BackToTop } from '../components/BackToTop'
 import { notifications as notifApi } from '../api'
-import type { NotificationLog } from '../types'
+import type { NotificationEvent, NotificationLog } from '../types'
 import {
   Bell,
   Building2,
@@ -41,6 +41,19 @@ export default function Layout() {
   useEffect(() => {
     notifApi.listLogs().then(setNotifLogs).catch(() => {})
   }, [])
+
+  // Auto-create default notification rules for new users (first login)
+  useEffect(() => {
+    if (!user) return
+    notifApi.listPreferences().then(prefs => {
+      if (prefs.length === 0) {
+        const events: NotificationEvent[] = ['capture_complete', 'capture_failed', 'posting_changed', 'round_started']
+        events.forEach(event_type =>
+          notifApi.createPreference({ event_type, channel: 'email', destination: user.email }).catch(() => {})
+        )
+      }
+    }).catch(() => {})
+  }, [user?.id])
 
   // Close dropdowns on outside click
   useEffect(() => {

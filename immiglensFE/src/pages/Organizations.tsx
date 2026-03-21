@@ -4,7 +4,7 @@ import type { OrgInvitation, OrgMembership, OrgRole, Organization } from '../typ
 
 function RoleBadge({ role }: { role: OrgRole }) {
   const colors: Record<OrgRole, string> = { owner: '#C8A24A', admin: '#0B1F3B', viewer: '#6b7280' }
-  const labels: Record<OrgRole, string> = { owner: 'Owner', admin: 'Org Admin', viewer: 'Viewer' }
+  const labels: Record<OrgRole, string> = { owner: 'Owner', admin: 'Admin', viewer: 'Member' }
   return (
     <span className="role-pill" style={{ color: colors[role], borderColor: colors[role] }}>
       {labels[role]}
@@ -181,8 +181,8 @@ export default function Organizations() {
                     <label className="form-label">Role</label>
                     <select className="form-input" value={inviteRole}
                       onChange={e => setInviteRole(e.target.value as OrgRole)}>
-                      <option value="admin">Org Admin</option>
-                      <option value="viewer">Viewer</option>
+                      <option value="admin">Admin</option>
+                      <option value="viewer">Member</option>
                     </select>
                   </div>
                   <button className="btn-primary btn-sm" type="submit" disabled={saving}>{saving ? '…' : 'Send Invite'}</button>
