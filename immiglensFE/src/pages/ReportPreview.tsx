@@ -34,6 +34,15 @@ import type { JobPosition } from '../types'
 
 GlobalWorkerOptions.workerSrc = workerUrl
 
+// crypto.randomUUID() requires HTTPS — use getRandomValues as a fallback for HTTP
+function uuid(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const b = crypto.getRandomValues(new Uint8Array(16))
+  b[6] = (b[6] & 0x0f) | 0x40
+  b[8] = (b[8] & 0x3f) | 0x80
+  return [...b].map((v, i) => ([4, 6, 8, 10].includes(i) ? '-' : '') + v.toString(16).padStart(2, '0')).join('')
+}
+
 interface PageItem {
   id: string
   originalIndex: number
@@ -122,7 +131,7 @@ export default function ReportPreview() {
     const buf = phase.pdfBytes
     getDocument({ data: buf.slice(0) }).promise.then(pdfDoc => {
       const pages: PageItem[] = Array.from({ length: pdfDoc.numPages }, (_, i) => ({
-        id: crypto.randomUUID(),
+        id: uuid(),
         originalIndex: i,
         thumbnailDataUrl: null,
         removed: false,
@@ -193,7 +202,7 @@ export default function ReportPreview() {
       const buffer = await blob.arrayBuffer()
       const pdfDoc = await getDocument({ data: buffer.slice(0) }).promise
       const pages: PageItem[] = Array.from({ length: pdfDoc.numPages }, (_, i) => ({
-        id: crypto.randomUUID(),
+        id: uuid(),
         originalIndex: i,
         thumbnailDataUrl: null,
         removed: false,
