@@ -7,6 +7,7 @@ export interface SubscriptionTier {
   max_postings_per_position: number
   max_captures_per_month: number
   min_capture_frequency_days: number
+  price_per_month: number | null
   is_active: boolean
   created_at: string
 }

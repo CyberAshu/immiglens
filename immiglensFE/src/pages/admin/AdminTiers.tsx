@@ -11,6 +11,7 @@ const EMPTY_FORM: TierCreate = {
   max_postings_per_position: 10,
   max_captures_per_month: 50,
   min_capture_frequency_days: 28,
+  price_per_month: null,
 }
 
 export default function AdminTiers() {
@@ -53,6 +54,7 @@ export default function AdminTiers() {
       max_postings_per_position: tier.max_postings_per_position,
       max_captures_per_month: tier.max_captures_per_month,
       min_capture_frequency_days: tier.min_capture_frequency_days,
+      price_per_month: tier.price_per_month ?? null,
     })
     setShowForm(true)
   }
@@ -172,6 +174,10 @@ export default function AdminTiers() {
                   </div>                  <div className="tier-limit-row">
                     <span>Min capture interval</span>
                     <strong>Every {tier.min_capture_frequency_days} day(s)</strong>
+                  </div>
+                  <div className="tier-limit-row">
+                    <span>Price / month</span>
+                    <strong>{tier.price_per_month != null ? `$${tier.price_per_month}` : '—'}</strong>
                   </div>                </div>
                 <div className="tier-card-actions">
                   <button
@@ -324,6 +330,19 @@ export default function AdminTiers() {
                   className="admin-input"
                   value={form.min_capture_frequency_days}
                   onChange={e => setForm(f => ({ ...f, min_capture_frequency_days: Number(e.target.value) }))}
+                />
+              </label>
+              <label className="admin-form-label">
+                Price per Month (USD, optional)
+                <span className="admin-form-hint">Leave blank to hide price on the public pricing page.</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  className="admin-input"
+                  placeholder="e.g. 79"
+                  value={form.price_per_month ?? ''}
+                  onChange={e => setForm(f => ({ ...f, price_per_month: e.target.value === '' ? null : Number(e.target.value) }))}
                 />
               </label>
             </div>

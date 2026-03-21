@@ -1,34 +1,119 @@
-import { useState } from 'react'
-import { Check } from 'lucide-react'
-import { PricingCard, ROICard, FAQAccordion, CTABand } from './LandingUI'
+import { useEffect, useState } from 'react'
+import { Check, Loader2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { subscriptions } from '../../api/subscriptions'
+import { ROICard, FAQAccordion, CTABand } from './LandingUI'
+import type { SubscriptionTier } from '../../types'
 
-const plans = [
-  { limit: '5', price: 29 },
-  { limit: '10', price: 39 },
-  { limit: '25', price: 79, isPopular: true },
-  { limit: '50', price: 119 },
-  { limit: '100', price: 179 },
-  { limit: 'Custom', price: 'Contact Sales' },
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function fmt(val: number): string {
+  return val === -1 ? 'Unlimited' : String(val)
+}
+
+function tierFeatureList(tier: SubscriptionTier): string[] {
+  return [
+    `${fmt(tier.max_employers)} employer${tier.max_employers === 1 ? '' : 's'}`,
+    `${fmt(tier.max_positions_per_employer)} position${tier.max_positions_per_employer === 1 ? '' : 's'} per employer`,
+    `${fmt(tier.max_postings_per_position)} job board URL${tier.max_postings_per_position === 1 ? '' : 's'} per position`,
+    `${fmt(tier.max_captures_per_month)} capture${tier.max_captures_per_month === 1 ? '' : 's'} / month`,
+    `Capture every ${tier.min_capture_frequency_days} day${tier.min_capture_frequency_days === 1 ? '' : 's'} minimum`,
+  ]
+}
+
+const tableRows: { label: string; key: keyof SubscriptionTier }[] = [
+  { label: 'Max Employers',               key: 'max_employers' },
+  { label: 'Positions per Employer',       key: 'max_positions_per_employer' },
+  { label: 'Job Board URLs per Position',  key: 'max_postings_per_position' },
+  { label: 'Captures per Month',           key: 'max_captures_per_month' },
+  { label: 'Min. Capture Frequency (days)',key: 'min_capture_frequency_days' },
 ]
 
-const features = [
-  'Automated captures',
-  'Evidence timeline',
-  'LMIA-ready PDF',
-  'Email alerts',
-  'Watermarked trial exports',
-]
+// ── Plan Card ─────────────────────────────────────────────────────────────────
 
-const compareFeatures: { name: string; values: (string | boolean)[] }[] = [
-  { name: 'Active Postings Limit', values: ['5', '10', '25', '50', '100'] },
-  { name: 'Automated Captures', values: [true, true, true, true, true] },
-  { name: 'LMIA-ready PDF Export', values: [true, true, true, true, true] },
-  { name: 'Email Alerts', values: [true, true, true, true, true] },
-  { name: 'Evidence Timeline', values: [true, true, true, true, true] },
-  { name: 'Export History / Audit', values: [false, false, true, true, true] },
-  { name: 'Priority Support', values: [false, false, true, true, true] },
-  { name: 'Custom Retention', values: [false, false, false, true, true] },
-]
+function TierCard({ tier, isHighlighted, isAnnual }: { tier: SubscriptionTier; isHighlighted: boolean; isAnnual: boolean }) {
+  const features = tierFeatureList(tier)
+  const monthlyPrice = tier.price_per_month
+  const displayPrice = monthlyPrice != null && isAnnual
+    ? Math.floor(monthlyPrice * 0.8)
+    : monthlyPrice
+
+  return (
+    <div
+      className={`relative bg-white rounded-3xl p-8 border transition-all duration-300 hover:-translate-y-1 flex flex-col h-full ${
+        isHighlighted
+          ? 'border-brand-gold shadow-lg shadow-brand-gold/10'
+          : 'border-gray-200 shadow-sm'
+      }`}
+    >
+      {isHighlighted && (
+        <div className="absolute -top-4 inset-x-0 flex justify-center">
+          <span className="bg-brand-gold text-white text-xs font-bold uppercase tracking-wider py-1.5 px-4 rounded-full shadow-sm">
+            Most Popular
+          </span>
+        </div>
+      )}
+
+      <div className="mb-4">
+        <h3 className="text-xl font-bold text-brand-navy mb-1">{tier.display_name}</h3>
+      </div>
+
+      {/* Price */}
+      <div className="mb-6">
+        {displayPrice != null ? (
+          <>
+            <div className="flex items-baseline gap-1">
+              <span className="text-5xl font-extrabold text-brand-navy">${displayPrice}</span>
+              <span className="text-brand-charcoal/60 font-medium">/mo</span>
+            </div>
+            {isAnnual && monthlyPrice != null && monthlyPrice > 0 && (
+              <p className="text-brand-charcoal/50 text-sm mt-1">
+                ${Math.floor(monthlyPrice * 0.8 * 12)} billed annually
+              </p>
+            )}
+            {!isAnnual && monthlyPrice != null && monthlyPrice > 0 && (
+              <p className="text-brand-charcoal/50 text-sm mt-1">billed monthly</p>
+            )}
+          </>
+        ) : (
+          <span className="text-2xl font-bold text-brand-navy">Contact Sales</span>
+        )}
+        {isAnnual && monthlyPrice != null && monthlyPrice > 0 && (
+          <div className="mt-2 bg-green-50 text-green-700 text-xs font-semibold px-3 py-1.5 rounded-lg w-fit border border-green-200">
+            Save ${Math.floor(monthlyPrice * 12 * 0.2)} / year
+          </div>
+        )}
+      </div>
+
+      <Link
+        to="/register"
+        className={`w-full block text-center py-3.5 rounded-xl font-semibold mb-8 transition-colors border ${
+          isHighlighted
+            ? 'bg-brand-navy hover:bg-brand-charcoal text-white border-transparent shadow-md'
+            : 'bg-white hover:bg-gray-50 text-brand-navy border-gray-200'
+        }`}
+      >
+        Get Started
+      </Link>
+
+      <div className="mt-auto">
+        <p className="text-xs font-semibold text-brand-navy uppercase tracking-wider mb-4">
+          Plan Limits
+        </p>
+        <ul className="space-y-3.5">
+          {features.map((f, i) => (
+            <li key={i} className="flex items-start gap-3">
+              <Check size={18} className="text-brand-gold shrink-0 mt-0.5" />
+              <span className="text-sm text-brand-charcoal/80">{f}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
+
+// ── Static FAQ ────────────────────────────────────────────────────────────────
 
 const faqItems = [
   {
@@ -37,46 +122,59 @@ const faqItems = [
   },
   {
     q: 'What happens when I reach my limit?',
-    a: 'You won\'t be able to create new active positions until you either archive an existing one or upgrade your plan. Existing active postings continue to be captured as scheduled.',
+    a: "You won't be able to create new employers or positions until you upgrade your plan. Existing active postings continue to be captured as scheduled.",
+  },
+  {
+    q: 'How is my plan assigned?',
+    a: 'Plans are assigned by the platform administrator after registration. Contact support to discuss which plan fits your needs.',
   },
   {
     q: 'What is the trial exports watermark?',
     a: 'During your free trial, you have full access to all features. However, any PDF reports generated will contain a prominent "Trial Export" watermark. Upgrading removes this.',
   },
   {
-    q: 'What happens if my payment fails?',
-    a: 'Your existing data remains safe and accessible. However, you will be restricted from creating new job positions until your payment method is updated.',
-  },
-  {
     q: 'Can I switch plans later?',
-    a: 'Yes, you can upgrade or downgrade your plan at any time from your account settings. Changes are prorated automatically.',
-  },
-  {
-    q: 'Is annual billing available at signup?',
-    a: 'Yes! You can choose annual billing immediately when starting your trial to lock in the discounted rate.',
+    a: 'Yes, plans can be upgraded or changed by contacting the platform administrator. Your existing data is always preserved.',
   },
 ]
 
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export function LandingPricing() {
+  const [tiers, setTiers]     = useState<SubscriptionTier[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState(false)
   const [isAnnual, setIsAnnual] = useState(true)
+
+  useEffect(() => {
+    subscriptions.tiers()
+      .then(data => setTiers(data))
+      .catch(() => setError(true))
+      .finally(() => setLoading(false))
+  }, [])
+
+  // Highlight the middle tier as "most popular"
+  const popularIdx = Math.floor((tiers.length - 1) / 2)
 
   return (
     <div className="flex flex-col min-h-screen bg-brand-offwhite">
+
       {/* Header */}
       <section className="pt-24 pb-16 text-center px-4 sm:px-6 lg:px-8">
         <h1 className="text-4xl md:text-5xl font-extrabold text-brand-navy mb-4 tracking-tight">
-          Pricing based on Active Job Positions
+          Simple, Transparent Plans
         </h1>
         <p className="text-xl text-brand-charcoal/70 mb-8 max-w-2xl mx-auto">
-          Only Active positions count. Draft, Paused, or Archived don't.
+          Each plan is tailored to your filing volume. Contact us to get assigned the right tier.
         </p>
 
-        <div className="flex items-center justify-center gap-4 mb-16">
+        {/* Annual toggle */}
+        <div className="flex items-center justify-center gap-4">
           <span className={`font-semibold ${!isAnnual ? 'text-brand-navy' : 'text-brand-charcoal/50'}`}>
             Monthly
           </span>
           <button
-            onClick={() => setIsAnnual(!isAnnual)}
+            onClick={() => setIsAnnual(a => !a)}
             className="w-14 h-8 bg-brand-navy rounded-full p-1 relative transition-colors shadow-inner"
           >
             <div
@@ -85,9 +183,7 @@ export function LandingPricing() {
           </button>
           <span className={`font-semibold flex items-center gap-2 ${isAnnual ? 'text-brand-navy' : 'text-brand-charcoal/50'}`}>
             Annual{' '}
-            <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-bold">
-              Save 20%
-            </span>
+            <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-bold">Save 20%</span>
           </span>
         </div>
       </section>
@@ -97,78 +193,94 @@ export function LandingPricing() {
         <ROICard />
       </section>
 
-      {/* Pricing Cards */}
+      {/* Plan Cards */}
       <section className="py-24 bg-white border-y border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {plans.map((plan, idx) => (
-              <PricingCard
-                key={idx}
-                limit={plan.limit}
-                price={plan.price}
-                isPopular={(plan as { isPopular?: boolean }).isPopular}
-                features={features}
-                isAnnual={isAnnual}
-                annualDiscount={0.2}
-              />
-            ))}
-          </div>
+          {loading && (
+            <div className="flex items-center justify-center gap-3 py-16 text-brand-charcoal/60">
+              <Loader2 size={24} className="animate-spin" />
+              <span>Loading plans…</span>
+            </div>
+          )}
+
+          {!loading && error && (
+            <p className="text-center text-red-500 py-16">
+              Could not load plans. Please try again later.
+            </p>
+          )}
+
+          {!loading && !error && tiers.length === 0 && (
+            <p className="text-center text-brand-charcoal/60 py-16">
+              No plans available at the moment. Please check back soon.
+            </p>
+          )}
+
+          {!loading && !error && tiers.length > 0 && (
+            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${Math.min(tiers.length, 3)} gap-8`}>
+              {tiers.map((tier, idx) => (
+                <TierCard
+                  key={tier.id}
+                  tier={tier}
+                  isHighlighted={idx === popularIdx && tiers.length > 1}
+                  isAnnual={isAnnual}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
-      {/* Compare Table */}
-      <section className="py-24 bg-brand-offwhite">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl font-bold text-center text-brand-navy mb-16">
-            Compare Plan Features
-          </h2>
-          <div className="overflow-x-auto bg-white rounded-3xl shadow-sm border border-gray-200">
-            <table className="w-full text-left border-collapse min-w-[800px]">
-              <thead>
-                <tr className="bg-gray-50/50 border-b border-gray-200">
-                  <th className="p-6 font-semibold text-brand-navy w-1/4 rounded-tl-3xl">Feature</th>
-                  {plans.slice(0, 5).map((plan, i) => (
-                    <th
-                      key={i}
-                      className={`p-6 text-center font-semibold text-brand-navy ${(plan as { isPopular?: boolean }).isPopular ? 'bg-brand-gold/10' : ''}`}
-                    >
-                      {plan.limit} Postings
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {compareFeatures.map((feature, idx) => (
-                  <tr
-                    key={idx}
-                    className="border-b border-gray-100 last:border-0 hover:bg-gray-50/30 transition-colors"
-                  >
-                    <td className="p-6 text-brand-charcoal font-medium bg-white">
-                      {feature.name}
-                    </td>
-                    {feature.values.map((val, i) => (
-                      <td
-                        key={i}
-                        className={`p-6 text-center ${(plans[i] as { isPopular?: boolean }).isPopular ? 'bg-brand-gold/5' : 'bg-white'}`}
+      {/* Comparison Table */}
+      {!loading && !error && tiers.length > 1 && (
+        <section className="py-24 bg-brand-offwhite">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="text-3xl font-bold text-center text-brand-navy mb-16">
+              Compare Plans
+            </h2>
+            <div className="overflow-x-auto bg-white rounded-3xl shadow-sm border border-gray-200">
+              <table className="w-full text-left border-collapse" style={{ minWidth: `${200 + tiers.length * 160}px` }}>
+                <thead>
+                  <tr className="bg-gray-50/50 border-b border-gray-200">
+                    <th className="p-6 font-semibold text-brand-navy rounded-tl-3xl w-56">Limit</th>
+                    {tiers.map((tier, i) => (
+                      <th
+                        key={tier.id}
+                        className={`p-6 text-center font-semibold text-brand-navy ${i === popularIdx ? 'bg-brand-gold/10' : ''}`}
                       >
-                        {typeof val === 'boolean' ? (
-                          val ? (
-                            <Check size={20} className="mx-auto text-green-500" />
-                          ) : (
-                            <span className="text-gray-300">–</span>
-                          )
-                        ) : (
-                          <span className="font-semibold text-brand-navy">{val}</span>
+                        {tier.display_name}
+                        {i === popularIdx && tiers.length > 1 && (
+                          <span className="block text-xs font-normal text-brand-gold mt-1">Most Popular</span>
                         )}
-                      </td>
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {tableRows.map((row, rIdx) => (
+                    <tr
+                      key={rIdx}
+                      className="border-b border-gray-100 last:border-0 hover:bg-gray-50/30 transition-colors"
+                    >
+                      <td className="p-6 text-brand-charcoal font-medium bg-white">{row.label}</td>
+                      {tiers.map((tier, i) => {
+                        const raw = tier[row.key] as number
+                        return (
+                          <td
+                            key={tier.id}
+                            className={`p-6 text-center ${i === popularIdx ? 'bg-brand-gold/5' : 'bg-white'}`}
+                          >
+                            <span className="font-semibold text-brand-navy">{fmt(raw)}</span>
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* FAQ */}
       <section className="py-24 bg-white border-y border-gray-100">

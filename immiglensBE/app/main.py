@@ -28,55 +28,9 @@ from app.routers.report_config import router as report_config_router
 from app.routers.report_config import client_router as report_config_client_router
 from app.routers.noc_codes import router as noc_codes_router
 from app.routers.noc_codes import admin_router as admin_noc_codes_router
-from app.core.database import AsyncSessionLocal
 from app.services.browser import browser_manager
 from app.services.job_store import store
 from app.services.scheduler import scheduler, recover_pending_rounds
-
-
-_DEFAULT_TIERS = [
-    {
-        "name": "free",
-        "display_name": "Free",
-        "max_employers": 3,
-        "max_positions_per_employer": 5,
-        "max_postings_per_position": 7,
-        "max_captures_per_month": 50,
-        "min_capture_frequency_days": 28,
-    },
-    {
-        "name": "pro",
-        "display_name": "Pro",
-        "max_employers": 25,
-        "max_positions_per_employer": 20,
-        "max_postings_per_position": 7,
-        "max_captures_per_month": 500,
-        "min_capture_frequency_days": 7,
-    },
-    {
-        "name": "enterprise",
-        "display_name": "Enterprise",
-        "max_employers": -1,
-        "max_positions_per_employer": -1,
-        "max_postings_per_position": 7,
-        "max_captures_per_month": -1,
-        "min_capture_frequency_days": 1,
-    },
-]
-
-
-async def _seed_subscription_tiers() -> None:
-    from sqlalchemy import select
-    from app.models.subscription import SubscriptionTier
-
-    async with AsyncSessionLocal() as db:
-        for tier_data in _DEFAULT_TIERS:
-            existing = (await db.execute(
-                select(SubscriptionTier).where(SubscriptionTier.name == tier_data["name"])
-            )).scalar_one_or_none()
-            if not existing:
-                db.add(SubscriptionTier(**tier_data))
-        await db.commit()
 
 
 async def _purge_loop() -> None:
@@ -89,8 +43,6 @@ async def _purge_loop() -> None:
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-
-    await _seed_subscription_tiers()
 
     await browser_manager.start()
     scheduler.start()

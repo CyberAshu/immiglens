@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 from pydantic import BaseModel, field_validator
 
 
@@ -11,6 +12,7 @@ class SubscriptionTierOut(BaseModel):
     max_postings_per_position: int
     max_captures_per_month: int
     min_capture_frequency_days: int
+    price_per_month: Optional[float] = None
     is_active: bool
     created_at: datetime
 
