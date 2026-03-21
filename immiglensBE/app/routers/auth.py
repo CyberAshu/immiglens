@@ -25,12 +25,15 @@ from app.models.password_reset import PasswordResetToken
 from app.models.trusted_device import TrustedDevice
 from app.models.user import User
 from app.schemas.auth import (
+    ChangePasswordRequest,
     ForgotPasswordRequest,
     LoginRequest,
     OTPVerifyRequest,
     RegisterRequest,
     ResetPasswordRequest,
     TokenResponse,
+    TrustedDeviceOut,
+    UpdateProfileRequest,
     UserOut,
 )
 
@@ -230,6 +233,78 @@ async def verify_otp(
 @router.get("/me", response_model=UserOut)
 async def me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.patch("/me", response_model=UserOut)
+async def update_profile(
+    payload: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update the current user's display name."""
+    full_name = payload.full_name.strip()
+    if not full_name:
+        raise HTTPException(status_code=422, detail="Full name cannot be empty.")
+    current_user.full_name = full_name
+    await db.commit()
+    await db.refresh(current_user)
+    return current_user
+
+
+@router.patch("/change-password", status_code=200)
+async def change_password(
+    payload: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change password for the currently authenticated user."""
+    if not verify_password(payload.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect.")
+    if len(payload.new_password) < 8:
+        raise HTTPException(status_code=422, detail="New password must be at least 8 characters.")
+    if payload.current_password == payload.new_password:
+        raise HTTPException(status_code=422, detail="New password must differ from the current password.")
+    current_user.hashed_password = hash_password(payload.new_password)
+    await db.commit()
+    logger.info("Password changed for user_id=%s", current_user.id)
+    return {"message": "Password updated successfully."}
+
+
+@router.get("/trusted-devices", response_model=list[TrustedDeviceOut])
+async def list_trusted_devices(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all active trusted devices for the current user."""
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        select(TrustedDevice).where(
+            TrustedDevice.user_id == current_user.id,
+            TrustedDevice.expires_at > now,
+        ).order_by(TrustedDevice.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+@router.delete("/trusted-devices/{device_id}", status_code=200)
+async def revoke_trusted_device(
+    device_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Revoke a specific trusted device belonging to the current user."""
+    result = await db.execute(
+        select(TrustedDevice).where(
+            TrustedDevice.id == device_id,
+            TrustedDevice.user_id == current_user.id,
+        )
+    )
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found.")
+    await db.delete(device)
+    await db.commit()
+    return {"message": "Device revoked."}
 
 
 @router.post("/forgot-password", status_code=200)

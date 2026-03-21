@@ -11,3 +11,9 @@ export interface TokenResponse {
   token_type: string
   device_token?: string | null
 }
+
+export interface TrustedDevice {
+  id: number
+  created_at: string
+  expires_at: string
+}

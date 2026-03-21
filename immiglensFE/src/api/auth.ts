@@ -1,5 +1,5 @@
 import { request } from './client'
-import type { TokenResponse, User } from '../types'
+import type { TokenResponse, TrustedDevice, User } from '../types'
 
 const DEVICE_TOKEN_KEY = 'device_token'
 
@@ -43,4 +43,22 @@ export const auth = {
       method: 'POST',
       body: JSON.stringify({ token, new_password }),
     }),
+
+  updateProfile: (full_name: string) =>
+    request<User>('/api/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify({ full_name }),
+    }),
+
+  changePassword: (current_password: string, new_password: string) =>
+    request<{ message: string }>('/api/auth/change-password', {
+      method: 'PATCH',
+      body: JSON.stringify({ current_password, new_password }),
+    }),
+
+  listTrustedDevices: () =>
+    request<TrustedDevice[]>('/api/auth/trusted-devices'),
+
+  revokeDevice: (id: number) =>
+    request<{ message: string }>(`/api/auth/trusted-devices/${id}`, { method: 'DELETE' }),
 }

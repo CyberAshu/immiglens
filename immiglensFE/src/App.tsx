@@ -16,6 +16,7 @@ import Organizations from './pages/Organizations'
 import ChangeHistory from './pages/ChangeHistory'
 import Employers from './pages/Employers'
 import ReportPreview from './pages/ReportPreview'
+import AccountSettings from './pages/AccountSettings'
 import AdminLayout from './pages/admin/AdminLayout'
 import AdminOverview from './pages/admin/AdminOverview'
 import AdminUsers from './pages/admin/AdminUsers'
@@ -76,8 +77,12 @@ export default function App() {
             <Route path="/employers/:employerId" element={<EmployerDetail />} />
             <Route path="/employers/:employerId/positions/:positionId" element={<PositionDetail />} />
             <Route path="/employers/:employerId/positions/:positionId/report-preview" element={<ReportPreview />} />
-            <Route path="/subscriptions" element={<Subscriptions />} />
+            {/* legacy redirect */}
+            <Route path="/subscriptions" element={<Navigate to="/plan" replace />} />
+            <Route path="/plan" element={<Subscriptions />} />
+            <Route path="/account" element={<AccountSettings />} />
             <Route path="/audit-logs" element={<AuditLogs />} />
+            <Route path="/activity" element={<AuditLogs />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/organizations" element={<Organizations />} />
             <Route path="/changes/postings/:postingId" element={<ChangeHistory />} />

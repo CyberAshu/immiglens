@@ -68,3 +68,20 @@ class UserOut(BaseModel):
     full_name: str
     is_admin: bool = False
     created_at: datetime
+
+
+class UpdateProfileRequest(BaseModel):
+    full_name: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class TrustedDeviceOut(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: int
+    created_at: datetime
+    expires_at: datetime
