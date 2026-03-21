@@ -84,6 +84,7 @@ async def create_position(
         raise HTTPException(status_code=404, detail="Employer not found.")
 
     await check_capture_frequency(db, current_user, payload.capture_frequency_days)
+    await check_position_limit(db, current_user, employer_id)
 
     position = JobPosition(**payload.model_dump(), employer_id=employer_id)
     db.add(position)
@@ -126,6 +127,8 @@ async def update_position(
     position = await _get_position_or_404(employer_id, position_id, current_user, db)
 
     updates = payload.model_dump(exclude_unset=True)
+    if "capture_frequency_days" in updates:
+        await check_capture_frequency(db, current_user, updates["capture_frequency_days"])
     old_data: dict = {}
     new_data: dict = {}
     reschedule_fields = {"start_date", "end_date", "capture_frequency_days"}

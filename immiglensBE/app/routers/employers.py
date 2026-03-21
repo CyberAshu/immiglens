@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import log_action
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.core.permissions import check_employer_limit
 from app.models.employer import Employer
 from app.models.user import User
 from app.schemas.employer import EmployerCreate, EmployerOut, EmployerUpdate
@@ -39,6 +40,7 @@ async def create_employer(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    await check_employer_limit(db, current_user)
     employer = Employer(**payload.model_dump(), user_id=current_user.id)
     db.add(employer)
     await db.commit()

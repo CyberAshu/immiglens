@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 from app.core.audit import log_action
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.core.permissions import check_monthly_capture_limit
 from app.models.capture import CaptureResult, CaptureRound, CaptureStatus
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
@@ -77,6 +78,7 @@ async def trigger_capture_round(
             detail="No job postings added to this position. Add at least one posting URL before running a capture."
         )
 
+    await check_monthly_capture_limit(db, current_user)
     await force_run_capture_round(round_id)
     await log_action(db, user_id=current_user.id, action="CREATE",
                      resource_type="capture_round", resource_id=round_id,
