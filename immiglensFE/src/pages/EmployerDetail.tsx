@@ -18,7 +18,7 @@ export default function EmployerDetail() {
   const [showForm, setShowForm] = useState(false)
   const [editingPosition, setEditingPosition] = useState<JobPosition | null>(null)
   const [form, setForm] = useState({
-    job_title: '', noc_code: '', num_positions: 1, start_date: '',
+    job_title: '', noc_code: '', num_positions: 1, start_date: '', end_date: '',
     capture_frequency_days: 7, wage: '', wage_period: 'hr', wage_stream: '', work_location: '',
   })
   const [saving, setSaving] = useState(false)
@@ -37,7 +37,7 @@ export default function EmployerDetail() {
       .finally(() => setLoading(false))
   }, [id])
 
-  const EMPTY_FORM = { job_title: '', noc_code: '', num_positions: 1, start_date: '', capture_frequency_days: minFreq, wage: '', wage_period: 'hr', wage_stream: '', work_location: '' }
+  const EMPTY_FORM = { job_title: '', noc_code: '', num_positions: 1, start_date: '', end_date: '', capture_frequency_days: minFreq, wage: '', wage_period: 'hr', wage_stream: '', work_location: '' }
 
   function parseWage(wageFull: string | null): { wage: string; wage_period: string } {
     if (!wageFull) return { wage: '', wage_period: 'hr' }
@@ -56,6 +56,7 @@ export default function EmployerDetail() {
       noc_code: pos.noc_code,
       num_positions: pos.num_positions,
       start_date: pos.start_date,
+      end_date: pos.end_date ?? '',
       capture_frequency_days: freq,
       wage,
       wage_period,
@@ -84,6 +85,7 @@ export default function EmployerDetail() {
         noc_code: form.noc_code,
         num_positions: Number(form.num_positions),
         start_date: form.start_date,
+        end_date: form.end_date || null,
         capture_frequency_days: Number(form.capture_frequency_days),
         wage: form.wage ? `CAD $${form.wage}/${form.wage_period}` : null,
         wage_stream: form.wage_stream || null,
@@ -92,7 +94,7 @@ export default function EmployerDetail() {
       setPositionList(prev => [created, ...prev])
       setShowForm(false)
       setIsCustomFreq(false)
-      setForm({ job_title: '', noc_code: '', num_positions: 1, start_date: '', capture_frequency_days: minFreq, wage: '', wage_period: 'hr', wage_stream: '', work_location: '' })
+      setForm({ job_title: '', noc_code: '', num_positions: 1, start_date: '', end_date: '', capture_frequency_days: minFreq, wage: '', wage_period: 'hr', wage_stream: '', work_location: '' })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create position.')
     } finally {
@@ -111,6 +113,7 @@ export default function EmployerDetail() {
         noc_code: form.noc_code,
         num_positions: Number(form.num_positions),
         start_date: form.start_date,
+        end_date: form.end_date || null,
         capture_frequency_days: Number(form.capture_frequency_days),
         wage: form.wage ? `CAD $${form.wage}/${form.wage_period}` : null,
         wage_stream: form.wage_stream || null,
@@ -181,6 +184,21 @@ export default function EmployerDetail() {
                 <input className="admin-input" type="date" value={form.start_date}
                   {...(!editingPosition ? { min: new Date().toISOString().split('T')[0] } : {})}
                   onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} required />
+              </label>
+              <label className="admin-form-label">
+                End Date <span style={{ fontWeight: 400 }}>(optional)</span>
+                <input
+                  className="admin-input"
+                  type="date"
+                  value={form.end_date}
+                  min={form.start_date
+                    ? new Date(new Date(form.start_date).getTime() + 28 * 86400000).toISOString().split('T')[0]
+                    : undefined}
+                  onChange={e => setForm(p => ({ ...p, end_date: e.target.value }))}
+                />
+                <span style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.2rem', display: 'block' }}>
+                  Minimum 28 days from start. Leave blank to use default (28 days).
+                </span>
               </label>
               <label className="admin-form-label">
                 Capture Frequency
@@ -275,6 +293,7 @@ export default function EmployerDetail() {
                 <th>NOC Code</th>
                 <th>Positions</th>
                 <th>Start Date</th>
+                <th>End Date</th>
                 <th>Job Boards</th>
                 <th>Capture Freq.</th>
                 <th></th>
@@ -287,6 +306,7 @@ export default function EmployerDetail() {
                   <td>{pos.noc_code}</td>
                   <td>{pos.num_positions}</td>
                   <td>{pos.start_date}</td>
+                  <td>{pos.end_date ?? <span style={{ color: '#9ca3af' }}>+28 days</span>}</td>
                   <td>{pos.job_postings.length}</td>
                   <td>Every {pos.capture_frequency_days} days</td>
                   <td>

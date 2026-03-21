@@ -1,7 +1,7 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 from app.schemas.report import ReportDocumentOut
 
@@ -64,6 +64,7 @@ class JobPositionCreate(BaseModel):
     noc_code: str
     num_positions: int
     start_date: date
+    end_date: Optional[date] = None
     capture_frequency_days: int = 7
     wage: Optional[str] = None
     work_location: str
@@ -99,6 +100,16 @@ class JobPositionCreate(BaseModel):
             raise ValueError("NOC code cannot be empty")
         return v
 
+    @model_validator(mode="after")
+    def end_date_after_start(self) -> "JobPositionCreate":
+        if self.end_date is not None:
+            min_end = self.start_date + timedelta(days=28)
+            if self.end_date < min_end:
+                raise ValueError(
+                    f"end_date must be at least 28 days after start_date (minimum: {min_end.isoformat()})"
+                )
+        return self
+
     @field_validator("job_title", "work_location", mode="before")
     @classmethod
     def strip_strings(cls, v: Optional[str]) -> Optional[str]:
@@ -110,6 +121,7 @@ class JobPositionUpdate(BaseModel):
     noc_code: Optional[str] = None
     num_positions: Optional[int] = None
     start_date: Optional[date] = None
+    end_date: Optional[date] = None
     capture_frequency_days: Optional[int] = None
     wage: Optional[str] = None
     work_location: Optional[str] = None
@@ -139,6 +151,7 @@ class JobPositionOut(BaseModel):
     noc_code: str
     num_positions: int
     start_date: date
+    end_date: Optional[date] = None
     capture_frequency_days: int
     wage: Optional[str] = None
     work_location: Optional[str] = None

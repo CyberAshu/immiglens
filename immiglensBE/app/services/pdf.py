@@ -117,7 +117,11 @@ async def build_pdf_bytes(
             "last": max(dates) if dates else None,
         }
 
-    recruitment_end = position.start_date + timedelta(days=settings.RECRUITMENT_PERIOD_DAYS)
+    recruitment_end = (
+        position.end_date
+        if position.end_date is not None
+        else position.start_date + timedelta(days=settings.RECRUITMENT_PERIOD_DAYS)
+    )
     job_match_docs = [d for d in report_documents if d.doc_type == "job_match"]
     supporting_docs = [d for d in report_documents if d.doc_type != "job_match"]
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")

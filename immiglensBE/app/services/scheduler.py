@@ -31,7 +31,6 @@ async def recover_pending_rounds() -> None:
         now = datetime.now(timezone.utc)
         requeued = 0
         for round_ in rounds:
-            # Run immediately if already overdue, otherwise at the scheduled time
             run_at = max(round_.scheduled_at, now + timedelta(minutes=2))
             scheduler.add_job(
                 _run_capture_round,
@@ -41,19 +40,42 @@ async def recover_pending_rounds() -> None:
                 replace_existing=True,
             )
             requeued += 1
-        if requeued:
-            print(f"[Scheduler] Re-queued {requeued} pending capture round(s) after restart.")
 
 
-async def schedule_rounds_for_position(db: AsyncSession, position: JobPosition) -> None:
+async def schedule_rounds_for_position(
+    db: AsyncSession,
+    position: JobPosition,
+    not_before: datetime | None = None,
+) -> None:
     start = datetime.combine(position.start_date, datetime.min.time()).replace(
         tzinfo=timezone.utc
     )
-    end = start + timedelta(days=settings.RECRUITMENT_PERIOD_DAYS)
+    if position.end_date is not None:
+        end = datetime.combine(position.end_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+    else:
+        end = start + timedelta(days=settings.RECRUITMENT_PERIOD_DAYS)
     freq = timedelta(days=position.capture_frequency_days)
+
+    if not_before is not None:
+        while start < not_before:
+            start += freq
+
+    existing_result = await db.execute(
+        select(CaptureRound.scheduled_at).where(
+            CaptureRound.job_position_id == position.id,
+            CaptureRound.status.in_([CaptureStatus.RUNNING, CaptureStatus.COMPLETED]),
+        )
+    )
+    existing_dates: set[str] = {
+        row[0].date().isoformat() for row in existing_result.fetchall()
+    }
 
     scheduled_at = start
     while scheduled_at <= end:
+        date_str = scheduled_at.date().isoformat()
+        if date_str in existing_dates:
+            scheduled_at += freq
+            continue
         round_ = CaptureRound(
             job_position_id=position.id,
             scheduled_at=scheduled_at,
@@ -73,6 +95,28 @@ async def schedule_rounds_for_position(db: AsyncSession, position: JobPosition) 
         scheduled_at += freq
 
     await db.commit()
+
+
+async def reschedule_rounds_for_position(db: AsyncSession, position: JobPosition) -> None:
+    """Cancel all PENDING and FAILED rounds for a position and create a fresh schedule."""
+    cancellable = (
+        await db.execute(
+            select(CaptureRound).where(
+                CaptureRound.job_position_id == position.id,
+                CaptureRound.status.in_([CaptureStatus.PENDING, CaptureStatus.FAILED]),
+            )
+        )
+    ).scalars().all()
+
+    for round_ in cancellable:
+        try:
+            scheduler.remove_job(f"capture_round_{round_.id}")
+        except Exception:
+            pass
+        await db.delete(round_)
+
+    await db.flush()
+    await schedule_rounds_for_position(db, position, not_before=datetime.now(timezone.utc))
 
 
 async def recapture_result(result_id: int) -> None:

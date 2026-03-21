@@ -182,6 +182,10 @@ export default function PositionDetail() {
           <h1>{position.job_title}</h1>
           <p className="sub-text">
             NOC {position.noc_code} · {position.num_positions} position(s) · Start: {position.start_date}
+            {position.end_date
+              ? <> · End: {position.end_date}</>
+              : <> · End: {new Date(new Date(position.start_date).getTime() + 28 * 86400000).toISOString().split('T')[0]} (default)</>
+            }
             {position.wage && <> · {position.wage}</>}
             {position.wage_stream && <> · {position.wage_stream}</>}
             {position.work_location && <> · {position.work_location}</>}

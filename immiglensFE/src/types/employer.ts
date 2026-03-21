@@ -23,6 +23,7 @@ export interface JobPosition {
   noc_code: string
   num_positions: number
   start_date: string
+  end_date: string | null
   capture_frequency_days: number
   wage: string | null
   work_location: string | null

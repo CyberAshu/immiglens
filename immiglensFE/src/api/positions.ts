@@ -20,7 +20,7 @@ export const positions = {
   remove: (employerId: number, positionId: number) =>
     request<void>(`/api/employers/${employerId}/positions/${positionId}`, { method: 'DELETE' }),
 
-  update: (employerId: number, positionId: number, data: { start_date?: string; job_title?: string; noc_code?: string; num_positions?: number; capture_frequency_days?: number; wage?: string | null; work_location?: string; wage_stream?: string | null }) =>
+  update: (employerId: number, positionId: number, data: { start_date?: string; end_date?: string | null; job_title?: string; noc_code?: string; num_positions?: number; capture_frequency_days?: number; wage?: string | null; work_location?: string; wage_stream?: string | null }) =>
     request<JobPosition>(`/api/employers/${employerId}/positions/${positionId}`, {
       method: 'PATCH',
       body: JSON.stringify(data),

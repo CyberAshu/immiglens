@@ -22,6 +22,7 @@ class JobPosition(Base):
     noc_code: Mapped[str] = mapped_column(String(10))
     num_positions: Mapped[int] = mapped_column(Integer)
     start_date: Mapped[date] = mapped_column(Date)
+    end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     capture_frequency_days: Mapped[int] = mapped_column(Integer, default=7)
     wage: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     work_location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

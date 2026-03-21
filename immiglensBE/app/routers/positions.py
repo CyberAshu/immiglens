@@ -19,7 +19,7 @@ from app.schemas.job import (
     JobPostingUpdate,
 )
 from app.core.permissions import check_employer_limit, check_position_limit, check_capture_frequency, check_posting_limit
-from app.services.scheduler import schedule_rounds_for_position
+from app.services.scheduler import schedule_rounds_for_position, reschedule_rounds_for_position
 
 router = APIRouter(
     prefix="/api/employers/{employer_id}/positions",
@@ -128,6 +128,9 @@ async def update_position(
     updates = payload.model_dump(exclude_unset=True)
     old_data: dict = {}
     new_data: dict = {}
+    reschedule_fields = {"start_date", "end_date", "capture_frequency_days"}
+    needs_reschedule = bool(updates.keys() & reschedule_fields)
+
     for field, new_val in updates.items():
         old_val = getattr(position, field)
         if old_val != new_val:
@@ -137,6 +140,9 @@ async def update_position(
 
     await db.commit()
     await db.refresh(position)
+
+    if needs_reschedule:
+        await reschedule_rounds_for_position(db, position)
 
     if old_data:
         await log_action(db, user_id=current_user.id, action="UPDATE",
