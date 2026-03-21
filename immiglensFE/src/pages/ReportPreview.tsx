@@ -1,23 +1,15 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+﻿import { useEffect, useRef, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { consumePendingPdf } from '../reportStore'
 import {
   ArrowLeft,
-  Bookmark,
   Download,
-  Eye,
-  EyeOff,
   FileText,
   GripVertical,
-  Layers,
   Loader2,
-  Minus,
-  Paperclip,
-  PenLine,
-  RefreshCw,
   RotateCcw,
-  Search,
-  Table2,
   TriangleAlert,
+  X,
 } from 'lucide-react'
 import {
   DndContext,
@@ -30,711 +22,660 @@ import {
 import {
   SortableContext,
   arrayMove,
+  rectSortingStrategy,
   useSortable,
-  verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { reportConfigApi } from '../api/report_config'
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
+import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { reports as reportsApi } from '../api/reports'
-import type {
-  CoverFields,
-  EvidenceFields,
-  ReportBlock,
-  ReportConfigPayload,
-  SummaryFields,
-} from '../types/report_config'
+import { positions as positionsApi } from '../api'
+import type { JobPosition } from '../types'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Meta
-// ─────────────────────────────────────────────────────────────────────────────
-const BLOCK_META: Record<string, { label: string; color: string; Icon: React.ElementType }> = {
-  cover:              { label: 'Cover Page',                color: '#0B1F3B', Icon: Bookmark  },
-  summary_table:      { label: 'Recruitment Summary Table', color: '#0284c7', Icon: Table2    },
-  evidence:           { label: 'Per-Platform Evidence',     color: '#16a34a', Icon: Search    },
-  job_match_activity: { label: 'Job Match Activity',        color: '#dc2626', Icon: FileText  },
-  appendix:           { label: 'Appendix',                  color: '#C8A24A', Icon: Paperclip },
-  custom_text:        { label: 'Custom Text',               color: '#7c3aed', Icon: PenLine   },
-  divider:            { label: 'Divider',                   color: '#6b7280', Icon: Minus     },
+GlobalWorkerOptions.workerSrc = workerUrl
+
+interface PageItem {
+  id: string
+  originalIndex: number
+  thumbnailDataUrl: string | null
+  removed: boolean
 }
 
-const COVER_FIELDS: { key: keyof CoverFields; label: string }[] = [
-  { key: 'show_address',           label: 'Employer Address'           },
-  { key: 'show_contact_person',    label: 'Contact Person'             },
-  { key: 'show_contact_email',     label: 'Contact Email'              },
-  { key: 'show_contact_phone',     label: 'Contact Phone'              },
-  { key: 'show_noc_code',          label: 'NOC Code / TEER'            },
-  { key: 'show_wage_stream',       label: 'Wage Stream'                },
-  { key: 'show_wage',              label: 'Advertised Wage'            },
-  { key: 'show_work_location',     label: 'Work Location'              },
-  { key: 'show_positions_sought',  label: 'Positions Sought'           },
-  { key: 'show_start_date',        label: 'Recruitment Start Date'     },
-  { key: 'show_capture_frequency', label: 'Capture Frequency'          },
-  { key: 'show_total_rounds',      label: 'Total Capture Rounds'       },
-  { key: 'show_generated_at',      label: 'Report Generated Timestamp' },
-]
+type Phase =
+  | { name: 'generating'; elapsed: number }
+  | { name: 'editing'; pdfBytes: ArrayBuffer; pages: PageItem[] }
+  | { name: 'error'; message: string }
 
-const SUMMARY_FIELDS: { key: keyof SummaryFields; label: string }[] = [
-  { key: 'show_url',           label: 'Job Posting URL column'       },
-  { key: 'show_start_date',    label: 'Posting Start Date column'    },
-  { key: 'show_capture_count', label: '# Successful Captures column' },
-  { key: 'show_ongoing',       label: 'Ongoing (still active) column' },
-]
-
-const EVIDENCE_FIELDS: { key: keyof EvidenceFields; label: string }[] = [
-  { key: 'show_capture_datetime', label: 'Capture Date & Time' },
-]
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Sortable page-list item
-// ─────────────────────────────────────────────────────────────────────────────
-function PageItem({
-  block, isSelected, onSelect, onToggleEnabled,
+function PageCard({
+  page,
+  onToggle,
 }: {
-  block: ReportBlock
-  isSelected: boolean
-  onSelect: () => void
-  onToggleEnabled: (v: boolean) => void
+  page: PageItem
+  onToggle: () => void
 }) {
-  const meta = BLOCK_META[block.type] ?? { label: block.type, color: '#64748b', Icon: Layers }
-  const { Icon } = meta
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: block.id })
+    useSortable({ id: page.id })
 
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={[
-        'pi-item',
-        isSelected ? 'pi-item--active' : '',
-        !block.enabled ? 'pi-item--off' : '',
-        isDragging ? 'pi-item--drag' : '',
+        'pc-card',
+        page.removed ? 'pc-card--removed' : '',
+        isDragging ? 'pc-card--drag' : '',
       ].filter(Boolean).join(' ')}
-      onClick={onSelect}
     >
-      <span className="pi-handle" {...attributes} {...listeners} onClick={e => e.stopPropagation()}>
-        <GripVertical size={12} />
-      </span>
-      <span className="pi-icon-wrap" style={{ background: meta.color + '22', color: meta.color }}>
-        <Icon size={13} strokeWidth={2} />
-      </span>
-      <span className="pi-label">{meta.label}</span>
-      <button
-        className="pi-vis-btn"
-        title={block.enabled ? 'Hide section' : 'Show section'}
-        onClick={e => { e.stopPropagation(); onToggleEnabled(!block.enabled) }}
-      >
-        {block.enabled ? <Eye size={12} /> : <EyeOff size={12} />}
-      </button>
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Properties panel
-// ─────────────────────────────────────────────────────────────────────────────
-function PropsPanel({
-  block, onUpdate, onRefresh, previewing,
-}: {
-  block: ReportBlock | null
-  onUpdate: (b: ReportBlock) => void
-  onRefresh: () => void
-  previewing: boolean
-}) {
-  if (!block) {
-    return (
-      <div className="pp-empty">
-        <Layers size={24} strokeWidth={1.5} />
-        <span>Select a section to edit its properties</span>
-      </div>
-    )
-  }
-
-  const meta = BLOCK_META[block.type] ?? { label: block.type, color: '#64748b', Icon: Layers }
-
-  return (
-    <div className="pp-root">
-      <div className="pp-header" style={{ borderLeftColor: meta.color }}>
-        <span className="pp-header-label" style={{ color: meta.color }}>{meta.label}</span>
-        <span className="pp-header-sub">Section properties</span>
-      </div>
-
-      <div className="pp-body">
-
-        {/* Visibility */}
-        <div className="pp-group">
-          <div className="pp-group-title">Visibility</div>
-          <label className="pp-switch-row">
-            <span>Include in report</span>
-            <div className="pp-switch">
-              <input type="checkbox" checked={block.enabled}
-                onChange={e => onUpdate({ ...block, enabled: e.target.checked })} />
-              <span className="pp-switch-track"><span className="pp-switch-thumb" /></span>
-            </div>
-          </label>
-        </div>
-
-        {/* Cover page */}
-        {block.type === 'cover' && (<>
-          <div className="pp-group">
-            <div className="pp-group-title">Labels</div>
-            <div className="pp-field">
-              <label className="pp-label">Cover sub-label</label>
-              <input className="pp-input" value={block.label}
-                placeholder="e.g. Recruitment Evidence Package"
-                onChange={e => onUpdate({ ...block, label: e.target.value })} />
-              <span className="pp-hint">Appears below the employer name on the cover page</span>
-            </div>
-          </div>
-          <div className="pp-group">
-            <div className="pp-group-title">Visible Fields</div>
-            <div className="pp-check-grid">
-              {COVER_FIELDS.map(({ key, label }) => (
-                <label key={key} className="pp-check-row">
-                  <input type="checkbox" checked={block.fields[key]}
-                    onChange={e => onUpdate({ ...block, fields: { ...block.fields, [key]: e.target.checked } })} />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </>)}
-
-        {/* Summary table */}
-        {block.type === 'summary_table' && (<>
-          <div className="pp-group">
-            <div className="pp-group-title">Section Title</div>
-            <div className="pp-field">
-              <label className="pp-label">Title text</label>
-              <input className="pp-input" value={block.title} placeholder="Recruitment Summary"
-                onChange={e => onUpdate({ ...block, title: e.target.value })} />
-            </div>
-          </div>
-          <div className="pp-group">
-            <div className="pp-group-title">Visible Columns</div>
-            <div className="pp-check-grid">
-              {SUMMARY_FIELDS.map(({ key, label }) => (
-                <label key={key} className="pp-check-row">
-                  <input type="checkbox" checked={block.fields[key]}
-                    onChange={e => onUpdate({ ...block, fields: { ...block.fields, [key]: e.target.checked } })} />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </>)}
-
-        {/* Evidence */}
-        {block.type === 'evidence' && (<>
-          <div className="pp-group">
-            <div className="pp-group-title">Section Title</div>
-            <div className="pp-field">
-              <label className="pp-label">Title text</label>
-              <input className="pp-input" value={block.title}
-                placeholder="Per-Platform Advertising Evidence"
-                onChange={e => onUpdate({ ...block, title: e.target.value })} />
-            </div>
-          </div>
-          <div className="pp-group">
-            <div className="pp-group-title">Visible Fields</div>
-            <div className="pp-check-grid">
-              {EVIDENCE_FIELDS.map(({ key, label }) => (
-                <label key={key} className="pp-check-row">
-                  <input type="checkbox" checked={block.fields[key]}
-                    onChange={e => onUpdate({ ...block, fields: { ...block.fields, [key]: e.target.checked } })} />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </>)}
-
-        {/* Appendix / Job Match Activity */}
-        {(block.type === 'appendix' || block.type === 'job_match_activity') && (
-          <div className="pp-group">
-            <div className="pp-group-title">Section Title</div>
-            <div className="pp-field">
-              <label className="pp-label">Title text</label>
-              <input className="pp-input" value={block.title}
-                placeholder={block.type === 'appendix' ? 'Appendix' : 'Job Match Activity'}
-                onChange={e => onUpdate({ ...block, title: e.target.value })} />
-            </div>
-          </div>
-        )}
-
-        {/* Custom Text */}
-        {block.type === 'custom_text' && (
-          <div className="pp-group">
-            <div className="pp-group-title">Content</div>
-            <div className="pp-field">
-              <label className="pp-label">Heading</label>
-              <input className="pp-input" value={block.heading} placeholder="Optional heading…"
-                onChange={e => onUpdate({ ...block, heading: e.target.value })} />
-            </div>
-            <div className="pp-field" style={{ marginTop: '0.65rem' }}>
-              <label className="pp-label">Body text</label>
-              <textarea className="pp-textarea" rows={6} value={block.body}
-                placeholder="Enter text content…"
-                onChange={e => onUpdate({ ...block, body: e.target.value })} />
-              <span className="pp-hint">Plain text. Line breaks are preserved.</span>
-            </div>
-          </div>
-        )}
-
-        {/* Divider */}
-        {block.type === 'divider' && (
-          <div className="pp-group">
-            <p className="pp-hint" style={{ padding: '0.25rem 0' }}>
-              A horizontal rule is inserted between sections. No editable properties.
-            </p>
-          </div>
-        )}
-
-      </div>
-
-      <div className="pp-footer">
-        <button className="rp-btn rp-btn--primary pp-apply-btn"
-          onClick={onRefresh} disabled={previewing}>
-          {previewing
-            ? <><Loader2 size={13} className="rp-spin" /> Updating…</>
-            : <><RefreshCw size={13} /> Apply &amp; Refresh</>}
+      <div className="pc-top">
+        <span className="pc-grip" {...attributes} {...listeners}>
+          <GripVertical size={12} strokeWidth={2} />
+        </span>
+        <button
+          className="pc-toggle"
+          onClick={onToggle}
+          title={page.removed ? 'Restore page' : 'Remove page'}
+        >
+          {page.removed
+            ? <RotateCcw size={11} strokeWidth={2.5} />
+            : <X size={11} strokeWidth={2.5} />}
         </button>
       </div>
+      <div className="pc-thumb">
+        {page.thumbnailDataUrl
+          ? <img src={page.thumbnailDataUrl} alt={`Page ${page.originalIndex + 1}`} />
+          : <div className="pc-skeleton" />}
+      </div>
+      <div className="pc-label">Page {page.originalIndex + 1}</div>
     </div>
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Page
-// ─────────────────────────────────────────────────────────────────────────────
 export default function ReportPreview() {
   const { employerId, positionId } = useParams<{ employerId: string; positionId: string }>()
+  const navigate = useNavigate()
   const eId = Number(employerId)
   const pId = Number(positionId)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const renderCancelRef = useRef(false)
+  const originalBlobRef = useRef<string | null>(null)
+  const pagesDirtyRef = useRef(false)
 
-  const [blocks, setBlocks]           = useState<ReportBlock[]>([])
-  const [selectedId, setSelectedId]   = useState<string | null>(null)
-  const [loading, setLoading]         = useState(true)
-  const [previewing, setPreviewing]   = useState(false)
-  const [generating, setGenerating]   = useState(false)
-  const [previewHtml, setPreviewHtml] = useState<string | null>(null)
-  const [previewError, setPreviewError] = useState<string | null>(null)
-  const [genError, setGenError]       = useState<string | null>(null)
-  const [removeBlankPages, setRemoveBlankPages] = useState(true)
-
-  const storageKey = `immlens_report_blocks_${pId}`
+  const [phase, setPhase] = useState<Phase>(() => {
+    const buf = consumePendingPdf()
+    if (buf) return { name: 'editing', pdfBytes: buf, pages: [] }
+    return { name: 'generating', elapsed: 0 }
+  })
+  const [position, setPosition] = useState<JobPosition | null>(null)
+  const [showRemoved, setShowRemoved] = useState(false)
+  const [viewMode, setViewMode] = useState<'preview' | 'manage'>('preview')
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null)
+  const [previewBuilding, setPreviewBuilding] = useState(false)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
-  const selectedBlock = blocks.find(b => b.id === selectedId) ?? null
-
-  function handleDragEnd(e: DragEndEvent) {
-    const { active, over } = e
-    if (over && active.id !== over.id) {
-      setBlocks(prev => {
-        const from = prev.findIndex(b => b.id === active.id)
-        const to   = prev.findIndex(b => b.id === over.id)
-        return arrayMove(prev, from, to)
-      })
-    }
-  }
-
-  // Auto-save blocks to localStorage whenever they change
-  useEffect(() => {
-    if (blocks.length > 0) {
-      localStorage.setItem(storageKey, JSON.stringify(blocks))
-    }
-  }, [blocks])
 
   useEffect(() => {
-    const saved = localStorage.getItem(storageKey)
-    if (saved) {
-      try {
-        const blks: ReportBlock[] = JSON.parse(saved)
-        setBlocks(blks)
-        setSelectedId(blks[0]?.id ?? null)
-        loadPreview(blks).finally(() => setLoading(false))
-        return
-      } catch {
-        localStorage.removeItem(storageKey)
-      }
-    }
-    reportConfigApi.getForClient()
-      .then(data => {
-        setBlocks(data.config.blocks)
-        setSelectedId(data.config.blocks[0]?.id ?? null)
-        return data.config.blocks
-      })
-      .then(blks => loadPreview(blks))
-      .catch(() => setPreviewError('Failed to load report config.'))
-      .finally(() => setLoading(false))
+    positionsApi.get(eId, pId).then(pos => setPosition(pos))
+  }, [eId, pId])
+
+  // If buffer was pre-generated and passed via store, build pages and blob URL immediately
+  useEffect(() => {
+    if (phase.name !== 'editing' || phase.pages.length > 0) return
+    const buf = phase.pdfBytes
+    getDocument({ data: buf.slice(0) }).promise.then(pdfDoc => {
+      const pages: PageItem[] = Array.from({ length: pdfDoc.numPages }, (_, i) => ({
+        id: crypto.randomUUID(),
+        originalIndex: i,
+        thumbnailDataUrl: null,
+        removed: false,
+      }))
+      const blobUrl = URL.createObjectURL(new Blob([buf], { type: 'application/pdf' }))
+      originalBlobRef.current = blobUrl
+      setPreviewBlobUrl(blobUrl)
+      pagesDirtyRef.current = false
+      setPhase({ name: 'editing', pdfBytes: buf, pages })
+    })
   }, [])
 
-  async function resetToDefaults() {
-    localStorage.removeItem(storageKey)
-    setLoading(true)
-    setPreviewError(null)
-    try {
-      const data = await reportConfigApi.getForClient()
-      setBlocks(data.config.blocks)
-      setSelectedId(data.config.blocks[0]?.id ?? null)
-      await loadPreview(data.config.blocks)
-    } catch {
-      setPreviewError('Failed to reset config.')
-    } finally {
-      setLoading(false)
-    }
-  }
+  useEffect(() => {
+    if (phase.name !== 'generating') return
+    handleGenerate()
+  }, [])
 
   useEffect(() => {
-    if (!previewHtml || !iframeRef.current) return
-    const doc = iframeRef.current.contentDocument
-    if (doc) { doc.open(); doc.write(previewHtml); doc.close() }
-  }, [previewHtml])
+    if (phase.name !== 'generating') return
+    const timer = setInterval(() => {
+      setPhase(p =>
+        p.name === 'generating' ? { name: 'generating', elapsed: p.elapsed + 1 } : p,
+      )
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [phase.name])
 
-  async function loadPreview(blks: ReportBlock[]) {
-    setPreviewing(true)
-    setPreviewError(null)
+  useEffect(() => {
+    if (phase.name !== 'editing') return
+    renderCancelRef.current = false
+
+    async function renderThumbnails() {
+      if (phase.name !== 'editing') return
+      const pdfDoc = await getDocument({ data: phase.pdfBytes.slice(0) }).promise
+      for (let i = 0; i < pdfDoc.numPages; i++) {
+        if (renderCancelRef.current) break
+        const pg = await pdfDoc.getPage(i + 1)
+        const viewport = pg.getViewport({ scale: 1.0 })
+        const canvas = document.createElement('canvas')
+        canvas.width = viewport.width
+        canvas.height = viewport.height
+        const ctx = canvas.getContext('2d')!
+        await pg.render({ canvasContext: ctx, viewport, canvas }).promise
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82)
+        if (!renderCancelRef.current) {
+          setPhase(prev =>
+            prev.name === 'editing'
+              ? {
+                  ...prev,
+                  pages: prev.pages.map(p =>
+                    p.originalIndex === i ? { ...p, thumbnailDataUrl: dataUrl } : p,
+                  ),
+                }
+              : prev,
+          )
+        }
+      }
+    }
+
+    renderThumbnails()
+    return () => { renderCancelRef.current = true }
+  }, [phase.name === 'editing' ? phase.pdfBytes : null])
+
+  async function handleGenerate() {
+    setPhase({ name: 'generating', elapsed: 0 })
     try {
-      const html = await reportsApi.previewHtml(eId, pId, { blocks: blks } as ReportConfigPayload)
-      setPreviewHtml(html)
+      const blob = await reportsApi.generate(eId, pId)
+      const buffer = await blob.arrayBuffer()
+      const pdfDoc = await getDocument({ data: buffer.slice(0) }).promise
+      const pages: PageItem[] = Array.from({ length: pdfDoc.numPages }, (_, i) => ({
+        id: crypto.randomUUID(),
+        originalIndex: i,
+        thumbnailDataUrl: null,
+        removed: false,
+      }))
+      const blobUrl = URL.createObjectURL(new Blob([buffer], { type: 'application/pdf' }))
+      originalBlobRef.current = blobUrl
+      setPreviewBlobUrl(blobUrl)
+      pagesDirtyRef.current = false
+      setPhase({ name: 'editing', pdfBytes: buffer, pages })
     } catch (e: unknown) {
-      setPreviewError(e instanceof Error ? e.message : 'Preview failed.')
-    } finally {
-      setPreviewing(false)
+      setPhase({ name: 'error', message: e instanceof Error ? e.message : 'Generation failed.' })
     }
   }
 
   async function handleDownload() {
-    setGenerating(true)
-    setGenError(null)
-    try {
-      const blob = await reportsApi.generateWithConfig(
-        eId, pId,
-        { blocks } as ReportConfigPayload,
-        { removeBlankPages },
-      )
-      const objectUrl = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = objectUrl; a.download = 'LMIA_Report.pdf'; a.click()
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000)
-    } catch (e: unknown) {
-      setGenError(e instanceof Error ? e.message : 'Failed to generate report.')
-    } finally {
-      setGenerating(false)
+    if (phase.name !== 'editing') return
+    const { PDFDocument } = await import('pdf-lib')
+    const srcDoc = await PDFDocument.load(phase.pdfBytes)
+    const outDoc = await PDFDocument.create()
+    const kept = phase.pages.filter(p => !p.removed)
+    const copied = await outDoc.copyPages(srcDoc, kept.map(p => p.originalIndex))
+    copied.forEach(pg => outDoc.addPage(pg))
+    const bytes = await outDoc.save()
+    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/pdf' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'LMIA_Report.pdf'
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 10_000)
+  }
+
+  function handleDragEnd(e: DragEndEvent) {
+    if (phase.name !== 'editing') return
+    const { active, over } = e
+    if (over && active.id !== over.id) {
+      pagesDirtyRef.current = true
+      setPhase(prev => {
+        if (prev.name !== 'editing') return prev
+        const from = prev.pages.findIndex(p => p.id === active.id)
+        const to = prev.pages.findIndex(p => p.id === over.id)
+        return { ...prev, pages: arrayMove(prev.pages, from, to) }
+      })
     }
   }
 
-  function updateBlock(id: string, updated: ReportBlock) {
-    setBlocks(prev => prev.map(b => b.id === id ? updated : b))
+  function togglePage(id: string) {
+    if (phase.name !== 'editing') return
+    pagesDirtyRef.current = true
+    setPhase(prev => {
+      if (prev.name !== 'editing') return prev
+      return {
+        ...prev,
+        pages: prev.pages.map(p => p.id === id ? { ...p, removed: !p.removed } : p),
+      }
+    })
   }
 
-  if (loading) return <div className="rp-full-load">Loading preview…</div>
+  // Rebuild preview whenever user switches back to Preview tab after managing pages
+  useEffect(() => {
+    if (viewMode !== 'preview' || phase.name !== 'editing' || !pagesDirtyRef.current) return
+    pagesDirtyRef.current = false
+    let cancelled = false
+    setPreviewBuilding(true)
+    import('pdf-lib').then(async ({ PDFDocument }) => {
+      if (cancelled || phase.name !== 'editing') return
+      const srcDoc = await PDFDocument.load(phase.pdfBytes)
+      const outDoc = await PDFDocument.create()
+      const kept = phase.pages.filter(p => !p.removed)
+      const copied = await outDoc.copyPages(srcDoc, kept.map(p => p.originalIndex))
+      copied.forEach(pg => outDoc.addPage(pg))
+      const bytes = await outDoc.save()
+      if (!cancelled) {
+        const newUrl = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/pdf' }))
+        setPreviewBlobUrl(prev => {
+          if (prev && prev !== originalBlobRef.current) URL.revokeObjectURL(prev)
+          return newUrl
+        })
+        setPreviewBuilding(false)
+      }
+    })
+    return () => { cancelled = true }
+  }, [viewMode])
+
+  function handleBack() {
+    if (originalBlobRef.current) URL.revokeObjectURL(originalBlobRef.current)
+    setPreviewBlobUrl(prev => {
+      if (prev && prev !== originalBlobRef.current) URL.revokeObjectURL(prev)
+      return null
+    })
+    originalBlobRef.current = null
+    pagesDirtyRef.current = false
+    navigate(`/employers/${eId}/positions/${pId}`)
+  }
+
+  if (phase.name === 'generating') {
+    const mins = Math.floor(phase.elapsed / 60)
+    const secs = String(phase.elapsed % 60).padStart(2, '0')
+    return (
+      <div className="rp-generating">
+        <Loader2 size={32} className="rp-spin" />
+        <div className="rp-gen-title">Generating PDF…</div>
+        {position && (
+          <div className="rp-gen-sub">{position.job_title} · NOC {position.noc_code}</div>
+        )}
+        <div className="rp-gen-time">{mins}:{secs}</div>
+        <div className="rp-gen-hint">
+          Rendering pages and merging capture evidence. This takes 30–120 seconds.
+        </div>
+        <Link to={`/employers/${eId}/positions/${pId}`} className="rp-gen-back">
+          ← Back to Position
+        </Link>
+      </div>
+    )
+  }
+
+  if (phase.name === 'error') {
+    return (
+      <div className="rp-generating">
+        <TriangleAlert size={28} style={{ color: '#dc2626' }} />
+        <div className="rp-gen-title" style={{ color: '#dc2626' }}>Generation Failed</div>
+        {position && (
+          <div className="rp-gen-sub">{position.job_title} · NOC {position.noc_code}</div>
+        )}
+        <div className="rp-gen-hint">{phase.message}</div>
+        <button className="rp-btn-primary" style={{ marginTop: '1.5rem' }} onClick={handleGenerate}>
+          Retry
+        </button>
+        <Link
+          to={`/employers/${eId}/positions/${pId}`}
+          className="rp-gen-back"
+        >
+          ← Back to Position
+        </Link>
+      </div>
+    )
+  }
+
+  const keptCount = phase.pages.filter(p => !p.removed).length
+  const removedCount = phase.pages.filter(p => p.removed).length
+  const visiblePages = showRemoved ? phase.pages : phase.pages.filter(p => !p.removed)
 
   return (
-    <div className="rp-shell">
+    <div className="rpe-shell">
+      <div className="rpe-topbar">
 
-      {/* ── Top bar ── */}
-      <div className="rp-topbar">
-        <Link to={`/employers/${eId}/positions/${pId}`} className="rp-back">
-          <ArrowLeft size={14} /> Back to Position
-        </Link>
-        <span className="rp-title">
-          <FileText size={14} style={{ marginRight: 6 }} />
-          Report Editor
-        </span>
-        <div className="rp-topbar-actions">
-          <button className="rp-btn rp-btn--ghost" onClick={() => loadPreview(blocks)} disabled={previewing}>
-            {previewing
-              ? <><Loader2 size={13} className="rp-spin" /> Refreshing…</>
-              : <><RefreshCw size={13} /> Refresh Preview</>}
+        {/* Left: back + title */}
+        <div className="rpe-topbar-left">
+          <button className="rpe-back" onClick={handleBack}>
+            <ArrowLeft size={13} strokeWidth={2.5} />
+            Back
           </button>
-          <button className="rp-btn rp-btn--ghost" onClick={resetToDefaults} disabled={previewing || loading}
-            title="Discard local edits and reload the default config">
-            <RotateCcw size={13} /> Reset to defaults
+          <div className="rpe-topbar-divider" />
+          <div className="rpe-topbar-title">
+            <FileText size={13} strokeWidth={2} className="rpe-topbar-icon" />
+            <span>LMIA Report</span>
+            {position && (
+              <span className="rpe-topbar-sub">{position.job_title} &nbsp;·&nbsp; NOC {position.noc_code}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Centre: tabs */}
+        <div className="rpe-tabs">
+          <button
+            className={`rpe-tab ${viewMode === 'preview' ? 'rpe-tab--active' : ''}`}
+            onClick={() => setViewMode('preview')}
+          >
+            Preview
           </button>
-          <label className="rp-blank-check">
-            <input type="checkbox" checked={removeBlankPages}
-              onChange={e => setRemoveBlankPages(e.target.checked)} />
-            <span>Remove blank pages</span>
-          </label>
-          <button className="rp-btn rp-btn--primary" onClick={handleDownload} disabled={generating}>
-            {generating
-              ? <><Loader2 size={13} className="rp-spin" /> Generating…</>
-              : <><Download size={13} /> Generate &amp; Download PDF</>}
+          <button
+            className={`rpe-tab ${viewMode === 'manage' ? 'rpe-tab--active' : ''}`}
+            onClick={() => setViewMode('manage')}
+          >
+            Manage Pages
           </button>
         </div>
+
+        {/* Right: stats + actions */}
+        <div className="rpe-topbar-right">
+          <div className="rpe-stats">
+            <span className="rpe-stats-count">{keptCount} page{keptCount !== 1 ? 's' : ''}</span>
+            {removedCount > 0 && (
+              <span className="rpe-removed-badge">{removedCount} removed</span>
+            )}
+          </div>
+          {viewMode === 'manage' && removedCount > 0 && (
+            <button
+              className={`rpe-btn-ghost ${showRemoved ? 'rpe-btn-ghost--on' : ''}`}
+              onClick={() => setShowRemoved(v => !v)}
+            >
+              {showRemoved ? 'Hide removed' : `Show removed`}
+            </button>
+          )}
+          <button
+            className="rpe-btn-download"
+            onClick={handleDownload}
+            disabled={keptCount === 0}
+          >
+            <Download size={13} strokeWidth={2.5} /> Download PDF
+          </button>
+        </div>
+
       </div>
 
-      {genError && (
-        <div className="rp-error-bar"><TriangleAlert size={13} /> {genError}</div>
-      )}
-
-      {/* ── Main ── */}
-      <div className="rp-body">
-
-        {/* Sidebar */}
-        <aside className="rp-sidebar">
-
-          {/* Section list */}
-          <div className="rp-pagelist">
-            <div className="rp-pane-title">
-              <Layers size={11} /> Sections
-              <span className="rp-pane-hint">Drag to reorder</span>
+      {viewMode === 'preview' ? (
+        <div className="rpe-preview-wrap">
+          {previewBuilding && (
+            <div className="rpe-preview-rebuilding">
+              <Loader2 size={16} className="rp-spin" /> Updating preview…
             </div>
+          )}
+          <object
+            className="rpe-preview-obj"
+            data={previewBlobUrl ?? ''}
+            type="application/pdf"
+          >
+            <div className="rpe-no-pdf">
+              Your browser cannot display PDFs inline.{' '}
+              <a href={previewBlobUrl ?? ''} download="LMIA_Report.pdf">Download instead</a>.
+            </div>
+          </object>
+        </div>
+      ) : (
+        <div className="rpe-body">
+          <div className="rpe-scroll-wrap">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
-                {blocks.map(block => (
-                  <PageItem
-                    key={block.id}
-                    block={block}
-                    isSelected={block.id === selectedId}
-                    onSelect={() => setSelectedId(block.id)}
-                    onToggleEnabled={v => updateBlock(block.id, { ...block, enabled: v })}
-                  />
-                ))}
+              <SortableContext items={visiblePages.map(p => p.id)} strategy={rectSortingStrategy}>
+                <div className="rpe-grid">
+                  {visiblePages.map(page => (
+                    <PageCard key={page.id} page={page} onToggle={() => togglePage(page.id)} />
+                  ))}
+                </div>
               </SortableContext>
             </DndContext>
+            {keptCount === 0 && (
+              <div className="rpe-empty">
+                All pages have been removed. Restore some pages before downloading.
+              </div>
+            )}
           </div>
-
-          {/* Properties */}
-          <div className="rp-props">
-            <div className="rp-pane-title"><PenLine size={11} /> Properties</div>
-            <PropsPanel
-              block={selectedBlock}
-              onUpdate={updated => updateBlock(updated.id, updated)}
-              onRefresh={() => loadPreview(blocks)}
-              previewing={previewing}
-            />
-          </div>
-
-        </aside>
-
-        {/* Preview */}
-        <div className="rp-preview">
-          {previewing && (
-            <div className="rp-preview-overlay">
-              <Loader2 size={24} className="rp-spin" />
-              <span>Rendering…</span>
-            </div>
-          )}
-          {previewError && !previewing && (
-            <div className="rp-preview-err">
-              <TriangleAlert size={16} /> {previewError}
-            </div>
-          )}
-          {!previewError && (
-            <iframe ref={iframeRef} className="rp-iframe" title="Report Preview" />
-          )}
         </div>
-
-      </div>
+      )}
 
       <style>{`
         *, *::before, *::after { box-sizing: border-box; }
-        .rp-shell {
-          display:flex; flex-direction:column; height:100vh; overflow:hidden;
-          background:#F6F4EF; color:#1E2329;
-          font-family:'Inter',ui-sans-serif,system-ui,sans-serif; font-size:13px;
+
+        /* Idle */
+        .rp-idle {
+          display: flex; flex-direction: column; align-items: center;
+          height: 100vh; overflow-y: auto; background: #F6F4EF; padding: 2rem 1.5rem;
+          font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
         }
-        .rp-full-load {
-          display:flex; align-items:center; justify-content:center;
-          height:100vh; color:#6b7280; font-size:0.88rem; background:#F6F4EF;
+        .rp-idle-back {
+          align-self: flex-start; display: flex; align-items: center; gap: 0.35rem;
+          font-size: 0.82rem; color: #6b7280; text-decoration: none; margin-bottom: 3rem;
+          transition: color 0.15s;
+        }
+        .rp-idle-back:hover { color: #0B1F3B; }
+        .rp-idle-card {
+          display: flex; flex-direction: column; align-items: center; text-align: center;
+          background: #fff; border: 1px solid #e5e7eb; border-radius: 12px;
+          padding: 3rem 2.5rem; max-width: 480px; width: 100%;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        }
+        .rp-idle-icon { color: #C8A24A; margin-bottom: 1.25rem; }
+        .rp-idle-title { font-size: 1.3rem; font-weight: 700; color: #0B1F3B; margin-bottom: 0.4rem; }
+        .rp-idle-sub { font-size: 0.85rem; color: #6b7280; margin-bottom: 1.5rem; }
+        .rp-idle-desc {
+          font-size: 0.85rem; color: #4b5563; line-height: 1.65;
+          margin-bottom: 2rem; text-align: left;
+        }
+        .rp-btn-primary {
+          display: inline-flex; align-items: center; gap: 0.4rem;
+          background: #0B1F3B; color: #fff; border: none; border-radius: 7px;
+          padding: 0.65rem 1.4rem; font-size: 0.85rem; font-weight: 600;
+          cursor: pointer; transition: background 0.15s;
+        }
+        .rp-btn-primary:hover { background: #1a3352; }
+
+        /* Generating / Error */
+        .rp-generating {
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          min-height: 100vh; gap: 0.75rem; background: #F6F4EF; text-align: center;
+          font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; padding: 2rem;
+        }
+        .rp-spin { animation: rp-rotate 1s linear infinite; }
+        @keyframes rp-rotate { to { transform: rotate(360deg); } }
+        .rp-gen-title { font-size: 1.05rem; font-weight: 700; color: #0B1F3B; }
+        .rp-gen-sub { font-size: 0.83rem; color: #6b7280; margin-top: -0.25rem; }
+        .rp-gen-time {
+          font-size: 1.5rem; font-weight: 700; color: #C8A24A;
+          font-variant-numeric: tabular-nums;
+        }
+        .rp-gen-hint { font-size: 0.83rem; color: #6b7280; max-width: 340px; }
+        .rp-gen-back {
+          margin-top: 0.5rem; font-size: 0.8rem; color: #9ca3af;
+          text-decoration: none; transition: color 0.15s;
+        }
+        .rp-gen-back:hover { color: #0B1F3B; }
+
+        /* Editor shell */
+        .rpe-shell {
+          display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+          background: #F6F4EF;
+          font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; font-size: 13px;
         }
 
-        /* top bar */
-        .rp-topbar {
-          display:flex; align-items:center; gap:1rem; padding:0 1.25rem;
-          height:52px; flex-shrink:0; background:#0B1F3B; border-bottom:1px solid #1a3352;
+        /* Topbar */
+        .rpe-topbar {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 0 1.5rem; height: 56px; flex-shrink: 0;
+          background: #0B1F3B; border-bottom: 1px solid rgba(255,255,255,0.07);
+          gap: 1rem;
         }
-        .rp-back {
-          display:flex; align-items:center; gap:0.35rem; font-size:0.8rem;
-          color:rgba(255,255,255,0.55); text-decoration:none; white-space:nowrap; transition:color 0.15s;
+        .rpe-topbar-left {
+          display: flex; align-items: center; gap: 0.85rem; min-width: 0;
         }
-        .rp-back:hover { color:#C8A24A; }
-        .rp-title {
-          display:flex; align-items:center; font-weight:700;
-          font-size:0.88rem; color:#ffffff; flex:1; white-space:nowrap;
+        .rpe-back {
+          display: flex; align-items: center; gap: 0.3rem;
+          font-size: 0.8rem; font-weight: 500;
+          color: rgba(255,255,255,0.48); background: none; border: none;
+          cursor: pointer; white-space: nowrap; transition: color 0.15s;
+          padding: 0.25rem 0; font-family: inherit;
         }
-        .rp-topbar-actions { display:flex; align-items:center; gap:0.6rem; margin-left:auto; }
-        .rp-blank-check {
-          display:flex; align-items:center; gap:0.35rem; font-size:0.77rem;
-          color:rgba(255,255,255,0.6); cursor:pointer; white-space:nowrap;
+        .rpe-back:hover { color: #C8A24A; }
+        .rpe-topbar-divider {
+          width: 1px; height: 18px; background: rgba(255,255,255,0.1); flex-shrink: 0;
         }
-        .rp-blank-check input { accent-color:#C8A24A; }
-        .rp-error-bar {
-          display:flex; align-items:center; gap:0.4rem; padding:0.45rem 1.25rem;
-          background:#fef2f2; color:#dc2626; font-size:0.8rem;
-          border-bottom:1px solid #fca5a5; flex-shrink:0;
+        .rpe-topbar-title {
+          display: flex; align-items: center; gap: 0.45rem;
+          font-size: 0.88rem; font-weight: 700; color: #fff;
+          white-space: nowrap; overflow: hidden;
         }
-
-        /* layout */
-        .rp-body { display:flex; flex:1; overflow:hidden; }
-
-        /* sidebar */
-        .rp-sidebar {
-          width:300px; flex-shrink:0; display:flex; flex-direction:column;
-          border-right:1px solid #e5e7eb; overflow:hidden; background:#ffffff;
+        .rpe-topbar-icon { color: #C8A24A; flex-shrink: 0; }
+        .rpe-topbar-sub {
+          font-weight: 400; font-size: 0.78rem;
+          color: rgba(255,255,255,0.38); white-space: nowrap;
+          overflow: hidden; text-overflow: ellipsis;
         }
 
-        /* section list */
-        .rp-pagelist {
-          flex-shrink:0; max-height:46%; overflow-y:auto;
-          background:#ffffff; border-bottom:1px solid #e5e7eb;
+        /* Tabs — centred */
+        .rpe-tabs {
+          display: flex; align-items: center;
+          background: rgba(255,255,255,0.07); border-radius: 7px;
+          padding: 3px; gap: 2px; flex-shrink: 0;
         }
-        .rp-pane-title {
-          display:flex; align-items:center; gap:0.4rem; padding:0.5rem 0.9rem;
-          font-size:0.68rem; font-weight:700; text-transform:uppercase;
-          letter-spacing:0.07em; color:#6b7280; background:#f9fafb;
-          border-bottom:1px solid #e5e7eb; position:sticky; top:0; z-index:1;
+        .rpe-tab {
+          background: transparent; border: none; cursor: pointer; font-family: inherit;
+          font-size: 0.8rem; font-weight: 600; color: rgba(255,255,255,0.45);
+          padding: 0.32rem 1rem; border-radius: 5px;
+          transition: background 0.15s, color 0.15s; white-space: nowrap;
         }
-        .rp-pane-hint {
-          margin-left:auto; font-size:0.67rem; font-weight:400;
-          text-transform:none; letter-spacing:0; color:#9ca3af;
-        }
-
-        .pi-item {
-          display:flex; align-items:center; gap:0.45rem; padding:0.45rem 0.7rem;
-          cursor:pointer; user-select:none; border-bottom:1px solid #f3f4f6;
-          transition:background 0.1s;
-        }
-        .pi-item:hover { background:#f9fafb; }
-        .pi-item--active { background:#f0f4f8 !important; }
-        .pi-item--off { opacity:0.38; }
-        .pi-item--drag { opacity:0.25; }
-
-        .pi-handle {
-          color:#d1d5db; cursor:grab; flex-shrink:0;
-          display:flex; align-items:center; touch-action:none; padding:0 1px;
-        }
-        .pi-handle:hover { color:#9ca3af; }
-        .pi-handle:active { cursor:grabbing; }
-
-        .pi-icon-wrap {
-          display:flex; align-items:center; justify-content:center;
-          width:21px; height:21px; border-radius:5px; flex-shrink:0;
-        }
-        .pi-label {
-          flex:1; font-size:0.79rem; font-weight:500; color:#6b7280;
-          white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-        }
-        .pi-item--active .pi-label { color:#0B1F3B; font-weight:600; }
-        .pi-vis-btn {
-          background:none; border:none; color:#d1d5db; cursor:pointer;
-          display:flex; align-items:center; padding:2px; border-radius:3px;
-          transition:color 0.15s; flex-shrink:0;
-        }
-        .pi-vis-btn:hover { color:#6b7280; }
-
-        /* properties panel */
-        .rp-props {
-          flex:1; overflow:hidden; display:flex; flex-direction:column;
-          background:#ffffff;
-        }
-        .rp-props .rp-pane-title { flex-shrink:0; }
-
-        .pp-root { display:flex; flex-direction:column; flex:1; overflow:hidden; }
-        .pp-empty {
-          flex:1; display:flex; flex-direction:column; align-items:center;
-          justify-content:center; gap:0.6rem; color:#9ca3af; padding:2rem;
-          text-align:center; font-size:0.79rem;
-        }
-        .pp-header {
-          padding:0.7rem 1rem; border-left:3px solid #0B1F3B;
-          background:#f9fafb; flex-shrink:0; border-bottom:1px solid #e5e7eb;
-        }
-        .pp-header-label { display:block; font-size:0.8rem; font-weight:700; }
-        .pp-header-sub { font-size:0.7rem; color:#9ca3af; }
-        .pp-body { flex:1; overflow-y:auto; }
-        .pp-group { padding:0.7rem 1rem; border-bottom:1px solid #f3f4f6; }
-        .pp-group-title {
-          font-size:0.67rem; font-weight:700; text-transform:uppercase;
-          letter-spacing:0.07em; color:#9ca3af; margin-bottom:0.6rem;
-        }
-        .pp-field { display:flex; flex-direction:column; gap:0.25rem; }
-        .pp-label { font-size:0.74rem; color:#6b7280; font-weight:500; }
-        .pp-hint { font-size:0.69rem; color:#9ca3af; line-height:1.4; }
-        .pp-input {
-          background:#ffffff; border:1px solid #d1d5db; border-radius:6px;
-          color:#1E2329; padding:0.42rem 0.6rem; font-size:0.8rem;
-          font-family:inherit; outline:none; width:100%; transition:border-color 0.2s;
-        }
-        .pp-input:focus { border-color:#0B1F3B; }
-        .pp-textarea {
-          background:#ffffff; border:1px solid #d1d5db; border-radius:6px;
-          color:#1E2329; padding:0.42rem 0.6rem; font-size:0.8rem;
-          font-family:inherit; outline:none; width:100%; resize:vertical;
-          transition:border-color 0.2s; line-height:1.5;
-        }
-        .pp-textarea:focus { border-color:#0B1F3B; }
-
-        /* visibility switch */
-        .pp-switch-row {
-          display:flex; align-items:center; justify-content:space-between;
-          font-size:0.8rem; color:#374151; cursor:pointer;
-        }
-        .pp-switch { position:relative; width:34px; height:19px; flex-shrink:0; }
-        .pp-switch input { opacity:0; width:0; height:0; }
-        .pp-switch-track {
-          position:absolute; inset:0; background:#d1d5db;
-          border-radius:20px; cursor:pointer; transition:background 0.2s;
-        }
-        .pp-switch input:checked + .pp-switch-track { background:#0B1F3B; }
-        .pp-switch-thumb {
-          position:absolute; top:2.5px; left:2.5px;
-          width:14px; height:14px; background:#fff; border-radius:50%;
-          transition:transform 0.2s;
-        }
-        .pp-switch input:checked + .pp-switch-track .pp-switch-thumb { transform:translateX(15px); }
-
-        /* checkbox list */
-        .pp-check-grid { display:flex; flex-direction:column; gap:0.45rem; }
-        .pp-check-row {
-          display:flex; align-items:center; gap:0.5rem;
-          font-size:0.77rem; color:#374151; cursor:pointer; line-height:1.3;
-        }
-        .pp-check-row input { accent-color:#0B1F3B; width:13px; height:13px; flex-shrink:0; }
-        .pp-check-row:hover { color:#0B1F3B; }
-
-        /* footer */
-        .pp-footer {
-          padding:0.65rem 1rem; border-top:1px solid #e5e7eb;
-          flex-shrink:0; background:#f9fafb;
-        }
-        .pp-apply-btn { width:100%; justify-content:center; }
-
-        /* buttons */
-        .rp-btn {
-          display:inline-flex; align-items:center; gap:0.4rem;
-          padding:0.42rem 1rem; border-radius:7px; font-size:0.8rem; font-weight:600;
-          cursor:pointer; border:none; font-family:inherit;
-          transition:background 0.15s, opacity 0.15s; white-space:nowrap;
-        }
-        .rp-btn:disabled { opacity:0.45; cursor:not-allowed; }
-        .rp-btn--primary { background:#C8A24A; color:#fff; }
-        .rp-btn--primary:hover:not(:disabled) { background:#b38e3c; }
-        .rp-btn--ghost { background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18); color:rgba(255,255,255,0.75); }
-        .rp-btn--ghost:hover:not(:disabled) { background:rgba(255,255,255,0.14); color:#fff; border-color:rgba(255,255,255,0.35); }
-
-        /* preview */
-        .rp-preview {
-          flex:1; position:relative; display:flex; flex-direction:column;
-          overflow:hidden; background:#e5e7eb;
-        }
-        .rp-iframe { flex:1; border:none; width:100%; height:100%; background:#fff; }
-        .rp-preview-overlay {
-          position:absolute; inset:0; z-index:10;
-          display:flex; flex-direction:column; align-items:center; justify-content:center;
-          gap:0.75rem; background:rgba(246,244,239,0.82); color:#6b7280; font-size:0.85rem;
-        }
-        .rp-preview-err {
-          display:flex; align-items:center; gap:0.5rem; margin:auto;
-          color:#dc2626; font-size:0.85rem; padding:2rem;
+        .rpe-tab:hover { color: rgba(255,255,255,0.8); }
+        .rpe-tab--active {
+          background: rgba(255,255,255,0.13); color: #fff;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         }
 
-        /* spinner */
-        .rp-spin { animation:rp-rot 0.8s linear infinite; }
-        @keyframes rp-rot { to { transform:rotate(360deg); } }
+        /* Right side */
+        .rpe-topbar-right {
+          display: flex; align-items: center; gap: 0.65rem; flex-shrink: 0;
+        }
+        .rpe-stats {
+          display: flex; align-items: center; gap: 0.45rem;
+        }
+        .rpe-stats-count {
+          font-size: 0.78rem; font-weight: 600; color: rgba(255,255,255,0.55);
+          white-space: nowrap;
+        }
+        .rpe-removed-badge {
+          font-size: 0.7rem; font-weight: 700; white-space: nowrap;
+          background: rgba(220,38,38,0.18); color: #fca5a5;
+          border: 1px solid rgba(220,38,38,0.3);
+          border-radius: 20px; padding: 0.1rem 0.55rem;
+        }
+        .rpe-btn-ghost {
+          display: inline-flex; align-items: center; gap: 0.35rem;
+          font-size: 0.78rem; font-weight: 500; font-family: inherit;
+          color: rgba(255,255,255,0.55); background: transparent;
+          border: 1px solid rgba(255,255,255,0.12); border-radius: 6px;
+          padding: 0.3rem 0.75rem; cursor: pointer;
+          transition: color 0.15s, border-color 0.15s, background 0.15s;
+          white-space: nowrap;
+        }
+        .rpe-btn-ghost:hover { color: #fff; border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.06); }
+        .rpe-btn-ghost--on { color: #C8A24A; border-color: rgba(200,162,74,0.4); background: rgba(200,162,74,0.08); }
+        .rpe-btn-download {
+          display: inline-flex; align-items: center; gap: 0.4rem;
+          background: #C8A24A; color: #fff; border: none; border-radius: 7px;
+          padding: 0.42rem 1rem; font-size: 0.82rem; font-weight: 600;
+          cursor: pointer; transition: background 0.15s; font-family: inherit;
+          white-space: nowrap; box-shadow: 0 1px 4px rgba(200,162,74,0.35);
+        }
+        .rpe-btn-download:hover { background: #b8923a; }
+        .rpe-btn-download:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Native PDF preview */
+        .rpe-preview-wrap { flex:1; display:flex; flex-direction:column; position:relative; overflow:hidden; }
+        .rpe-preview-rebuilding {
+          position:absolute; top:0.75rem; left:50%; transform:translateX(-50%); z-index:10;
+          display:flex; align-items:center; gap:0.4rem; background:rgba(11,31,59,0.88);
+          color:#fff; font-size:0.78rem; font-weight:600; padding:0.35rem 0.85rem;
+          border-radius:20px; white-space:nowrap; pointer-events:none;
+        }
+        .rpe-preview-obj { flex:1; width:100%; border:none; display:block; background:#525659; }
+        .rpe-no-pdf {
+          display:flex; align-items:center; justify-content:center; gap:0.4rem;
+          height:100%; color:#9ca3af; font-size:0.85rem;
+        }
+        .rpe-no-pdf a { color:#C8A24A; text-decoration:none; }
+        .rpe-no-pdf a:hover { text-decoration:underline; }
+
+        /* Body + grid */
+        .rpe-body { flex: 1; overflow-y: auto; padding: 2rem 1.5rem; }
+        .rpe-scroll-wrap { max-width: 1200px; margin: 0 auto; }
+        .rpe-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          gap: 1.5rem;
+        }
+        .rpe-empty {
+          text-align: center; padding: 3rem; color: #9ca3af; font-size: 0.85rem;
+        }
+
+        /* Page card */
+        .pc-card {
+          background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+          overflow: hidden; display: flex; flex-direction: column;
+          transition: opacity 0.2s, box-shadow 0.15s;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .pc-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.13); }
+        .pc-card--removed { opacity: 0.35; border-style: dashed; }
+        .pc-card--drag { box-shadow: 0 12px 32px rgba(0,0,0,0.22); opacity: 0.92; }
+        .pc-top {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 0.4rem 0.55rem; background: #f8f9fa; border-bottom: 1px solid #eaecef;
+        }
+        .pc-grip {
+          color: #b0b7c3; cursor: grab; display: flex; align-items: center;
+          touch-action: none; padding: 2px;
+          transition: color 0.12s;
+        }
+        .pc-grip:hover { color: #6b7280; }
+        .pc-grip:active { cursor: grabbing; }
+        .rpe-shell .pc-toggle {
+          display: flex; align-items: center; justify-content: center;
+          width: 22px; height: 22px; border-radius: 5px;
+          border: 1px solid rgba(0,0,0,0.1);
+          padding: 0;
+          background: #fff; cursor: pointer; color: #9ca3af;
+          transition: background 0.13s, color 0.13s, border-color 0.13s;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        .rpe-shell .pc-toggle:hover {
+          background: #fee2e2; color: #dc2626;
+          border-color: rgba(220,38,38,0.25);
+        }
+        .rpe-shell .pc-card--removed .pc-toggle {
+          background: #f0fdf4; color: #16a34a;
+          border-color: rgba(22,163,74,0.3);
+        }
+        .rpe-shell .pc-card--removed .pc-toggle:hover {
+          background: #dcfce7; color: #15803d;
+          border-color: rgba(22,163,74,0.5);
+        }
+        .pc-thumb {
+          aspect-ratio: 210 / 297; background: #f3f4f6;
+          display: flex; align-items: center; justify-content: center; overflow: hidden;
+        }
+        .pc-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; background: #fff; }
+        .pc-skeleton {
+          width: 100%; height: 100%;
+          background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+          background-size: 200% 100%; animation: pc-shimmer 1.4s infinite;
+        }
+        @keyframes pc-shimmer { to { background-position: -200% 0; } }
+        .pc-label {
+          padding: 0.45rem 0.6rem; font-size: 0.77rem; color: #6b7280;
+          text-align: center; font-weight: 500; background: #fafafa;
+          border-top: 1px solid #f0f0f0;
+        }
       `}</style>
     </div>
   )

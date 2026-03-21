@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { captures as capturesApi, positions as positionsApi, reports as reportsApi } from '../api'
+import { setPendingPdf } from '../reportStore'
 import { RoundRow } from '../components/RoundRow'
 import type { CaptureRound, JobPosition, ReportDocument } from '../types'
 
@@ -27,6 +28,8 @@ export default function PositionDetail() {
   const [recapturingResult, setRecapturingResult] = useState<Set<number>>(new Set())
   const [uploadingDoc, setUploadingDoc] = useState(false)
   const [uploadingJobMatch, setUploadingJobMatch] = useState(false)
+  const [generatingReport, setGeneratingReport] = useState(false)
+  const [reportGenError, setReportGenError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const jobMatchRef = useRef<HTMLInputElement>(null)
@@ -152,6 +155,20 @@ export default function PositionDetail() {
     .filter(r => r.status === 'pending' && new Date(r.scheduled_at) <= todayEnd)
     .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())[0]?.id ?? null
 
+  async function handleGenerateReport() {
+    setGeneratingReport(true)
+    setReportGenError(null)
+    try {
+      const blob = await reportsApi.generate(eId, pId)
+      const buffer = await blob.arrayBuffer()
+      setPendingPdf(buffer)
+      navigate(`/employers/${eId}/positions/${pId}/report-preview`)
+    } catch (err: unknown) {
+      setReportGenError(err instanceof Error ? err.message : 'Failed to generate report.')
+      setGeneratingReport(false)
+    }
+  }
+
   return (
     <div className="page">
       <div className="breadcrumb">
@@ -172,12 +189,13 @@ export default function PositionDetail() {
         </div>
         <button
           className="btn-primary"
-          onClick={() => navigate(`/employers/${eId}/positions/${pId}/report-preview`)}
-          disabled={completedRounds === 0}
+          onClick={handleGenerateReport}
+          disabled={completedRounds === 0 || generatingReport}
         >
-          Preview &amp; Download Report
+          {generatingReport ? 'Generating…' : 'Preview & Download Report'}
         </button>
       </div>
+      {reportGenError && <p className="error-msg">{reportGenError}</p>}
 
       {error && <p className="error-msg">{error}</p>}
 

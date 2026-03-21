@@ -48,7 +48,7 @@ const BLOCK_META: Record<string, { label: string; Icon: React.ElementType; color
   cover:              { label: 'Cover Page',                Icon: Layout,    color: '#0B1F3B', desc: 'Employer info, position details and report header' },
   summary_table:      { label: 'Recruitment Summary Table', Icon: Table2,    color: '#0369a1', desc: 'Table showing all platforms, dates and capture counts' },
   evidence:           { label: 'Per-Platform Evidence',     Icon: Search,    color: '#047857', desc: 'Individual capture logs per job posting platform' },
-  job_match_activity: { label: 'Job Match Activity',        Icon: FileText,  color: '#b91c1c', desc: 'Mandatory job match document listing — drag to reposition' },
+  job_match_activity: { label: 'Job Match Activity',        Icon: FileText,  color: '#0369a1', desc: 'Job match document listing — drag to reposition' },
   appendix:           { label: 'Appendix',                  Icon: Paperclip, color: '#C8A24A', desc: 'List of uploaded supporting documents' },
   custom_text:        { label: 'Custom Text',               Icon: PenLine,   color: '#7c3aed', desc: 'Your own heading and body text' },
   divider:            { label: 'Divider Line',              Icon: Minus,     color: '#6b7280', desc: 'Visual separator between sections' },
