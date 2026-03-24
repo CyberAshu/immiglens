@@ -5,6 +5,7 @@ import { employers as employersApi } from '../api'
 import type { Employer } from '../types'
 import AddressAutocomplete from '../components/AddressAutocomplete'
 import Toast, { useToast } from '../components/Toast'
+import { useConfirm } from '../components/ConfirmModal'
 
 export default function Employers() {
   const [list, setList]       = useState<Employer[]>([])
@@ -20,6 +21,7 @@ export default function Employers() {
   const [error, setError]     = useState<string | null>(null)
   const [togglingId, setTogglingId] = useState<number | null>(null)
   const { toast, showToast, clearToast } = useToast()
+  const { confirmModal, askConfirm }      = useConfirm()
 
   useEffect(() => {
     employersApi.list()
@@ -90,7 +92,7 @@ export default function Employers() {
   }
 
   async function handleDelete(id: number) {
-    if (!confirm('Delete this employer and all associated data?')) return
+    if (!await askConfirm({ title: 'Delete Employer', message: 'Delete this employer and all associated positions, postings, and captures? This cannot be undone.', confirmLabel: 'Delete' })) return
     await employersApi.remove(id)
     setList(prev => prev.filter(e => e.id !== id))
   }
@@ -320,6 +322,7 @@ export default function Employers() {
         .page-subtitle { font-size: 0.82rem; color: #6b7280; margin: 2px 0 0; }
       `}</style>
       <Toast toast={toast} onDismiss={clearToast} />
+      {confirmModal}
     </div>
   )
 }

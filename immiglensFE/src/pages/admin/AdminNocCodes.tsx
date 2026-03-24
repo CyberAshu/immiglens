@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Pencil, Plus, Trash2, Upload, X } from 'lucide-react'
 import { nocCodes } from '../../api/noc_codes'
 import type { NocCodeOut } from '../../api/noc_codes'
+import { useConfirm } from '../../components/ConfirmModal'
 import { useUpload } from '../../context/UploadContext'
 
 const PAGE_SIZE = 50
@@ -20,8 +21,9 @@ export default function AdminNocCodes() {
   const [counts, setCounts] = useState<{ total: number; active: number } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(0)
+  const [search, setSearch]         = useState('')
+  const [page, setPage]             = useState(0)
+  const { confirmModal, askConfirm } = useConfirm()
 
   // Add/edit modal
   const [showModal, setShowModal] = useState(false)
@@ -79,7 +81,7 @@ export default function AdminNocCodes() {
   }
 
   async function handleDelete(noc: NocCodeOut) {
-    if (!confirm(`Delete NOC ${noc.code} — ${noc.title}?\nThis cannot be undone.`)) return
+    if (!await askConfirm({ title: `Delete NOC ${noc.code}`, message: `Delete "${noc.title}"? This cannot be undone.`, confirmLabel: 'Delete' })) return
     try { await nocCodes.adminDelete(noc.id); load() }
     catch { setError('Delete failed.') }
   }
@@ -93,6 +95,7 @@ export default function AdminNocCodes() {
 
   return (
     <div className="page">
+      {confirmModal}
       {/* ── Header ── */}
       <div className="page-header">
         <div>

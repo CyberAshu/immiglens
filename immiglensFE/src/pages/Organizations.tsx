@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { organizations as orgApi } from '../api'
 import type { OrgInvitation, OrgMembership, OrgRole, Organization } from '../types'
+import { useConfirm } from '../components/ConfirmModal'
 
 function RoleBadge({ role }: { role: OrgRole }) {
   const colors: Record<OrgRole, string> = { owner: '#C8A24A', admin: '#0B1F3B', viewer: '#6b7280' }
@@ -25,6 +26,7 @@ export default function Organizations() {
   const [inviteRole, setInviteRole] = useState<OrgRole>('viewer')
   const [saving, setSaving]         = useState(false)
   const [error, setError]           = useState<string | null>(null)
+  const { confirmModal, askConfirm } = useConfirm()
 
   useEffect(() => {
     orgApi.list()
@@ -64,13 +66,13 @@ export default function Organizations() {
   }
 
   async function handleRemoveMember(uid: number) {
-    if (!selected || !confirm('Remove this member?')) return
+    if (!selected || !await askConfirm({ title: 'Remove Member', message: 'Remove this member from the organization?', confirmLabel: 'Remove' })) return
     await orgApi.removeMember(selected.id, uid)
     setMembers(prev => prev.filter(m => m.user_id !== uid))
   }
 
   async function handleDeleteOrg() {
-    if (!selected || !confirm(`Delete "${selected.name}"? This cannot be undone.`)) return
+    if (!selected || !await askConfirm({ title: 'Delete Organization', message: `Delete "${selected.name}"? This cannot be undone.`, confirmLabel: 'Delete' })) return
     await orgApi.remove(selected.id)
     setOrgs(prev => prev.filter(o => o.id !== selected.id))
     setSelected(null)
@@ -80,6 +82,7 @@ export default function Organizations() {
 
   return (
     <div className="page">
+      {confirmModal}
       <div className="page-header">
         <div>
           <h1>Organizations</h1>

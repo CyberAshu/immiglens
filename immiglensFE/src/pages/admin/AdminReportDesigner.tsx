@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useConfirm } from '../../components/ConfirmModal'
 import {
   BookOpen,
   Check,
@@ -323,6 +324,8 @@ export default function AdminReportDesigner() {
     if (doc) { doc.open(); doc.write(previewHtml); doc.close() }
   }, [previewHtml])
 
+  const { confirmModal, askConfirm } = useConfirm()
+
   function showToast(msg: string, type: 'success' | 'error') {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3500)
@@ -369,7 +372,7 @@ export default function AdminReportDesigner() {
   }
 
   async function handleReset() {
-    if (!confirm('Reset to factory default layout? All customizations will be lost.')) return
+    if (!await askConfirm({ title: 'Reset Layout', message: 'Reset to factory default layout? All customizations will be lost.', confirmLabel: 'Reset', variant: 'primary' })) return
     setLoading(true)
     try {
       const data = await reportConfigApi.reset()
@@ -402,6 +405,7 @@ export default function AdminReportDesigner() {
 
   return (
     <div className="rd">
+      {confirmModal}
       {toast && <Toast message={toast.msg} type={toast.type} />}
 
       {/* page header */}

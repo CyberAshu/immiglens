@@ -6,6 +6,7 @@ import {
 } from 'recharts'
 import { admin as adminApi } from '../api'
 import { useAuth } from '../context/AuthContext'
+import { useConfirm } from '../components/ConfirmModal'
 import { StatCard } from '../components/StatCard'
 import type { AdminGlobalStats, AdminUserRecord } from '../types'
 
@@ -20,6 +21,7 @@ export default function AdminDashboard() {
   const [error, setError]           = useState<string | null>(null)
   const [search, setSearch]         = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user'>('all')
+  const { confirmModal, askConfirm }  = useConfirm()
 
   useEffect(() => {
     Promise.all([adminApi.stats(), adminApi.users()])
@@ -39,7 +41,7 @@ export default function AdminDashboard() {
   }
 
   async function handleDeleteUser(userId: number, name: string) {
-    if (!confirm(`Delete user "${name}" and all their data? This cannot be undone.`)) return
+    if (!await askConfirm({ title: 'Delete User', message: `Delete "${name}" and all their data? This cannot be undone.`, confirmLabel: 'Delete' })) return
     try {
       await adminApi.deleteUser(userId)
       setUsers(prev => prev.filter(u => u.id !== userId))
@@ -98,6 +100,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="page">
+      {confirmModal}
 
       {/* ── Header ── */}
       <div className="page-header">

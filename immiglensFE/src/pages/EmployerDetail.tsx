@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Pencil, Trash2 } from 'lucide-react'
 import { employers as employersApi, positions as positionsApi, subscriptions as subscriptionsApi } from '../api'
+import { useConfirm } from '../components/ConfirmModal'
 import type { Employer, JobPosition } from '../types'
 import AddressAutocomplete from '../components/AddressAutocomplete'
 import { NocSearch } from '../components/NocSearch'
@@ -26,6 +27,7 @@ export default function EmployerDetail() {
   const [togglingPositionId, setTogglingPositionId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const { toast, showToast, clearToast } = useToast()
+  const { confirmModal, askConfirm }      = useConfirm()
 
   useEffect(() => {
     Promise.all([employersApi.list(), positionsApi.list(id), subscriptionsApi.usage()])
@@ -132,7 +134,7 @@ export default function EmployerDetail() {
   }
 
   async function handleDelete(posId: number) {
-    if (!confirm('Delete this job position and all captures?')) return
+    if (!await askConfirm({ title: 'Delete Position', message: 'Delete this job position and all associated captures? This cannot be undone.', confirmLabel: 'Delete' })) return
     await positionsApi.remove(id, posId)
     setPositionList(prev => prev.filter(p => p.id !== posId))
   }
@@ -396,6 +398,7 @@ export default function EmployerDetail() {
         </div>
       )}
       <Toast toast={toast} onDismiss={clearToast} />
+      {confirmModal}
     </div>
   )
 }

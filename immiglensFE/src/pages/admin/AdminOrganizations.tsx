@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { admin } from '../../api/admin'
 import type { AdminOrgOut } from '../../types'
+import { useConfirm } from '../../components/ConfirmModal'
 
 const PAGE_SIZE = 20
 
@@ -10,7 +11,8 @@ export default function AdminOrganizations() {
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [expanded, setExpanded] = useState<number | null>(null)
-  const [page, setPage] = useState(1)
+  const [page, setPage]             = useState(1)
+  const { confirmModal, askConfirm } = useConfirm()
 
   useEffect(() => {
     admin.allOrgs()
@@ -20,12 +22,12 @@ export default function AdminOrganizations() {
   }, [])
 
   async function handleDelete(orgId: number, orgName: string) {
-    if (!confirm(`Permanently delete organization "${orgName}" and all its data?`)) return
+    if (!await askConfirm({ title: 'Delete Organization', message: `Permanently delete "${orgName}" and all its data? This cannot be undone.`, confirmLabel: 'Delete' })) return
     try {
       await admin.deleteOrg(orgId)
       setOrgs(prev => prev.filter(o => o.id !== orgId))
     } catch {
-      alert('Failed to delete organization.')
+      setError('Failed to delete organization.')
     }
   }
 
@@ -43,6 +45,7 @@ export default function AdminOrganizations() {
 
   return (
     <div className="admin-page">
+      {confirmModal}
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Organizations</h1>

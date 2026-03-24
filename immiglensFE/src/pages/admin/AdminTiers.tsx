@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { admin } from '../../api/admin'
 import type { AdminUserRecord, TierCreate, TierUpdate } from '../../types'
+import { useConfirm } from '../../components/ConfirmModal'
 import type { SubscriptionTier } from '../../types'
 
 const EMPTY_FORM: TierCreate = {
@@ -31,7 +32,8 @@ export default function AdminTiers() {
   const [assignSearch, setAssignSearch] = useState('')
   const [assigning, setAssigning] = useState<number | null>(null)
   // per-user expiry date input (keyed by user id)
-  const [expiryMap, setExpiryMap] = useState<Record<number, string>>({})
+  const [expiryMap, setExpiryMap]   = useState<Record<number, string>>({})
+  const { confirmModal, askConfirm } = useConfirm()
 
   useEffect(() => {
     Promise.all([admin.allTiers(), admin.users()])
@@ -73,19 +75,19 @@ export default function AdminTiers() {
       }
       setShowForm(false)
     } catch {
-      alert('Failed to save tier.')
+      setError('Failed to save tier.')
     } finally {
       setSaving(false)
     }
   }
 
   async function handleDeactivate(tier: SubscriptionTier) {
-    if (!confirm(`Deactivate tier "${tier.display_name}"? Users on this tier keep access but it won't be available for new assignments.`)) return
+    if (!await askConfirm({ title: 'Deactivate Tier', message: `Deactivate "${tier.display_name}"? Users on this tier keep access but it won't be available for new assignments.`, confirmLabel: 'Deactivate', variant: 'primary' })) return
     try {
       await admin.deactivateTier(tier.id)
       setTiers(prev => prev.map(t => t.id === tier.id ? { ...t, is_active: false } : t))
     } catch {
-      alert('Failed to deactivate tier.')
+      setError('Failed to deactivate tier.')
     }
   }
 
@@ -102,7 +104,7 @@ export default function AdminTiers() {
           : u
       ))
     } catch {
-      alert('Failed to assign tier.')
+      setError('Failed to assign tier.')
     } finally {
       setAssigning(null)
     }
@@ -119,6 +121,7 @@ export default function AdminTiers() {
 
   return (
     <div className="admin-page">
+      {confirmModal}
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Subscription Tiers</h1>

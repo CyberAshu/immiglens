@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { admin as adminApi } from '../../api'
+import { useConfirm } from '../../components/ConfirmModal'
 import type { AdminUserRecord } from '../../types'
 
 const PAGE_SIZE = 25
@@ -14,6 +15,7 @@ export default function AdminUsers() {
   const [search, setSearch]         = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user'>('all')
   const [page, setPage]             = useState(1)
+  const { confirmModal, askConfirm }  = useConfirm()
 
   useEffect(() => {
     adminApi.users()
@@ -33,7 +35,7 @@ export default function AdminUsers() {
   }
 
   async function handleDeleteUser(userId: number, name: string) {
-    if (!confirm(`Delete user "${name}" and all their data? This cannot be undone.`)) return
+    if (!await askConfirm({ title: 'Delete User', message: `Delete "${name}" and all their data? This cannot be undone.`, confirmLabel: 'Delete' })) return
     try {
       await adminApi.deleteUser(userId)
       setUsers(prev => prev.filter(u => u.id !== userId))
@@ -58,6 +60,7 @@ export default function AdminUsers() {
 
   return (
     <div className="page">
+      {confirmModal}
       <div className="page-header">
         <div>
           <h1>Users</h1>
