@@ -230,8 +230,8 @@ export default function Employers() {
 
       {/* create / edit modal */}
       {showForm && (
-        <div className="admin-modal-overlay" onClick={closeModal}>
-          <form className="admin-modal" style={{ maxWidth: 620 }} onSubmit={editingEmployer ? handleUpdate : handleCreate} onClick={e => e.stopPropagation()}>
+        <div className="admin-modal-overlay">
+          <form className="admin-modal" style={{ maxWidth: 620 }} onSubmit={editingEmployer ? handleUpdate : handleCreate}>
             <h2 className="admin-modal-title">{editingEmployer ? 'Edit Employer' : 'New Employer'}</h2>
             <div className="admin-form-grid">
               <label className="admin-form-label" style={{ gridColumn: 'span 2' }}>

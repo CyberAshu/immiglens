@@ -191,8 +191,8 @@ export default function EmployerDetail() {
       )}
 
       {showForm && (
-        <div className="admin-modal-overlay" onClick={closeModal}>
-          <form className="admin-modal" style={{ maxWidth: 660 }} onSubmit={editingPosition ? handleUpdate : handleCreate} onClick={e => e.stopPropagation()}>
+        <div className="admin-modal-overlay">
+          <form className="admin-modal" style={{ maxWidth: 660 }} onSubmit={editingPosition ? handleUpdate : handleCreate}>
             <h2 className="admin-modal-title">{editingPosition ? 'Edit Job Position' : 'New Job Position'}</h2>
             <div className="admin-form-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
               <label className="admin-form-label" style={{ gridColumn: '1 / -1' }}>
