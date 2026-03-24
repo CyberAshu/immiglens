@@ -216,9 +216,18 @@ export default function EmployerDetail() {
               </label>
               <label className="admin-form-label">
                 Start Date *
-                <input className="admin-input" type="date" value={form.start_date}
-                  {...(!editingPosition ? { min: new Date().toISOString().split('T')[0] } : {})}
-                  onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} required />
+                <input
+                  className="admin-input"
+                  type="date"
+                  value={form.start_date}
+                  min={
+                    editingPosition
+                      ? editingPosition.start_date          // can't go earlier than existing saved date
+                      : new Date().toISOString().split('T')[0]  // new: can't be in the past
+                  }
+                  onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))}
+                  required
+                />
               </label>
               <label className="admin-form-label">
                 End Date <span style={{ fontWeight: 400 }}>(optional)</span>
