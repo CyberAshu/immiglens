@@ -32,6 +32,7 @@ class JobPostingOut(BaseModel):
     id: int
     platform: str
     url: str
+    is_active: bool
     created_at: datetime
 
 
@@ -153,6 +154,7 @@ class JobPositionOut(BaseModel):
     start_date: date
     end_date: Optional[date] = None
     capture_frequency_days: int
+    is_active: bool = True
     wage: Optional[str] = None
     work_location: Optional[str] = None
     wage_stream: Optional[str] = None

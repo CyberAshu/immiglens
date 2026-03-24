@@ -3,6 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import log_action
+from app.core.permissions import deactivate_user_positions
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.capture import CaptureResult, CaptureRound, ResultStatus
@@ -45,8 +46,11 @@ async def admin_stats(
 
     total_users      = await count(select(func.count()).select_from(User))
     total_employers  = await count(select(func.count()).select_from(Employer))
+    active_employers = await count(select(func.count()).select_from(Employer).where(Employer.is_active.is_(True)))
     total_positions  = await count(select(func.count()).select_from(JobPosition))
+    active_positions = await count(select(func.count()).select_from(JobPosition).where(JobPosition.is_active.is_(True)))
     total_postings   = await count(select(func.count()).select_from(JobPosting))
+    active_postings  = await count(select(func.count()).select_from(JobPosting).where(JobPosting.is_active.is_(True)))
     total_rounds     = await count(select(func.count()).select_from(CaptureRound))
     completed_rounds = await count(select(func.count()).select_from(CaptureRound).where(CaptureRound.status == "completed"))
     pending_rounds   = await count(select(func.count()).select_from(CaptureRound).where(CaptureRound.status == "pending"))
@@ -56,8 +60,11 @@ async def admin_stats(
     return AdminGlobalStats(
         total_users=total_users,
         total_employers=total_employers,
+        active_employers=active_employers,
         total_positions=total_positions,
+        active_positions=active_positions,
         total_job_postings=total_postings,
+        active_postings=active_postings,
         total_capture_rounds=total_rounds,
         completed_rounds=completed_rounds,
         pending_rounds=pending_rounds,
@@ -131,6 +138,7 @@ async def admin_list_users(
             created_at=u.created_at.strftime("%Y-%m-%d %H:%M UTC"),
             tier_id=u.tier_id,
             tier_name=tier_map[u.tier_id].display_name if u.tier_id and u.tier_id in tier_map else None,
+            tier_expires_at=u.tier_expires_at,
         )
         for u in users
     ]
@@ -167,17 +175,47 @@ async def assign_tier(
     user = await db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
+
+    new_tier: SubscriptionTier | None = None
     if body.tier_id is not None:
-        tier = await db.get(SubscriptionTier, body.tier_id)
-        if not tier:
+        new_tier = await db.get(SubscriptionTier, body.tier_id)
+        if not new_tier:
             raise HTTPException(status_code=404, detail="Tier not found.")
-    old_tier = user.tier_id
+
+    # Detect downgrade: resolve effective limits for old vs new tier
+    old_tier_obj: SubscriptionTier | None = (
+        await db.get(SubscriptionTier, user.tier_id) if user.tier_id else None
+    )
+    old_max = old_tier_obj.max_employers if old_tier_obj else -1  # -1 = unlimited
+    # None (free) when new tier_id is None — load free tier for comparison
+    if new_tier is None:
+        from sqlalchemy import select as _sel
+        res = await db.execute(
+            _sel(SubscriptionTier).where(SubscriptionTier.name == "free").limit(1)
+        )
+        free_tier = res.scalar_one_or_none()
+        new_max = free_tier.max_employers if free_tier else -1
+    else:
+        new_max = new_tier.max_employers
+
+    is_downgrade = (
+        new_max != -1 and (old_max == -1 or new_max < old_max)
+    )
+
+    old_tier_id = user.tier_id
     user.tier_id = body.tier_id
-    await db.commit()
+    user.tier_expires_at = body.tier_expires_at
+
+    if is_downgrade:
+        await deactivate_user_positions(db, user)
+    else:
+        await db.commit()
+
     await db.refresh(user)
     await log_action(db, user_id=current_user.id, action="UPDATE",
                      resource_type="user", resource_id=user.id,
-                     old_data={"tier_id": old_tier}, new_data={"tier_id": body.tier_id})
+                     old_data={"tier_id": old_tier_id},
+                     new_data={"tier_id": body.tier_id, "tier_expires_at": str(body.tier_expires_at)})
     await db.commit()
     return user
 

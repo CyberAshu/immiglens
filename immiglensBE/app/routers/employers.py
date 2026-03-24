@@ -1,14 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import log_action
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
-from app.core.permissions import check_employer_limit
+from app.core.permissions import check_employer_limit, check_employer_activate_limit
 from app.models.employer import Employer
+from app.models.job_position import JobPosition
+from app.models.job_posting import JobPosting
 from app.models.user import User
 from app.schemas.employer import EmployerCreate, EmployerOut, EmployerUpdate
+from app.services.scheduler import pause_rounds_for_user
 
 router = APIRouter(prefix="/api/employers", tags=["employers"])
 
@@ -81,9 +84,47 @@ async def update_employer(
     return employer
 
 
-@router.delete("/{employer_id}", status_code=204)
-async def delete_employer(
+@router.patch("/{employer_id}/toggle", response_model=EmployerOut)
+async def toggle_employer(
     employer_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Toggle the is_active flag for an employer.
+    Activating is subject to the user's tier employer limit.
+    """
+    employer = await _get_employer_or_404(employer_id, current_user, db)
+    if not employer.is_active:
+        # About to activate — check limit
+        await check_employer_activate_limit(db, current_user, exclude_id=employer_id)
+    employer.is_active = not employer.is_active
+    # On deactivation cascade: mark all child positions and postings inactive too
+    # and pause their APScheduler jobs so they don't fire needlessly
+    if not employer.is_active:
+        pos_ids = (
+            await db.execute(select(JobPosition.id).where(JobPosition.employer_id == employer_id))
+        ).scalars().all()
+        if pos_ids:
+            await db.execute(
+                update(JobPosition).where(JobPosition.id.in_(pos_ids)).values(is_active=False)
+            )
+            await db.execute(
+                update(JobPosting)
+                .where(JobPosting.job_position_id.in_(pos_ids))
+                .values(is_active=False)
+            )
+            await pause_rounds_for_user(db, [employer_id])
+    await db.commit()
+    await db.refresh(employer)
+    await log_action(db, user_id=current_user.id, action="UPDATE",
+                     resource_type="employer", resource_id=employer.id,
+                     new_data={"is_active": employer.is_active})
+    await db.commit()
+    return employer
+
+
+@router.delete("/{employer_id}", status_code=204)
+async def delete_employer(    employer_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):

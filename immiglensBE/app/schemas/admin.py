@@ -7,8 +7,11 @@ from pydantic import BaseModel
 class AdminGlobalStats(BaseModel):
     total_users: int
     total_employers: int
+    active_employers: int
     total_positions: int
+    active_positions: int
     total_job_postings: int
+    active_postings: int
     total_capture_rounds: int
     completed_rounds: int
     pending_rounds: int
@@ -27,6 +30,7 @@ class AdminUserRecord(BaseModel):
     created_at: str
     tier_id: Optional[int] = None
     tier_name: Optional[str] = None
+    tier_expires_at: Optional[datetime] = None
 
 
 # ── Organization admin schemas ──────────────────────────────
@@ -81,3 +85,4 @@ class TierUpdate(BaseModel):
 
 class AssignTierRequest(BaseModel):
     tier_id: Optional[int] = None  # None means revert to free
+    tier_expires_at: Optional[datetime] = None

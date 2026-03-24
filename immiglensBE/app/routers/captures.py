@@ -60,6 +60,18 @@ async def trigger_capture_round(
 ):
     await _assert_owns_position(employer_id, position_id, current_user, db)
 
+    # Block captures on deactivated positions
+    pos_active = (
+        await db.execute(
+            select(JobPosition.is_active).where(JobPosition.id == position_id)
+        )
+    ).scalar_one()
+    if not pos_active:
+        raise HTTPException(
+            status_code=403,
+            detail="This position is deactivated. Activate it to re-enable captures.",
+        )
+
     result = await db.execute(
         select(CaptureRound)
         .where(
@@ -72,10 +84,10 @@ async def trigger_capture_round(
     if round_ is None:
         raise HTTPException(status_code=404, detail="Capture round not found.")
 
-    if not round_.job_position.job_postings:
+    if not any(p.is_active for p in round_.job_position.job_postings):
         raise HTTPException(
             status_code=400,
-            detail="No job postings added to this position. Add at least one posting URL before running a capture."
+            detail="No active job board URLs on this position. Add or activate at least one posting before running a capture."
         )
 
     await check_monthly_capture_limit(db, current_user)
@@ -103,6 +115,18 @@ async def recapture_single_result(
     current_user: User = Depends(get_current_user),
 ):
     await _assert_owns_position(employer_id, position_id, current_user, db)
+
+    # Block recapture on deactivated positions
+    pos_active = (
+        await db.execute(
+            select(JobPosition.is_active).where(JobPosition.id == position_id)
+        )
+    ).scalar_one()
+    if not pos_active:
+        raise HTTPException(
+            status_code=403,
+            detail="This position is deactivated. Activate it to re-enable captures.",
+        )
 
     res = await db.execute(
         select(CaptureResult).where(

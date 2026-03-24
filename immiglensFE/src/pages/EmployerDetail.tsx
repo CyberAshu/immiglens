@@ -5,6 +5,7 @@ import { employers as employersApi, positions as positionsApi, subscriptions as 
 import type { Employer, JobPosition } from '../types'
 import AddressAutocomplete from '../components/AddressAutocomplete'
 import { NocSearch } from '../components/NocSearch'
+import Toast, { useToast } from '../components/Toast'
 
 export default function EmployerDetail() {
   const { employerId } = useParams<{ employerId: string }>()
@@ -22,7 +23,9 @@ export default function EmployerDetail() {
     capture_frequency_days: 7, wage: '', wage_period: 'hr', wage_stream: '', work_location: '',
   })
   const [saving, setSaving] = useState(false)
+  const [togglingPositionId, setTogglingPositionId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const { toast, showToast, clearToast } = useToast()
 
   useEffect(() => {
     Promise.all([employersApi.list(), positionsApi.list(id), subscriptionsApi.usage()])
@@ -134,6 +137,18 @@ export default function EmployerDetail() {
     setPositionList(prev => prev.filter(p => p.id !== posId))
   }
 
+  async function handleTogglePosition(pos: JobPosition) {
+    setTogglingPositionId(pos.id)
+    try {
+      const updated = await positionsApi.togglePosition(id, pos.id)
+      setPositionList(prev => prev.map(p => p.id === updated.id ? updated : p))
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Failed to toggle position.', 'warning')
+    } finally {
+      setTogglingPositionId(null)
+    }
+  }
+
   if (loading) return <div className="loading">Loading…</div>
   if (!employer) return <div className="page"><p>Employer not found.</p></div>
 
@@ -148,10 +163,30 @@ export default function EmployerDetail() {
           <h1>{employer.business_name}</h1>
           <p className="sub-text">{employer.address} · {employer.contact_person}</p>
         </div>
-        <button className="btn-primary" onClick={() => { setForm(EMPTY_FORM); setEditingPosition(null); setIsCustomFreq(false); setError(null); setShowForm(true) }}>
+        <button
+          className="btn-primary"
+          onClick={() => { setForm(EMPTY_FORM); setEditingPosition(null); setIsCustomFreq(false); setError(null); setShowForm(true) }}
+          disabled={!employer.is_active}
+          title={!employer.is_active ? 'Activate this employer to add positions' : undefined}
+        >
           + New Position
         </button>
       </div>
+
+      {!employer.is_active && (
+        <div style={{
+          background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10,
+          padding: '0.85rem 1.1rem', marginBottom: '1.25rem',
+          display: 'flex', alignItems: 'center', gap: '0.6rem',
+        }}>
+          <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+          <span style={{ fontSize: '0.9rem', color: '#92400e', fontWeight: 500 }}>
+            This employer is <strong>deactivated</strong>. Use the ▶ toggle on the
+            {' '}<a href="/employers" style={{ color: '#92400e' }}>Employers page</a>{' '}
+            to re-activate it.
+          </span>
+        </div>
+      )}
 
       {showForm && (
         <div className="admin-modal-overlay" onClick={closeModal}>
@@ -301,8 +336,18 @@ export default function EmployerDetail() {
             </thead>
             <tbody>
               {positionList.map(pos => (
-                <tr key={pos.id}>
-                  <td><Link to={`/employers/${id}/positions/${pos.id}`} className="table-link">{pos.job_title}</Link></td>
+                <tr key={pos.id} style={!pos.is_active ? { opacity: 0.55 } : undefined}>
+                  <td>
+                    <Link to={`/employers/${id}/positions/${pos.id}`} className="table-link">{pos.job_title}</Link>
+                    {!pos.is_active && (
+                      <span style={{
+                        marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 700,
+                        background: '#fee2e2', color: '#b91c1c',
+                        border: '1px solid #fecaca', borderRadius: 6,
+                        padding: '1px 6px', verticalAlign: 'middle',
+                      }}>Deactivated</span>
+                    )}
+                  </td>
                   <td>{pos.noc_code}</td>
                   <td>{pos.num_positions}</td>
                   <td>{pos.start_date}</td>
@@ -311,6 +356,14 @@ export default function EmployerDetail() {
                   <td>Every {pos.capture_frequency_days} days</td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <button
+                        className={pos.is_active ? 'btn-icon-warning' : 'btn-icon-success'}
+                        onClick={() => handleTogglePosition(pos)}
+                        disabled={togglingPositionId === pos.id}
+                        title={pos.is_active ? 'Deactivate position' : 'Activate position'}
+                      >
+                        {togglingPositionId === pos.id ? '…' : pos.is_active ? '⏸' : '▶'}
+                      </button>
                       <button
                         className="btn-icon"
                         onClick={() => openEdit(pos)}
@@ -333,6 +386,7 @@ export default function EmployerDetail() {
           </table>
         </div>
       )}
+      <Toast toast={toast} onDismiss={clearToast} />
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { Building2, Mail, Pencil, Phone, Plus, Search, Trash2, User } from 'luci
 import { employers as employersApi } from '../api'
 import type { Employer } from '../types'
 import AddressAutocomplete from '../components/AddressAutocomplete'
+import Toast, { useToast } from '../components/Toast'
 
 export default function Employers() {
   const [list, setList]       = useState<Employer[]>([])
@@ -17,6 +18,8 @@ export default function Employers() {
   })
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState<string | null>(null)
+  const [togglingId, setTogglingId] = useState<number | null>(null)
+  const { toast, showToast, clearToast } = useToast()
 
   useEffect(() => {
     employersApi.list()
@@ -92,6 +95,18 @@ export default function Employers() {
     setList(prev => prev.filter(e => e.id !== id))
   }
 
+  async function handleToggle(emp: Employer) {
+    setTogglingId(emp.id)
+    try {
+      const updated = await employersApi.toggle(emp.id)
+      setList(prev => prev.map(e => e.id === updated.id ? updated : e))
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Failed to toggle employer.', 'warning')
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
   const filtered = list.filter(e =>
     e.business_name.toLowerCase().includes(query.toLowerCase()) ||
     e.contact_person.toLowerCase().includes(query.toLowerCase()) ||
@@ -147,13 +162,21 @@ export default function Employers() {
             </thead>
             <tbody>
               {filtered.map(emp => (
-                <tr key={emp.id}>
+                <tr key={emp.id} style={!emp.is_active ? { opacity: 0.55 } : undefined}>
                   <td>
                     <div className="emp-name-cell">
                       <span className="emp-avatar">
                         <Building2 size={14} strokeWidth={2} />
                       </span>
                       <Link to={`/employers/${emp.id}`} className="table-link">{emp.business_name}</Link>
+                      {!emp.is_active && (
+                        <span style={{
+                          fontSize: '0.7rem', fontWeight: 700,
+                          background: '#fee2e2', color: '#b91c1c',
+                          border: '1px solid #fecaca', borderRadius: 6,
+                          padding: '1px 6px',
+                        }}>Deactivated</span>
+                      )}
                     </div>
                   </td>
                   <td>
@@ -180,6 +203,14 @@ export default function Employers() {
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <button
+                        className={emp.is_active ? 'btn-icon-warning' : 'btn-icon-success'}
+                        onClick={() => handleToggle(emp)}
+                        disabled={togglingId === emp.id}
+                        title={emp.is_active ? 'Deactivate employer' : 'Activate employer'}
+                      >
+                        {togglingId === emp.id ? '…' : emp.is_active ? '⏸' : '▶'}
+                      </button>
                       <button className="btn-icon" onClick={() => openEdit(emp)} title="Edit employer">
                         <Pencil size={14} strokeWidth={2} />
                       </button>
@@ -280,9 +311,15 @@ export default function Employers() {
           cursor: pointer; color: #9ca3af; transition: all .15s;
         }
         .btn-icon-danger:hover { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
-
+        .btn-icon-warning { display: flex; align-items: center; justify-content: center; background: none; border: 1px solid transparent; padding: 5px 7px; border-radius: 5px; cursor: pointer; color: #b45309; font-size: 0.8rem; transition: all .15s; }
+        .btn-icon-warning:hover { background: #fffbeb; border-color: #fde68a; }
+        .btn-icon-warning:disabled { opacity: 0.4; cursor: default; }
+        .btn-icon-success { display: flex; align-items: center; justify-content: center; background: none; border: 1px solid transparent; padding: 5px 7px; border-radius: 5px; cursor: pointer; color: #15803d; font-size: 0.8rem; transition: all .15s; }
+        .btn-icon-success:hover { background: #f0fdf4; border-color: #bbf7d0; }
+        .btn-icon-success:disabled { opacity: 0.4; cursor: default; }
         .page-subtitle { font-size: 0.82rem; color: #6b7280; margin: 2px 0 0; }
       `}</style>
+      <Toast toast={toast} onDismiss={clearToast} />
     </div>
   )
 }

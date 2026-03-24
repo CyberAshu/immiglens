@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { captures as capturesApi, positions as positionsApi, reports as reportsApi } from '../api'
 import { setPendingPdf } from '../reportStore'
 import { RoundRow } from '../components/RoundRow'
+import Toast, { useToast } from '../components/Toast'
 import type { CaptureRound, JobPosition, ReportDocument } from '../types'
 
 const MAX_URLS_PER_POSTING = 7
@@ -24,6 +25,8 @@ export default function PositionDetail() {
   const [editingPostingId, setEditingPostingId] = useState<number | null>(null)
   const [editPostingForm, setEditPostingForm] = useState({ platform: '', url: '' })
   const [savingPostingId, setSavingPostingId] = useState<number | null>(null)
+  const [togglingPostingId, setTogglingPostingId] = useState<number | null>(null)
+  const { toast, showToast, clearToast } = useToast()
   const [runningRound, setRunningRound] = useState<number | null>(null)
   const [recapturingResult, setRecapturingResult] = useState<Set<number>>(new Set())
   const [uploadingDoc, setUploadingDoc] = useState(false)
@@ -82,6 +85,21 @@ export default function PositionDetail() {
   async function handleRemovePosting(postingId: number) {
     await positionsApi.removePosting(eId, pId, postingId)
     setPosition(prev => prev ? { ...prev, job_postings: prev.job_postings.filter(p => p.id !== postingId) } : prev)
+  }
+
+  async function handleTogglePosting(postingId: number) {
+    setTogglingPostingId(postingId)
+    try {
+      const updated = await positionsApi.togglePosting(eId, pId, postingId)
+      setPosition(prev => prev ? {
+        ...prev,
+        job_postings: prev.job_postings.map(p => p.id === updated.id ? updated : p),
+      } : prev)
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Failed to toggle posting.', 'warning')
+    } finally {
+      setTogglingPostingId(null)
+    }
   }
 
   async function handleRunRound(roundId: number) {
@@ -179,7 +197,17 @@ export default function PositionDetail() {
 
       <div className="page-header">
         <div>
-          <h1>{position.job_title}</h1>
+          <h1>
+            {position.job_title}
+            {!position.is_active && (
+              <span style={{
+                marginLeft: '0.75rem', fontSize: '0.75rem', fontWeight: 700,
+                background: '#fee2e2', color: '#b91c1c',
+                border: '1px solid #fecaca', borderRadius: 6,
+                padding: '2px 8px', verticalAlign: 'middle',
+              }}>Deactivated</span>
+            )}
+          </h1>
           <p className="sub-text">
             NOC {position.noc_code} · {position.num_positions} position(s) · Start: {position.start_date}
             {position.end_date
@@ -199,6 +227,19 @@ export default function PositionDetail() {
           {generatingReport ? 'Generating…' : 'Preview & Download Report'}
         </button>
       </div>
+      {!position.is_active && (
+        <div style={{
+          background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10,
+          padding: '0.85rem 1.1rem', marginBottom: '1.25rem',
+          display: 'flex', alignItems: 'center', gap: '0.6rem',
+        }}>
+          <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+          <span style={{ fontSize: '0.9rem', color: '#92400e', fontWeight: 500 }}>
+            This position is <strong>deactivated</strong>. Use the ▶ toggle to re-activate it, or upgrade your plan if the limit has been reached.
+          </span>
+        </div>
+      )}
+
       {reportGenError && <p className="error-msg">{reportGenError}</p>}
 
       {error && <p className="error-msg">{error}</p>}
@@ -260,6 +301,15 @@ export default function PositionDetail() {
                           borderRadius: 10, padding: '2px 8px', whiteSpace: 'nowrap',
                         }}>✓ Submitted</span>
                         <button
+                          className={p.is_active ? 'btn-icon-warning' : 'btn-icon-success'}
+                          onClick={() => handleTogglePosting(p.id)}
+                          disabled={togglingPostingId === p.id}
+                          title={p.is_active ? 'Deactivate posting' : 'Activate posting'}
+                          style={{ fontSize: '0.75rem', padding: '3px 6px' }}
+                        >
+                          {togglingPostingId === p.id ? '…' : p.is_active ? '⏸' : '▶'}
+                        </button>
+                        <button
                           className="btn-ghost btn-sm"
                           onClick={() => {
                             setEditingPostingId(p.id)
@@ -279,6 +329,10 @@ export default function PositionDetail() {
           {position.job_postings.length >= MAX_URLS_PER_POSTING ? (
             <p style={{ margin: '0.75rem 0 0', fontSize: '0.82rem', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
               Maximum of {MAX_URLS_PER_POSTING} job board URLs reached. Remove one to add another.
+            </p>
+          ) : !position.is_active ? (
+            <p style={{ margin: '0.75rem 0 0', fontSize: '0.82rem', color: '#b91c1c', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
+              Position is deactivated — activate it to add job boards.
             </p>
           ) : (
             <form className="add-posting-form" onSubmit={handleAddPosting}>
@@ -377,12 +431,13 @@ export default function PositionDetail() {
                 running={runningRound === round.id}
                 onRecapture={handleRecaptureResult}
                 recapturing={recapturingResult}
-                allowCapture={round.id === firstPendingId}
+                allowCapture={position.is_active && round.id === firstPendingId}
               />
             ))}
           </div>
         )}
       </section>
+      <Toast toast={toast} onDismiss={clearToast} />
     </div>
   )
 }

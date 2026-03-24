@@ -51,4 +51,5 @@ class EmployerOut(BaseModel):
     contact_email: Optional[str]
     contact_phone: Optional[str]
     business_number: Optional[str]
+    is_active: bool
     created_at: datetime

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, EmailStr, field_validator
 
@@ -67,6 +68,7 @@ class UserOut(BaseModel):
     email: str
     full_name: str
     is_admin: bool = False
+    tier_expires_at: Optional[datetime] = None
     created_at: datetime
 
 

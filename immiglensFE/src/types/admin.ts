@@ -1,8 +1,11 @@
 export interface AdminGlobalStats {
   total_users: number
   total_employers: number
+  active_employers: number
   total_positions: number
+  active_positions: number
   total_job_postings: number
+  active_postings: number
   total_capture_rounds: number
   completed_rounds: number
   pending_rounds: number
@@ -21,6 +24,7 @@ export interface AdminUserRecord {
   created_at: string
   tier_id?: number | null
   tier_name?: string | null
+  tier_expires_at?: string | null
 }
 
 export interface AdminOrgMember {
@@ -67,4 +71,5 @@ export interface TierUpdate {
 
 export interface AssignTierRequest {
   tier_id: number | null
+  tier_expires_at?: string | null
 }

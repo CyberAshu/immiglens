@@ -30,6 +30,8 @@ export default function AdminTiers() {
   // Assign tier
   const [assignSearch, setAssignSearch] = useState('')
   const [assigning, setAssigning] = useState<number | null>(null)
+  // per-user expiry date input (keyed by user id)
+  const [expiryMap, setExpiryMap] = useState<Record<number, string>>({})
 
   useEffect(() => {
     Promise.all([admin.allTiers(), admin.users()])
@@ -89,12 +91,14 @@ export default function AdminTiers() {
 
   async function handleAssignTier(userId: number, tierId: number | null) {
     setAssigning(userId)
+    const expiryStr = expiryMap[userId] || null
+    const tier_expires_at = expiryStr ? new Date(expiryStr).toISOString() : null
     try {
-      await admin.assignTier(userId, { tier_id: tierId })
+      await admin.assignTier(userId, { tier_id: tierId, tier_expires_at })
       const tierObj = tiers.find(t => t.id === tierId) ?? null
       setUsers(prev => prev.map(u =>
         u.id === userId
-          ? { ...u, tier_id: tierId, tier_name: tierObj?.display_name ?? null }
+          ? { ...u, tier_id: tierId, tier_name: tierObj?.display_name ?? null, tier_expires_at: tier_expires_at ?? null }
           : u
       ))
     } catch {
@@ -220,7 +224,9 @@ export default function AdminTiers() {
                   <th>User</th>
                   <th>Email</th>
                   <th>Current Tier</th>
+                  <th>Expires</th>
                   <th>Assign Tier</th>
+                  <th>Expiry Date</th>
                 </tr>
               </thead>
               <tbody>
@@ -233,6 +239,11 @@ export default function AdminTiers() {
                         ? <span className="tier-badge-active">{user.tier_name}</span>
                         : <span className="admin-cell-muted">None (free)</span>
                       }
+                    </td>
+                    <td className="admin-cell-muted" style={{ fontSize: '0.8rem' }}>
+                      {user.tier_expires_at
+                        ? new Date(user.tier_expires_at).toLocaleDateString()
+                        : <span style={{ color: '#9ca3af' }}>—</span>}
                     </td>
                     <td>
                       <select
@@ -250,6 +261,16 @@ export default function AdminTiers() {
                         ))}
                       </select>
                       {assigning === user.id && <span className="admin-spinner"> ⏳</span>}
+                    </td>
+                    <td>
+                      <input
+                        type="date"
+                        className="admin-input"
+                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.82rem', width: '140px' }}
+                        value={expiryMap[user.id] ?? (user.tier_expires_at ? user.tier_expires_at.slice(0, 10) : '')}
+                        onChange={e => setExpiryMap(m => ({ ...m, [user.id]: e.target.value }))}
+                        min={new Date().toISOString().slice(0, 10)}
+                      />
                     </td>
                   </tr>
                 ))}

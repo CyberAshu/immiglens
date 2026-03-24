@@ -7,8 +7,11 @@ Call these *before* performing a write that would consume a limited resource:
 
 Raises HTTP 402 if the user is over their plan limit (-1 = unlimited).
 """
+from typing import Optional
+
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
+from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.capture import CaptureRound, CaptureStatus
@@ -42,19 +45,45 @@ async def _get_tier(db: AsyncSession, user: User) -> SubscriptionTier:
 
 
 async def check_employer_limit(db: AsyncSession, user: User) -> None:
+    """Block creating a new (active) employer when tier limit is reached."""
     tier = await _get_tier(db, user)
     if tier.max_employers == -1:
         return
     count = (
         await db.execute(
-            select(func.count()).select_from(Employer).where(Employer.user_id == user.id)
+            select(func.count()).select_from(Employer).where(
+                Employer.user_id == user.id,
+                Employer.is_active.is_(True),
+            )
         )
     ).scalar_one()
     if count >= tier.max_employers:
         raise HTTPException(
             status_code=_PAYMENT_REQUIRED,
-            detail=f"Your plan allows a maximum of {tier.max_employers} employer(s). "
-                   "Upgrade to add more.",
+            detail=f"Your plan allows a maximum of {tier.max_employers} active employer(s). "
+                   "Upgrade or deactivate another employer first.",
+        )
+
+
+async def check_employer_activate_limit(db: AsyncSession, user: User, exclude_id: int) -> None:
+    """Check limit when manually re-activating an employer (toggle ON)."""
+    tier = await _get_tier(db, user)
+    if tier.max_employers == -1:
+        return
+    count = (
+        await db.execute(
+            select(func.count()).select_from(Employer).where(
+                Employer.user_id == user.id,
+                Employer.is_active.is_(True),
+                Employer.id != exclude_id,
+            )
+        )
+    ).scalar_one()
+    if count >= tier.max_employers:
+        raise HTTPException(
+            status_code=_PAYMENT_REQUIRED,
+            detail=f"Your plan allows a maximum of {tier.max_employers} active employer(s). "
+                   "Deactivate another employer to activate this one.",
         )
 
 
@@ -66,14 +95,41 @@ async def check_position_limit(db: AsyncSession, user: User, employer_id: int) -
         await db.execute(
             select(func.count())
             .select_from(JobPosition)
-            .where(JobPosition.employer_id == employer_id)
+            .where(
+                JobPosition.employer_id == employer_id,
+                JobPosition.is_active.is_(True),
+            )
         )
     ).scalar_one()
     if count >= tier.max_positions_per_employer:
         raise HTTPException(
             status_code=_PAYMENT_REQUIRED,
             detail=f"Your plan allows a maximum of {tier.max_positions_per_employer} "
-                   "position(s) per employer. Upgrade to add more.",
+                   "active position(s) per employer. Upgrade or deactivate another position first.",
+        )
+
+
+async def check_position_activate_limit(db: AsyncSession, user: User, employer_id: int, exclude_id: int) -> None:
+    """Check limit when manually re-activating a position (toggle ON)."""
+    tier = await _get_tier(db, user)
+    if tier.max_positions_per_employer == -1:
+        return
+    count = (
+        await db.execute(
+            select(func.count())
+            .select_from(JobPosition)
+            .where(
+                JobPosition.employer_id == employer_id,
+                JobPosition.is_active.is_(True),
+                JobPosition.id != exclude_id,
+            )
+        )
+    ).scalar_one()
+    if count >= tier.max_positions_per_employer:
+        raise HTTPException(
+            status_code=_PAYMENT_REQUIRED,
+            detail=f"Your plan allows a maximum of {tier.max_positions_per_employer} "
+                   "active position(s) per employer. Deactivate another position to activate this one.",
         )
 
 
@@ -137,7 +193,10 @@ async def check_posting_limit(db: AsyncSession, user: User, position_id: int) ->
         await db.execute(
             select(func.count())
             .select_from(JobPosting)
-            .where(JobPosting.job_position_id == position_id)
+            .where(
+                JobPosting.job_position_id == position_id,
+                JobPosting.is_active.is_(True),
+            )
         )
     ).scalar_one()
 
@@ -150,7 +209,38 @@ async def check_posting_limit(db: AsyncSession, user: User, position_id: int) ->
     if count >= effective_limit:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"A maximum of {effective_limit} job board URL(s) are allowed per position.",
+            detail=f"A maximum of {effective_limit} active job board URL(s) are allowed per position.",
+        )
+
+
+async def check_posting_activate_limit(db: AsyncSession, user: User, position_id: int, exclude_id: int) -> None:
+    """Check limit when manually re-activating a posting (toggle ON)."""
+    from app.models.job_posting import JobPosting
+
+    tier = await _get_tier(db, user)
+
+    count = (
+        await db.execute(
+            select(func.count())
+            .select_from(JobPosting)
+            .where(
+                JobPosting.job_position_id == position_id,
+                JobPosting.is_active.is_(True),
+                JobPosting.id != exclude_id,
+            )
+        )
+    ).scalar_one()
+
+    if tier.max_postings_per_position == -1:
+        effective_limit = MAX_URLS_PER_POSTING
+    else:
+        effective_limit = min(tier.max_postings_per_position, MAX_URLS_PER_POSTING)
+
+    if count >= effective_limit:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"A maximum of {effective_limit} active job board URL(s) are allowed per position. "
+                   "Deactivate another posting to activate this one.",
         )
 
 
@@ -169,3 +259,60 @@ async def check_capture_frequency(db: AsyncSession, user: User, capture_frequenc
                 f"You selected {capture_frequency_days} day(s). Upgrade to capture more frequently."
             ),
         )
+
+
+async def deactivate_user_positions(db: AsyncSession, user: User) -> int:
+    """Deactivate all active employers, positions, and postings belonging to *user*.
+
+    Called on subscription downgrade or expiry. Cancels all pending capture
+    rounds so no further screenshots are taken.
+
+    Returns the total number of positions deactivated.
+    """
+    from app.models.job_posting import JobPosting
+    from app.services.scheduler import pause_rounds_for_user
+
+    emp_ids_res = await db.execute(
+        select(Employer.id).where(Employer.user_id == user.id)
+    )
+    emp_ids = [r[0] for r in emp_ids_res.all()]
+    if not emp_ids:
+        return 0
+
+    # Deactivate all employers
+    emp_res = await db.execute(
+        select(Employer).where(
+            Employer.user_id == user.id,
+            Employer.is_active.is_(True),
+        )
+    )
+    for emp in emp_res.scalars().all():
+        emp.is_active = False
+
+    # Deactivate all active positions
+    pos_res = await db.execute(
+        select(JobPosition).where(
+            JobPosition.employer_id.in_(emp_ids),
+            JobPosition.is_active.is_(True),
+        )
+    )
+    positions = pos_res.scalars().all()
+    pos_ids = [p.id for p in positions]
+    for pos in positions:
+        pos.is_active = False
+
+    # Deactivate all active postings under those positions
+    if pos_ids:
+        posting_res = await db.execute(
+            select(JobPosting).where(
+                JobPosting.job_position_id.in_(pos_ids),
+                JobPosting.is_active.is_(True),
+            )
+        )
+        for posting in posting_res.scalars().all():
+            posting.is_active = False
+
+    await db.flush()
+    await pause_rounds_for_user(db, emp_ids)
+    await db.commit()
+    return len(positions)

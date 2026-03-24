@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -24,6 +24,7 @@ class JobPosition(Base):
     start_date: Mapped[date] = mapped_column(Date)
     end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     capture_frequency_days: Mapped[int] = mapped_column(Integer, default=7)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     wage: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     work_location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     wage_stream: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)

@@ -6,6 +6,7 @@ export interface Employer {
   contact_email: string | null
   contact_phone: string | null
   business_number: string | null
+  is_active: boolean
   created_at: string
 }
 
@@ -13,6 +14,7 @@ export interface JobPosting {
   id: number
   platform: string
   url: string
+  is_active: boolean
   created_at: string
 }
 
@@ -25,6 +27,7 @@ export interface JobPosition {
   start_date: string
   end_date: string | null
   capture_frequency_days: number
+  is_active: boolean
   wage: string | null
   work_location: string | null
   wage_stream: string | null

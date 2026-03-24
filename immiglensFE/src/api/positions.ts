@@ -10,7 +10,7 @@ export const positions = {
 
   create: (
     employerId: number,
-    data: Omit<JobPosition, 'id' | 'employer_id' | 'created_at' | 'job_postings'>,
+    data: Omit<JobPosition, 'id' | 'employer_id' | 'created_at' | 'job_postings' | 'is_active' | 'report_documents'>,
   ) =>
     request<JobPosition>(`/api/employers/${employerId}/positions`, {
       method: 'POST',
@@ -51,5 +51,17 @@ export const positions = {
     request<JobPosting>(
       `/api/employers/${employerId}/positions/${positionId}/postings/${postingId}`,
       { method: 'PATCH', body: JSON.stringify(data) },
+    ),
+
+  togglePosition: (employerId: number, positionId: number) =>
+    request<JobPosition>(
+      `/api/employers/${employerId}/positions/${positionId}/toggle`,
+      { method: 'PATCH' },
+    ),
+
+  togglePosting: (employerId: number, positionId: number, postingId: number) =>
+    request<JobPosting>(
+      `/api/employers/${employerId}/positions/${positionId}/postings/${postingId}/toggle`,
+      { method: 'PATCH' },
     ),
 }

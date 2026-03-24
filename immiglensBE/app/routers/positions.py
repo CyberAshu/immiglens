@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -18,8 +18,8 @@ from app.schemas.job import (
     JobPostingOut,
     JobPostingUpdate,
 )
-from app.core.permissions import check_employer_limit, check_position_limit, check_capture_frequency, check_posting_limit
-from app.services.scheduler import schedule_rounds_for_position, reschedule_rounds_for_position
+from app.core.permissions import check_employer_limit, check_position_limit, check_capture_frequency, check_posting_limit, check_position_activate_limit, check_posting_activate_limit
+from app.services.scheduler import schedule_rounds_for_position, reschedule_rounds_for_position, requeue_rounds_for_position
 
 router = APIRouter(
     prefix="/api/employers/{employer_id}/positions",
@@ -80,8 +80,14 @@ async def create_position(
             Employer.id == employer_id, Employer.user_id == current_user.id
         )
     )
-    if emp_result.scalar_one_or_none() is None:
+    employer = emp_result.scalar_one_or_none()
+    if employer is None:
         raise HTTPException(status_code=404, detail="Employer not found.")
+    if not employer.is_active:
+        raise HTTPException(
+            status_code=403,
+            detail="This employer is deactivated. Activate it to add positions.",
+        )
 
     await check_capture_frequency(db, current_user, payload.capture_frequency_days)
     await check_position_limit(db, current_user, employer_id)
@@ -171,6 +177,46 @@ async def delete_position(
     await db.commit()
 
 
+@router.patch("/{position_id}/toggle", response_model=JobPositionOut)
+async def toggle_position(
+    employer_id: int,
+    position_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Toggle is_active for a position. Activating is subject to tier position limit."""
+    position = await _get_position_or_404(employer_id, position_id, current_user, db)
+    was_inactive = not position.is_active
+    if was_inactive:
+        await check_position_activate_limit(db, current_user, employer_id, exclude_id=position_id)
+    position.is_active = not position.is_active
+    # On deactivation cascade: mark all child postings inactive too
+    if not position.is_active:
+        await db.execute(
+            update(JobPosting)
+            .where(JobPosting.job_position_id == position_id)
+            .values(is_active=False)
+        )
+    await db.commit()
+    await db.refresh(position)
+    # On re-activation: restore capture schedule so RCIC doesn't lose their rounds
+    if was_inactive and position.is_active:
+        await requeue_rounds_for_position(db, position)
+    await log_action(db, user_id=current_user.id, action="UPDATE",
+                     resource_type="position", resource_id=position.id,
+                     new_data={"is_active": position.is_active})
+    await db.commit()
+    result = await db.execute(
+        select(JobPosition)
+        .options(
+            selectinload(JobPosition.job_postings),
+            selectinload(JobPosition.report_documents),
+        )
+        .where(JobPosition.id == position.id)
+    )
+    return result.scalar_one()
+
+
 @router.post("/{position_id}/postings", response_model=JobPostingOut, status_code=201)
 async def add_posting(
     employer_id: int,
@@ -179,7 +225,12 @@ async def add_posting(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await _get_position_or_404(employer_id, position_id, current_user, db)
+    position = await _get_position_or_404(employer_id, position_id, current_user, db)
+    if not position.is_active:
+        raise HTTPException(
+            status_code=403,
+            detail="This position is deactivated. Activate it to add job boards.",
+        )
     await check_posting_limit(db, current_user, position_id)
     posting = JobPosting(**payload.model_dump(), job_position_id=position_id)
     db.add(posting)
@@ -245,3 +296,34 @@ async def delete_posting(
                      resource_type="posting", resource_id=posting.id)
     await db.delete(posting)
     await db.commit()
+
+
+@router.patch("/{position_id}/postings/{posting_id}/toggle", response_model=JobPostingOut)
+async def toggle_posting(
+    employer_id: int,
+    position_id: int,
+    posting_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Toggle is_active for a posting. Activating is subject to tier posting limit."""
+    await _get_position_or_404(employer_id, position_id, current_user, db)
+    result = await db.execute(
+        select(JobPosting).where(
+            JobPosting.id == posting_id,
+            JobPosting.job_position_id == position_id,
+        )
+    )
+    posting = result.scalar_one_or_none()
+    if posting is None:
+        raise HTTPException(status_code=404, detail="Posting not found.")
+    if not posting.is_active:
+        await check_posting_activate_limit(db, current_user, position_id, exclude_id=posting_id)
+    posting.is_active = not posting.is_active
+    await db.commit()
+    await db.refresh(posting)
+    await log_action(db, user_id=current_user.id, action="UPDATE",
+                     resource_type="posting", resource_id=posting.id,
+                     new_data={"is_active": posting.is_active})
+    await db.commit()
+    return posting

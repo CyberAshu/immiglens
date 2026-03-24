@@ -20,8 +20,11 @@ export interface RoundTimelineItem {
 
 export interface DashboardStats {
   total_employers: number
+  active_employers: number
   total_positions: number
+  active_positions: number
   total_job_postings: number
+  active_postings: number
   total_capture_rounds: number
   completed_rounds: number
   pending_rounds: number

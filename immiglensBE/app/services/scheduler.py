@@ -1,7 +1,9 @@
+import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,10 +20,203 @@ from app.services.notification_service import dispatch_event
 from app.services.screenshot import capture
 
 scheduler = AsyncIOScheduler()
+logger = logging.getLogger(__name__)
+
+
+async def pause_rounds_for_user(db: AsyncSession, emp_ids: list[int]) -> None:
+    """Remove PENDING capture rounds from APScheduler without deleting them from the DB.
+    Rounds remain as PENDING so they can be re-queued when the position is re-activated.
+    Called on subscription expiry or tier downgrade.
+    """
+    if not emp_ids:
+        return
+    pos_ids_res = await db.execute(
+        select(JobPosition.id).where(JobPosition.employer_id.in_(emp_ids))
+    )
+    pos_ids = [r[0] for r in pos_ids_res.all()]
+    if not pos_ids:
+        return
+    pending_res = await db.execute(
+        select(CaptureRound).where(
+            CaptureRound.job_position_id.in_(pos_ids),
+            CaptureRound.status == CaptureStatus.PENDING,
+        )
+    )
+    for round_ in pending_res.scalars().all():
+        try:
+            scheduler.remove_job(f"capture_round_{round_.id}")
+        except Exception:
+            pass
+    # DB records are NOT deleted — preserved as PENDING for re-activation
+
+
+async def requeue_rounds_for_position(db: AsyncSession, position: JobPosition) -> None:
+    """Re-add PENDING DB rounds to APScheduler for a position being re-activated.
+
+    Strategy:
+    - Stale rounds (scheduled_at in the past) are deleted — they represent missed captures
+      during a deactivation window and would produce a meaningless burst of back-dated
+      screenshots if fired now.
+    - Future rounds are re-added to APScheduler at their original scheduled time.
+    - If no future rounds remain, a fresh schedule is created from today.
+    """
+    now = datetime.now(timezone.utc)
+
+    all_pending = (
+        await db.execute(
+            select(CaptureRound).where(
+                CaptureRound.job_position_id == position.id,
+                CaptureRound.status == CaptureStatus.PENDING,
+            )
+        )
+    ).scalars().all()
+
+    future_rounds = []
+    for round_ in all_pending:
+        if round_.scheduled_at <= now:
+            # Stale — delete silently; no value in firing these late
+            try:
+                scheduler.remove_job(f"capture_round_{round_.id}")
+            except Exception:
+                pass
+            await db.delete(round_)
+        else:
+            future_rounds.append(round_)
+
+    await db.flush()
+
+    if future_rounds:
+        for round_ in future_rounds:
+            try:
+                scheduler.add_job(
+                    _run_capture_round,
+                    trigger=DateTrigger(run_date=round_.scheduled_at),
+                    args=[round_.id],
+                    id=f"capture_round_{round_.id}",
+                    replace_existing=True,
+                )
+            except Exception:
+                pass
+    else:
+        # No future rounds remain — create a fresh schedule from today
+        await schedule_rounds_for_position(db, position, not_before=now)
+
+
+async def cancel_pending_rounds_for_user(db: AsyncSession, emp_ids: list[int]) -> None:
+    """Hard-delete all PENDING capture rounds for positions under the given employer IDs.
+    Should be called inside an existing db session before the final commit.
+    """
+    if not emp_ids:
+        return
+    pos_ids_res = await db.execute(
+        select(JobPosition.id).where(JobPosition.employer_id.in_(emp_ids))
+    )
+    pos_ids = [r[0] for r in pos_ids_res.all()]
+    if not pos_ids:
+        return
+
+    pending_res = await db.execute(
+        select(CaptureRound).where(
+            CaptureRound.job_position_id.in_(pos_ids),
+            CaptureRound.status == CaptureStatus.PENDING,
+        )
+    )
+    for round_ in pending_res.scalars().all():
+        try:
+            scheduler.remove_job(f"capture_round_{round_.id}")
+        except Exception:
+            pass
+        await db.delete(round_)
+
+    await db.flush()
+
+
+async def _expire_subscriptions_job() -> None:
+    """Daily job: deactivate employers, positions, and postings for users whose tier_expires_at has passed.
+    Each user is processed in its own DB session so a failure for one user never blocks the others.
+    """
+    from app.models.job_posting import JobPosting
+    from app.models.user import User
+
+    # Snapshot the list of expired user IDs first (read-only query)
+    async with AsyncSessionLocal() as db:
+        now = datetime.now(timezone.utc)
+        res = await db.execute(
+            select(User.id).where(
+                User.tier_expires_at.isnot(None),
+                User.tier_expires_at <= now,
+                User.tier_id.isnot(None),
+            )
+        )
+        expired_user_ids = [r[0] for r in res.all()]
+
+    if not expired_user_ids:
+        return
+
+    for user_id in expired_user_ids:
+        # Each user gets its own session + transaction — failure is isolated
+        try:
+            async with AsyncSessionLocal() as db:
+                user = await db.get(User, user_id)
+                if user is None:
+                    continue
+
+                user.tier_id = None
+                user.tier_expires_at = None
+
+                emp_ids_res = await db.execute(
+                    select(Employer.id).where(Employer.user_id == user.id)
+                )
+                emp_ids = [r[0] for r in emp_ids_res.all()]
+
+                if emp_ids:
+                    emp_res = await db.execute(
+                        select(Employer).where(
+                            Employer.user_id == user.id,
+                            Employer.is_active.is_(True),
+                        )
+                    )
+                    for emp in emp_res.scalars().all():
+                        emp.is_active = False
+
+                    pos_res = await db.execute(
+                        select(JobPosition).where(
+                            JobPosition.employer_id.in_(emp_ids),
+                            JobPosition.is_active.is_(True),
+                        )
+                    )
+                    positions = pos_res.scalars().all()
+                    pos_ids = [p.id for p in positions]
+                    for pos in positions:
+                        pos.is_active = False
+
+                    if pos_ids:
+                        posting_res = await db.execute(
+                            select(JobPosting).where(
+                                JobPosting.job_position_id.in_(pos_ids),
+                                JobPosting.is_active.is_(True),
+                            )
+                        )
+                        for posting in posting_res.scalars().all():
+                            posting.is_active = False
+
+                    await db.flush()
+                    await pause_rounds_for_user(db, emp_ids)
+
+                await db.commit()
+                logger.info("Expired subscription for user_id=%s", user_id)
+
+        except Exception:
+            logger.exception("Failed to expire subscription for user_id=%s — skipping", user_id)
+
 
 async def recover_pending_rounds() -> None:
     """Re-queue all PENDING capture rounds into APScheduler after a server restart.
     Without this, rounds scheduled before the restart would never fire.
+
+    Stale past rounds (position end_date passed or just old) are deleted from DB —
+    re-firing them would produce a burst of meaningless backdated captures.
+    Only genuinely future rounds are re-added to APScheduler.
     """
     async with AsyncSessionLocal() as db:
         result = await db.execute(
@@ -30,16 +225,31 @@ async def recover_pending_rounds() -> None:
         rounds = result.scalars().all()
         now = datetime.now(timezone.utc)
         requeued = 0
+        deleted = 0
         for round_ in rounds:
-            run_at = max(round_.scheduled_at, now + timedelta(minutes=2))
-            scheduler.add_job(
-                _run_capture_round,
-                trigger=DateTrigger(run_date=run_at),
-                args=[round_.id],
-                id=f"capture_round_{round_.id}",
-                replace_existing=True,
-            )
-            requeued += 1
+            if round_.scheduled_at <= now:
+                # Stale — delete; no value in backdated captures
+                try:
+                    scheduler.remove_job(f"capture_round_{round_.id}")
+                except Exception:
+                    pass
+                await db.delete(round_)
+                deleted += 1
+            else:
+                scheduler.add_job(
+                    _run_capture_round,
+                    trigger=DateTrigger(run_date=round_.scheduled_at),
+                    args=[round_.id],
+                    id=f"capture_round_{round_.id}",
+                    replace_existing=True,
+                )
+                requeued += 1
+        if deleted or requeued:
+            await db.commit()
+        if deleted:
+            logger.info("recover_pending_rounds: deleted %s stale rounds, requeued %s future rounds", deleted, requeued)
+        else:
+            logger.info("recover_pending_rounds: requeued %s pending rounds", requeued)
 
 
 async def schedule_rounds_for_position(
@@ -165,9 +375,11 @@ async def _run_capture_round(round_id: int) -> None:
         round_ = result.scalar_one_or_none()
         if round_ is None or round_.status != CaptureStatus.PENDING:
             return
-        if not round_.job_position.job_postings:
-            # No job board URLs added yet — leave PENDING so the user can
-            # trigger it manually once they add at least one posting.
+        if not round_.job_position.is_active:
+            # Position was manually deactivated — skip silently, leave PENDING
+            return
+        if not any(p.is_active for p in round_.job_position.job_postings):
+            # All postings are deactivated — leave PENDING
             return
         await _execute_round(db, round_)
 
@@ -212,6 +424,8 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
 
     snapshots: list[tuple] = []  # (PostingSnapshot, url)
     for posting in round_.job_position.job_postings:
+        if not posting.is_active:
+            continue  # skip deactivated postings
         screenshot_result = await capture(posting.url)
         capture_result = CaptureResult(
             capture_round_id=round_.id,

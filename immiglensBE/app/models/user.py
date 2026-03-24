@@ -25,6 +25,9 @@ class User(Base):
     tier_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("subscription_tiers.id"), nullable=True, index=True
     )
+    tier_expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

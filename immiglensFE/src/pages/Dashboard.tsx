@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Building2, Briefcase, Globe, CheckCircle2, Clock, AlertTriangle } from 'lucide-react'
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -14,15 +15,72 @@ function planColor(name: string) {
   return '#6b7280'
 }
 
-const STAT_CARDS = (s: DashboardStats) => [
-  { label: 'Employers',          value: s.total_employers,    accent: '#0B1F3B' },
-  { label: 'Job Positions',      value: s.total_positions,    accent: '#C8A24A' },
-  { label: 'Job Board URLs',     value: s.total_job_postings, accent: '#1a3352' },
-  { label: 'Rounds Completed',   value: `${s.completed_rounds}/${s.total_capture_rounds}`, accent: '#22c55e' },
-  { label: 'Rounds Pending',     value: s.pending_rounds,     accent: '#f59e0b' },
-  { label: 'Screenshots',        value: s.total_screenshots,  accent: '#0B1F3B' },
-  { label: 'Failed Captures',    value: s.failed_screenshots, accent: '#ef4444', warn: true },
-]
+type StatCardDef = {
+  label: string
+  value: string | number
+  accent: string
+  sub?: string
+  icon?: React.ReactNode
+  warn?: boolean
+}
+
+const STAT_CARDS = (s: DashboardStats): StatCardDef[] => {
+  const totalCaptures = s.total_screenshots + s.failed_screenshots
+  const successRate = totalCaptures > 0
+    ? Math.round((s.total_screenshots / totalCaptures) * 100)
+    : null
+
+  const cards: StatCardDef[] = [
+    {
+      label: 'Active Employers',
+      value: s.active_employers,
+      sub: `of ${s.total_employers} total`,
+      accent: '#0B1F3B',
+      icon: <Building2 size={18} strokeWidth={1.8} />,
+    },
+    {
+      label: 'Active Positions',
+      value: s.active_positions,
+      sub: `of ${s.total_positions} total`,
+      accent: '#C8A24A',
+      icon: <Briefcase size={18} strokeWidth={1.8} />,
+    },
+    {
+      label: 'Active Job Boards',
+      value: s.active_postings,
+      sub: `of ${s.total_job_postings} total`,
+      accent: '#1a3352',
+      icon: <Globe size={18} strokeWidth={1.8} />,
+    },
+    {
+      label: 'Capture Success Rate',
+      value: successRate !== null ? `${successRate}%` : '—',
+      sub: `${s.total_screenshots} successful screenshot${s.total_screenshots !== 1 ? 's' : ''}`,
+      accent: '#22c55e',
+      icon: <CheckCircle2 size={18} strokeWidth={1.8} />,
+    },
+    {
+      label: 'Pending Captures',
+      value: s.pending_rounds,
+      sub: 'scheduled rounds',
+      accent: '#f59e0b',
+      icon: <Clock size={18} strokeWidth={1.8} />,
+    },
+  ]
+
+  if (s.failed_screenshots > 0) {
+    cards.push({
+      label: 'Failed Captures',
+      value: s.failed_screenshots,
+      sub: 'need attention',
+      accent: '#ef4444',
+      icon: <AlertTriangle size={18} strokeWidth={1.8} />,
+      warn: true,
+    })
+  }
+
+  return cards
+}
 
 export default function Dashboard() {
   const [statsData, setStatsData] = useState<DashboardStats | null>(null)

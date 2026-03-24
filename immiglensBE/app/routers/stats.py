@@ -27,17 +27,19 @@ async def get_stats(
     uid = current_user.id
 
     emp_rows = (await db.execute(
-        select(Employer.id, Employer.business_name).where(Employer.user_id == uid)
+        select(Employer.id, Employer.business_name, Employer.is_active).where(Employer.user_id == uid)
     )).all()
     emp_ids = [r.id for r in emp_rows]
     emp_name_map = {r.id: r.business_name for r in emp_rows}
+    active_employers = sum(1 for r in emp_rows if r.is_active)
 
     pos_rows = (await db.execute(
-        select(JobPosition.id, JobPosition.employer_id)
+        select(JobPosition.id, JobPosition.employer_id, JobPosition.is_active)
         .where(JobPosition.employer_id.in_(emp_ids))
     )).all()
     pos_ids = [r.id for r in pos_rows]
     pos_to_emp = {r.id: r.employer_id for r in pos_rows}
+    active_positions = sum(1 for r in pos_rows if r.is_active)
 
     round_rows = (await db.execute(
         select(CaptureRound.id, CaptureRound.job_position_id,
@@ -53,6 +55,11 @@ async def get_stats(
     total_postings = (await db.execute(
         select(func.count()).select_from(JobPosting)
         .where(JobPosting.job_position_id.in_(pos_ids))
+    )).scalar_one() if pos_ids else 0
+
+    active_postings = (await db.execute(
+        select(func.count()).select_from(JobPosting)
+        .where(JobPosting.job_position_id.in_(pos_ids), JobPosting.is_active.is_(True))
     )).scalar_one() if pos_ids else 0
 
     total_rounds = len(round_ids)
@@ -127,8 +134,11 @@ async def get_stats(
 
     return DashboardStats(
         total_employers=total_employers,
+        active_employers=active_employers,
         total_positions=total_positions,
+        active_positions=active_positions,
         total_job_postings=total_postings,
+        active_postings=active_postings,
         total_capture_rounds=total_rounds,
         completed_rounds=completed_rounds,
         pending_rounds=pending_rounds,
