@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { CheckCircle2, PlayCircle, RefreshCw, XCircle } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { notifications as notifApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import type { NotificationChannel, NotificationEvent, NotificationLog, NotificationPreference } from '../types'
@@ -6,18 +8,38 @@ import type { NotificationChannel, NotificationEvent, NotificationLog, Notificat
 const EVENTS: NotificationEvent[]    = ['capture_complete', 'capture_failed', 'posting_changed', 'round_started']
 const CHANNELS: NotificationChannel[] = ['email', 'webhook']
 
+// Plain text labels used inside <option> elements (no JSX allowed there)
 const EVENT_LABEL: Record<NotificationEvent, string> = {
-  capture_complete: '✅ Capture Complete',
-  capture_failed:   '❌ Capture Failed',
-  posting_changed:  '🔄 Posting Changed',
-  round_started:    '▶ Round Started',
+  capture_complete: 'Capture Complete',
+  capture_failed:   'Capture Failed',
+  posting_changed:  'Posting Changed',
+  round_started:    'Round Started',
+}
+
+// Lucide icon + color used in table cells
+const EVENT_ICON: Record<NotificationEvent, { icon: LucideIcon; color: string; bg: string }> = {
+  capture_complete: { icon: CheckCircle2, color: '#16a34a', bg: '#f0fdf4' },
+  capture_failed:   { icon: XCircle,      color: '#dc2626', bg: '#fef2f2' },
+  posting_changed:  { icon: RefreshCw,    color: '#2563eb', bg: '#eff6ff' },
+  round_started:    { icon: PlayCircle,   color: '#d97706', bg: '#fffbeb' },
 }
 
 const STATUS_COLOR: Record<string, string> = { sent: '#16a34a', failed: '#ef4444', pending: '#f59e0b' }
 const STATUS_BG:    Record<string, string> = { sent: '#f0fdf4', failed: '#fef2f2', pending: '#fffbeb' }
 
 function EventLabel({ e }: { e: NotificationEvent }) {
-  return <>{EVENT_LABEL[e]}</>
+  const { icon: Icon, color, bg } = EVENT_ICON[e]
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 22, height: 22, borderRadius: 6, background: bg, color, flexShrink: 0,
+      }}>
+        <Icon size={13} strokeWidth={2} />
+      </span>
+      {EVENT_LABEL[e]}
+    </span>
+  )
 }
 
 function parseCtx(json: string | null): Record<string, string> {

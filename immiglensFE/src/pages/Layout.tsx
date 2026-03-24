@@ -7,23 +7,28 @@ import type { NotificationEvent, NotificationLog } from '../types'
 import {
   Bell,
   Building2,
+  CheckCircle2,
   ChevronDown,
   ClipboardList,
   CreditCard,
   LayoutDashboard,
   LogOut,
+  PlayCircle,
+  RefreshCw,
   Settings,
   ShieldCheck,
+  XCircle,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import '../App.css'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-const EVENT_META: Record<NotificationEvent, { icon: string; title: string }> = {
-  capture_complete: { icon: '✅', title: 'Capture completed' },
-  capture_failed:   { icon: '❌', title: 'Capture failed' },
-  posting_changed:  { icon: '🔄', title: 'Job posting changed' },
-  round_started:    { icon: '▶️', title: 'Capture round started' },
+const EVENT_META: Record<NotificationEvent, { icon: LucideIcon; color: string; bg: string; title: string }> = {
+  capture_complete: { icon: CheckCircle2, color: '#16a34a', bg: '#f0fdf4', title: 'Capture completed' },
+  capture_failed:   { icon: XCircle,      color: '#dc2626', bg: '#fef2f2', title: 'Capture failed' },
+  posting_changed:  { icon: RefreshCw,    color: '#2563eb', bg: '#eff6ff', title: 'Job posting changed' },
+  round_started:    { icon: PlayCircle,   color: '#d97706', bg: '#fffbeb', title: 'Capture round started' },
 }
 
 function parseContext(json: string | null): Record<string, string> {
@@ -31,7 +36,7 @@ function parseContext(json: string | null): Record<string, string> {
   try { return JSON.parse(json) } catch { return {} }
 }
 
-function notifDetail(log: NotificationLog): { icon: string; title: string; subtitle: string } {
+function notifDetail(log: NotificationLog): { Icon: LucideIcon; color: string; bg: string; title: string; subtitle: string } {
   const meta = log.event_type ? EVENT_META[log.event_type] : null
   const ctx  = parseContext(log.context_json)
 
@@ -45,7 +50,9 @@ function notifDetail(log: NotificationLog): { icon: string; title: string; subti
   }
 
   return {
-    icon:     meta?.icon ?? '🔔',
+    Icon:     meta?.icon ?? Bell,
+    color:    meta?.color ?? '#6b7280',
+    bg:       meta?.bg    ?? '#f3f4f6',
     title:    meta?.title ?? 'Notification',
     subtitle: subtitle.length > 60 ? subtitle.slice(0, 57) + '…' : subtitle,
   }
@@ -170,11 +177,13 @@ export default function Layout() {
                   <div className="nav-dropdown-empty">No notifications yet</div>
                 ) : (
                   recentNotifs.map(log => {
-                    const { icon, title, subtitle } = notifDetail(log)
+                    const { Icon, color, bg, title, subtitle } = notifDetail(log)
                     return (
                       <div key={log.id} className={`nav-notif-item${!log.is_read ? ' nav-notif-item--unread' : ''}`}>
                         <div className="nav-notif-row">
-                          <span className="nav-notif-icon" aria-hidden="true">{icon}</span>
+                          <span className="nav-notif-icon" aria-hidden="true" style={{ background: bg, color }}>
+                            <Icon size={14} strokeWidth={2} />
+                          </span>
                           <div className="nav-notif-body">
                             <span className="nav-notif-title">{title}</span>
                             {subtitle && <span className="nav-notif-subtitle">{subtitle}</span>}
