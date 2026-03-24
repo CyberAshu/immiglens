@@ -60,6 +60,13 @@ def _build_email_body(event: NotificationEvent, context: dict[str, Any]) -> str:
             f"Posting  : {context.get('posting_url', 'N/A')}\n"
             f"Summary  : {context.get('change_summary', 'N/A')}\n"
         )
+    if event == NotificationEvent.ROUND_STARTED:
+        return (
+            f"ImmigLens — Capture Round Started\n\n"
+            f"Position    : {context.get('position', 'N/A')}\n"
+            f"Round ID    : {context.get('round_id', 'N/A')}\n"
+            f"Scheduled at: {context.get('scheduled_at', 'N/A')}\n"
+        )
     return f"ImmigLens event: {event.value}\n\n{json.dumps(context, indent=2)}"
 
 
@@ -90,7 +97,7 @@ def _send_email_sync(to: str, subject: str, body: str) -> None:
 async def _deliver_email(to: str, event: NotificationEvent, context: dict[str, Any]) -> None:
     subject = f"ImmigLens — {event.value.replace('_', ' ').title()}"
     body = _build_email_body(event, context)
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, _send_email_sync, to, subject, body)
 
 
@@ -130,8 +137,10 @@ async def dispatch_event(
     for pref in prefs:
         log = NotificationLog(
             preference_id=pref.id,
+            event_type=event,
             trigger_id=trigger_id,
             trigger_type=trigger_type,
+            context_json=json.dumps(context),
             status=NotifStatus.PENDING,
         )
         db.add(log)

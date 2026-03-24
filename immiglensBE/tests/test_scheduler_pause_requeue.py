@@ -27,6 +27,7 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-for-tests-only-not-real")
 os.environ.setdefault("ALGORITHM", "HS256")
 os.environ.setdefault("SUPABASE_URL", "http://localhost")
 os.environ.setdefault("SUPABASE_ANON_KEY", "test")
+os.environ.setdefault("SUPABASE_SERVICE_KEY", "test")
 
 from app.core.database import Base
 from app.models.capture import CaptureRound, CaptureStatus

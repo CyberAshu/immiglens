@@ -17,6 +17,52 @@ import {
 } from 'lucide-react'
 import '../App.css'
 
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+const EVENT_META: Record<NotificationEvent, { icon: string; title: string }> = {
+  capture_complete: { icon: '✅', title: 'Capture completed' },
+  capture_failed:   { icon: '❌', title: 'Capture failed' },
+  posting_changed:  { icon: '🔄', title: 'Job posting changed' },
+  round_started:    { icon: '▶️', title: 'Capture round started' },
+}
+
+function parseContext(json: string | null): Record<string, string> {
+  if (!json) return {}
+  try { return JSON.parse(json) } catch { return {} }
+}
+
+function notifDetail(log: NotificationLog): { icon: string; title: string; subtitle: string } {
+  const meta = log.event_type ? EVENT_META[log.event_type] : null
+  const ctx  = parseContext(log.context_json)
+
+  let subtitle = ''
+  if (log.event_type === 'capture_complete' || log.event_type === 'capture_failed' || log.event_type === 'round_started') {
+    subtitle = ctx.position ?? ''
+    if (ctx.round_id) subtitle += subtitle ? ` · Round #${ctx.round_id}` : `Round #${ctx.round_id}`
+  } else if (log.event_type === 'posting_changed') {
+    try { subtitle = new URL(ctx.posting_url ?? '').hostname } catch { subtitle = ctx.posting_url ?? '' }
+    if (ctx.change_summary) subtitle += subtitle ? ` — ${ctx.change_summary}` : ctx.change_summary
+  }
+
+  return {
+    icon:     meta?.icon ?? '🔔',
+    title:    meta?.title ?? 'Notification',
+    subtitle: subtitle.length > 60 ? subtitle.slice(0, 57) + '…' : subtitle,
+  }
+}
+
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1)  return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24)  return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
+
+// ─── component ────────────────────────────────────────────────────────────────
+
 export default function Layout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -37,9 +83,12 @@ export default function Layout() {
     setBellOpen(false)
   }, [location.pathname])
 
-  // Fetch notification logs for bell
+  // Initial fetch + background polling every 60 s
   useEffect(() => {
-    notifApi.listLogs().then(setNotifLogs).catch(() => {})
+    const fetchLogs = () => notifApi.listLogs().then(setNotifLogs).catch(() => {})
+    fetchLogs()
+    const interval = setInterval(fetchLogs, 60_000)
+    return () => clearInterval(interval)
   }, [])
 
   // Auto-create default notification rules for new users (first login)
@@ -74,25 +123,17 @@ export default function Layout() {
     `sidebar-link${isActive ? ' sidebar-link--active' : ''}`
 
   const recentNotifs = notifLogs.slice(0, 5)
-  const unreadCount  = notifLogs.filter(n => n.status === 'sent' || n.status === 'pending').length
+  const unreadCount  = notifLogs.filter(n => !n.is_read && n.status === 'sent').length
 
-  function notifLabel(log: NotificationLog) {
-    const typeMap: Record<string, string> = {
-      capture_complete: '✅ Capture completed',
-      capture_failed:   '❌ Capture failed',
-      posting_changed:  '🔄 Job posting changed',
-      round_started:    '▶️ Round started',
+  function openBell() {
+    const wasOpen = bellOpen
+    setBellOpen(o => !o)
+    setProfileOpen(false)
+    // Mark all as read optimistically when opening
+    if (!wasOpen && unreadCount > 0) {
+      notifApi.markAllRead().catch(() => {})
+      setNotifLogs(logs => logs.map(l => ({ ...l, is_read: true })))
     }
-    return typeMap[log.trigger_type ?? ''] ?? '🔔 Notification'
-  }
-
-  function timeAgo(dateStr: string) {
-    const diff = Date.now() - new Date(dateStr).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 60) return `${mins}m ago`
-    const hrs = Math.floor(mins / 60)
-    if (hrs < 24) return `${hrs}h ago`
-    return `${Math.floor(hrs / 24)}d ago`
   }
 
   const initials = user?.full_name
@@ -115,7 +156,7 @@ export default function Layout() {
           <div className="nav-dropdown-wrap" ref={bellRef}>
             <button
               className="nav-icon-btn"
-              onClick={() => { setBellOpen(o => !o); setProfileOpen(false) }}
+              onClick={openBell}
               aria-label="Notifications"
             >
               <Bell size={17} strokeWidth={2} />
@@ -128,12 +169,24 @@ export default function Layout() {
                 {recentNotifs.length === 0 ? (
                   <div className="nav-dropdown-empty">No notifications yet</div>
                 ) : (
-                  recentNotifs.map(log => (
-                    <div key={log.id} className="nav-notif-item">
-                      <span className="nav-notif-label">{notifLabel(log)}</span>
-                      <span className="nav-notif-time">{timeAgo(log.created_at)}</span>
-                    </div>
-                  ))
+                  recentNotifs.map(log => {
+                    const { icon, title, subtitle } = notifDetail(log)
+                    return (
+                      <div key={log.id} className={`nav-notif-item${!log.is_read ? ' nav-notif-item--unread' : ''}`}>
+                        <div className="nav-notif-row">
+                          <span className="nav-notif-icon" aria-hidden="true">{icon}</span>
+                          <div className="nav-notif-body">
+                            <span className="nav-notif-title">{title}</span>
+                            {subtitle && <span className="nav-notif-subtitle">{subtitle}</span>}
+                          </div>
+                          <div className="nav-notif-aside">
+                            <span className={`nav-notif-status-dot nav-notif-status-dot--${log.status}`} title={log.status} />
+                            <span className="nav-notif-time">{timeAgo(log.created_at)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })
                 )}
                 <div className="nav-dropdown-footer">
                   <button className="nav-dropdown-view-all" onClick={() => { setBellOpen(false); navigate('/notifications') }}>
@@ -207,3 +260,4 @@ export default function Layout() {
     </div>
   )
 }
+

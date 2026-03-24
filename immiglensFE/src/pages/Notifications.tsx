@@ -6,27 +6,69 @@ import type { NotificationChannel, NotificationEvent, NotificationLog, Notificat
 const EVENTS: NotificationEvent[]    = ['capture_complete', 'capture_failed', 'posting_changed', 'round_started']
 const CHANNELS: NotificationChannel[] = ['email', 'webhook']
 
-const STATUS_COLOR: Record<string, string> = { sent: '#22c55e', failed: '#ef4444', pending: '#f59e0b' }
+const EVENT_LABEL: Record<NotificationEvent, string> = {
+  capture_complete: '✅ Capture Complete',
+  capture_failed:   '❌ Capture Failed',
+  posting_changed:  '🔄 Posting Changed',
+  round_started:    '▶ Round Started',
+}
+
+const STATUS_COLOR: Record<string, string> = { sent: '#16a34a', failed: '#ef4444', pending: '#f59e0b' }
+const STATUS_BG:    Record<string, string> = { sent: '#f0fdf4', failed: '#fef2f2', pending: '#fffbeb' }
 
 function EventLabel({ e }: { e: NotificationEvent }) {
-  const map: Record<NotificationEvent, string> = {
-    capture_complete: '✅ Capture Complete',
-    capture_failed:   '❌ Capture Failed',
-    posting_changed:  '🔄 Posting Changed',
-    round_started:    '▶ Round Started',
+  return <>{EVENT_LABEL[e]}</>
+}
+
+function parseCtx(json: string | null): Record<string, string> {
+  if (!json) return {}
+  try { return JSON.parse(json) } catch { return {} }
+}
+
+function LogDetail({ log }: { log: NotificationLog }) {
+  const ctx = parseCtx(log.context_json)
+  if (!log.event_type) return <span className="text-dim">—</span>
+
+  if (log.event_type === 'capture_complete' || log.event_type === 'round_started') {
+    return (
+      <span>
+        {ctx.position && <strong>{ctx.position}</strong>}
+        {ctx.round_id  && <span className="text-dim"> · Round #{ctx.round_id}</span>}
+      </span>
+    )
   }
-  return <>{map[e]}</>
+  if (log.event_type === 'capture_failed') {
+    return (
+      <span>
+        {ctx.position && <strong>{ctx.position}</strong>}
+        {ctx.round_id && <span className="text-dim"> · Round #{ctx.round_id}</span>}
+        {ctx.error    && <span className="log-detail-error"> — {ctx.error.length > 80 ? ctx.error.slice(0, 77) + '…' : ctx.error}</span>}
+      </span>
+    )
+  }
+  if (log.event_type === 'posting_changed') {
+    let host = ctx.posting_url ?? '—'
+    try { host = new URL(ctx.posting_url ?? '').hostname } catch { /* keep raw */ }
+    return (
+      <span>
+        <strong>{host}</strong>
+        {ctx.change_summary && <span className="text-dim"> — {ctx.change_summary.length > 80 ? ctx.change_summary.slice(0, 77) + '…' : ctx.change_summary}</span>}
+      </span>
+    )
+  }
+  return <span className="text-dim">—</span>
 }
 
 export default function Notifications() {
   const { user } = useAuth()
-  const [prefs, setPrefs]     = useState<NotificationPreference[]>([])
-  const [logs, setLogs]       = useState<NotificationLog[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [saving, setSaving]   = useState(false)
-  const [error, setError]     = useState<string | null>(null)
-  const [form, setForm]       = useState<{ event_type: NotificationEvent; channel: NotificationChannel; destination: string }>({
+  const [prefs, setPrefs]         = useState<NotificationPreference[]>([])
+  const [logs, setLogs]           = useState<NotificationLog[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [showForm, setShowForm]   = useState(false)
+  const [saving, setSaving]       = useState(false)
+  const [marking, setMarking]     = useState(false)
+  const [error, setError]         = useState<string | null>(null)
+  const [form, setForm]           = useState<{ event_type: NotificationEvent; channel: NotificationChannel; destination: string }>({
     event_type: 'capture_complete', channel: 'email', destination: '',
   })
 
@@ -59,6 +101,16 @@ export default function Notifications() {
     setPrefs(prev => prev.map(p => p.id === id ? updated : p))
   }
 
+  async function handleMarkAllRead() {
+    setMarking(true)
+    try {
+      await notifApi.markAllRead()
+      setLogs(prev => prev.map(l => ({ ...l, is_read: true })))
+    } finally { setMarking(false) }
+  }
+
+  const unreadLogs = logs.filter(l => !l.is_read && l.status === 'sent').length
+
   if (loading) return <div className="loading">Loading…</div>
 
   return (
@@ -83,7 +135,7 @@ export default function Notifications() {
               <label className="form-label">Event</label>
               <select className="form-input" value={form.event_type}
                 onChange={e => setForm(f => ({ ...f, event_type: e.target.value as NotificationEvent }))}>
-                {EVENTS.map(ev => <option key={ev} value={ev}>{ev.replace(/_/g, ' ')}</option>)}
+                {EVENTS.map(ev => <option key={ev} value={ev}>{EVENT_LABEL[ev]}</option>)}
               </select>
             </div>
             <div className="form-group">
@@ -128,7 +180,7 @@ export default function Notifications() {
                   {prefs.map(p => (
                     <tr key={p.id}>
                       <td><EventLabel e={p.event_type} /></td>
-                      <td><span className="channel-badge channel-badge--{p.channel}">{p.channel}</span></td>
+                      <td><span className="channel-badge">{p.channel}</span></td>
                       <td className="mono text-dim">{p.destination}</td>
                       <td>
                         <button
@@ -140,7 +192,6 @@ export default function Notifications() {
                           <span className="toggle-switch-thumb" />
                         </button>
                       </td>
-
                     </tr>
                   ))}
                 </tbody>
@@ -151,26 +202,52 @@ export default function Notifications() {
 
       {/* ── Delivery log ───────────────────────── */}
       <div className="card section-top">
-        <div className="card-title">Recent Deliveries <span className="card-title-sub">(last 100)</span></div>
+        <div className="card-title-row">
+          <div className="card-title">
+            Recent Deliveries
+            <span className="card-title-sub"> (last 100)</span>
+            {unreadLogs > 0 && <span className="notif-unread-pill">{unreadLogs} new</span>}
+          </div>
+          {unreadLogs > 0 && (
+            <button className="btn-ghost btn-sm" onClick={handleMarkAllRead} disabled={marking}>
+              {marking ? 'Marking…' : 'Mark all read'}
+            </button>
+          )}
+        </div>
+
         {logs.length === 0
           ? <p className="empty-hint">No deliveries recorded yet.</p>
           : (
             <div className="table-wrap" style={{ border: 'none' }}>
               <table className="data-table">
                 <thead>
-                  <tr><th>When</th><th>Status</th><th>Trigger</th><th>Error</th></tr>
+                  <tr><th>When</th><th>Event</th><th>Details</th><th>Status</th></tr>
                 </thead>
                 <tbody>
                   {logs.map(l => (
-                    <tr key={l.id}>
-                      <td className="text-dim mono">{new Date(l.created_at).toLocaleString()}</td>
-                      <td>
-                        <span className="status-dot" style={{ color: STATUS_COLOR[l.status] ?? '#6b7280' }}>
-                          ● {l.status}
-                        </span>
+                    <tr key={l.id} className={!l.is_read && l.status === 'sent' ? 'notif-log-row--unread' : ''}>
+                      <td className="text-dim mono" style={{ whiteSpace: 'nowrap' }}>
+                        {new Date(l.created_at).toLocaleString()}
                       </td>
-                      <td className="text-dim">{l.trigger_type ?? '—'} {l.trigger_id ?? ''}</td>
-                      <td className="text-dim mono" style={{ color: '#ef4444', fontSize: '0.8rem' }}>{l.error_message ?? ''}</td>
+                      <td>
+                        {l.event_type
+                          ? <EventLabel e={l.event_type} />
+                          : <span className="text-dim">—</span>}
+                      </td>
+                      <td style={{ maxWidth: 340 }}><LogDetail log={l} /></td>
+                      <td>
+                        <span
+                          className="notif-status-pill"
+                          style={{ color: STATUS_COLOR[l.status] ?? '#6b7280', background: STATUS_BG[l.status] ?? '#f9fafb' }}
+                        >
+                          {l.status === 'sent' ? '✓ Sent' : l.status === 'failed' ? '✗ Failed' : '⏳ Pending'}
+                        </span>
+                        {l.error_message && (
+                          <div className="log-detail-error" style={{ fontSize: '0.75rem', marginTop: 2 }}>
+                            {l.error_message.length > 100 ? l.error_message.slice(0, 97) + '…' : l.error_message}
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -181,3 +258,4 @@ export default function Notifications() {
     </div>
   )
 }
+

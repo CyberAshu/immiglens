@@ -1,11 +1,11 @@
 """Notification preferences and delivery log router."""
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
-from app.models.notification import NotificationLog, NotificationPreference
+from app.models.notification import NotificationLog, NotificationPreference, NotifStatus
 from app.models.user import User
 from app.schemas.notification import (
     NotificationLogOut,
@@ -78,17 +78,20 @@ async def delete_preference(
 
 # ── Delivery logs ─────────────────────────────────────────────────────────────
 
+def _user_pref_ids_subquery(user_id: int):
+    """Reusable subquery: preference IDs owned by a user."""
+    return select(NotificationPreference.id).where(
+        NotificationPreference.user_id == user_id
+    )
+
+
 @router.get("/logs", response_model=list[NotificationLogOut])
 async def list_notification_logs(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Return the 100 most recent delivery attempts for the current user's preferences."""
-    # Join via NotificationPreference to scope to the current user
-    pref_ids_res = await db.execute(
-        select(NotificationPreference.id)
-        .where(NotificationPreference.user_id == current_user.id)
-    )
+    pref_ids_res = await db.execute(_user_pref_ids_subquery(current_user.id))
     pref_ids = [r[0] for r in pref_ids_res.all()]
     if not pref_ids:
         return []
@@ -102,3 +105,46 @@ async def list_notification_logs(
         )
     ).scalars().all()
     return rows
+
+
+@router.get("/logs/unread-count")
+async def unread_count(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the number of unread sent notification logs for the current user."""
+    pref_ids_res = await db.execute(_user_pref_ids_subquery(current_user.id))
+    pref_ids = [r[0] for r in pref_ids_res.all()]
+    if not pref_ids:
+        return {"count": 0}
+
+    result = await db.execute(
+        select(func.count(NotificationLog.id)).where(
+            NotificationLog.preference_id.in_(pref_ids),
+            NotificationLog.is_read.is_(False),
+            NotificationLog.status == NotifStatus.SENT,
+        )
+    )
+    return {"count": result.scalar_one()}
+
+
+@router.post("/logs/mark-all-read", status_code=204)
+async def mark_all_logs_read(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Mark all of the current user's notification logs as read."""
+    pref_ids_res = await db.execute(_user_pref_ids_subquery(current_user.id))
+    pref_ids = [r[0] for r in pref_ids_res.all()]
+    if not pref_ids:
+        return
+
+    await db.execute(
+        update(NotificationLog)
+        .where(
+            NotificationLog.preference_id.in_(pref_ids),
+            NotificationLog.is_read.is_(False),
+        )
+        .values(is_read=True)
+    )
+    await db.commit()

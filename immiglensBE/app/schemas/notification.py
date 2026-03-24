@@ -38,10 +38,13 @@ class NotificationPreferenceOut(BaseModel):
 class NotificationLogOut(BaseModel):
     id: int
     preference_id: int
+    event_type: Optional[NotificationEvent] = None
     trigger_id: Optional[int]
     trigger_type: Optional[str]
+    context_json: Optional[str] = None
     status: NotifStatus
     error_message: Optional[str]
+    is_read: bool = False
     sent_at: Optional[datetime]
     created_at: datetime
 

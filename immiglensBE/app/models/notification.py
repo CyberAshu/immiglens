@@ -70,14 +70,25 @@ class NotificationLog(Base):
     preference_id: Mapped[int] = mapped_column(
         ForeignKey("notification_preferences.id"), index=True
     )
+    # The event that triggered this log — copied directly so queries never need a join
+    event_type: Mapped[Optional[NotificationEvent]] = mapped_column(
+        Enum(NotificationEvent, native_enum=False, length=30, values_callable=_enum_vals),
+        nullable=True,
+        index=True,
+    )
     trigger_id: Mapped[Optional[int]] = mapped_column(nullable=True)   # e.g. capture_round_id
     trigger_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    # Full context snapshot stored as JSON — powers rich UI display without extra queries
+    context_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[NotifStatus] = mapped_column(
         Enum(NotifStatus, native_enum=False, length=20, values_callable=_enum_vals),
         default=NotifStatus.PENDING,
         index=True,
     )
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_read: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
     sent_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

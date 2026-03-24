@@ -11,4 +11,6 @@ export const notifications = {
   deletePreference:  (id: number)                                    =>
     request<void>(`/api/notifications/preferences/${id}`, { method: 'DELETE' }),
   listLogs:          ()                                              => request<NotificationLog[]>('/api/notifications/logs'),
+  unreadCount:       ()                                              => request<{ count: number }>('/api/notifications/logs/unread-count'),
+  markAllRead:       ()                                              => request<void>('/api/notifications/logs/mark-all-read', { method: 'POST' }),
 }

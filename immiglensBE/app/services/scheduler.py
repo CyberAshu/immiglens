@@ -422,45 +422,85 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
     round_.status = CaptureStatus.RUNNING
     await db.commit()
 
-    snapshots: list[tuple] = []  # (PostingSnapshot, url)
-    for posting in round_.job_position.job_postings:
-        if not posting.is_active:
-            continue  # skip deactivated postings
-        screenshot_result = await capture(posting.url)
-        capture_result = CaptureResult(
-            capture_round_id=round_.id,
-            job_posting_id=posting.id,
-            url=posting.url,
-            status=ResultStatus(screenshot_result.status.value),
-            screenshot_path=None,
-            screenshot_url=screenshot_result.screenshot_url,
-            page_pdf_url=screenshot_result.page_pdf_url,
-            error=screenshot_result.error,
-            duration_ms=screenshot_result.duration_ms,
+    # Resolve the owning user once — reused for all notifications in this round
+    user_id: int | None = getattr(
+        getattr(round_.job_position, "employer", None), "user_id", None
+    )
+    if user_id is None:
+        emp_res = await db.execute(
+            select(Employer.user_id)
+            .join(JobPosition, Employer.id == JobPosition.employer_id)
+            .where(JobPosition.id == round_.job_position_id)
         )
-        db.add(capture_result)
-        await db.flush()  # populate capture_result.id before snapshot
-        snap = await record_snapshot(db, capture_result)
-        snapshots.append((snap, posting.url))
+        user_id = emp_res.scalar_one_or_none()
+
+    # ── ROUND_STARTED ────────────────────────────────────────────────────────
+    if user_id is not None:
+        try:
+            await dispatch_event(
+                db, user_id=user_id,
+                event=NotificationEvent.ROUND_STARTED,
+                context={
+                    "round_id": round_.id,
+                    "position": round_.job_position.job_title,
+                    "scheduled_at": round_.scheduled_at.isoformat(),
+                },
+                trigger_id=round_.id,
+                trigger_type="capture_round",
+            )
+        except Exception:
+            pass  # Never block capture flow for notification errors
+
+    snapshots: list[tuple] = []
+    try:
+        for posting in round_.job_position.job_postings:
+            if not posting.is_active:
+                continue  # skip deactivated postings
+            screenshot_result = await capture(posting.url)
+            capture_result = CaptureResult(
+                capture_round_id=round_.id,
+                job_posting_id=posting.id,
+                url=posting.url,
+                status=ResultStatus(screenshot_result.status.value),
+                screenshot_path=None,
+                screenshot_url=screenshot_result.screenshot_url,
+                page_pdf_url=screenshot_result.page_pdf_url,
+                error=screenshot_result.error,
+                duration_ms=screenshot_result.duration_ms,
+            )
+            db.add(capture_result)
+            await db.flush()  # populate capture_result.id before snapshot
+            snap = await record_snapshot(db, capture_result)
+            snapshots.append((snap, posting.url))
+    except Exception as exc:
+        # Unexpected failure during capture loop — mark round FAILED and notify
+        round_.status = CaptureStatus.FAILED
+        await db.commit()
+        if user_id is not None:
+            try:
+                await dispatch_event(
+                    db, user_id=user_id,
+                    event=NotificationEvent.CAPTURE_FAILED,
+                    context={
+                        "round_id": round_.id,
+                        "position": round_.job_position.job_title,
+                        "error": str(exc),
+                    },
+                    trigger_id=round_.id,
+                    trigger_type="capture_round",
+                )
+            except Exception:
+                pass
+        logger.exception("Capture round %s failed", round_.id)
+        return
 
     round_.status = CaptureStatus.COMPLETED
     round_.captured_at = datetime.now(timezone.utc)
     await db.commit()
 
     # ── Dispatch notifications ────────────────────────────────────────────────
-    try:
-        user_id: int | None = getattr(
-            getattr(round_.job_position, "employer", None), "user_id", None
-        )
-        if user_id is None:
-            emp_res = await db.execute(
-                select(Employer.user_id)
-                .join(JobPosition, Employer.id == JobPosition.employer_id)
-                .where(JobPosition.id == round_.job_position_id)
-            )
-            user_id = emp_res.scalar_one_or_none()
-
-        if user_id is not None:
+    if user_id is not None:
+        try:
             await dispatch_event(
                 db, user_id=user_id,
                 event=NotificationEvent.CAPTURE_COMPLETE,
@@ -486,5 +526,5 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                         trigger_id=snap.id,
                         trigger_type="posting_snapshot",
                     )
-    except Exception:
-        pass  # Notification failures must never block the capture flow
+        except Exception:
+            pass  # Notification failures must never block the capture flow
