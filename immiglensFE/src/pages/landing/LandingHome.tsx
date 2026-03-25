@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
@@ -13,8 +14,27 @@ import {
   Users,
   Briefcase,
   Building,
+  Loader2,
 } from 'lucide-react'
 import { FeatureCard, StepCard, CTABand, PricingCard } from './LandingUI'
+import { subscriptions } from '../../api/subscriptions'
+import type { SubscriptionTier } from '../../types'
+
+function fmt(v: number) { return v === -1 ? 'Unlimited' : String(v) }
+
+function tierToPostingsLimit(tier: SubscriptionTier): string {
+  if (tier.max_employers === -1 || tier.max_positions_per_employer === -1) return 'Unlimited'
+  return String(tier.max_employers * tier.max_positions_per_employer)
+}
+
+function tierFeatures(tier: SubscriptionTier): string[] {
+  return [
+    `${fmt(tier.max_employers)} employer${tier.max_employers === 1 ? '' : 's'}`,
+    `${fmt(tier.max_positions_per_employer)} position${tier.max_positions_per_employer === 1 ? '' : 's'} per employer`,
+    `${fmt(tier.max_postings_per_position)} job board URL${tier.max_postings_per_position === 1 ? '' : 's'} per position`,
+    `${fmt(tier.max_captures_per_month)} capture${tier.max_captures_per_month === 1 ? '' : 's'} / month`,
+  ]
+}
 
 // ── Hero Mockup — mirrors the real app dashboard ─────────────────────────────
 function HeroMockup() {
@@ -187,6 +207,20 @@ function HeroMockup() {
   )
 }
 export function LandingHome() {
+  const [tiers, setTiers]         = useState<SubscriptionTier[]>([])
+  const [tiersLoading, setTiersLoading] = useState(true)
+
+  useEffect(() => {
+    subscriptions.tiers()
+      .then(setTiers)
+      .catch(() => setTiers([]))
+      .finally(() => setTiersLoading(false))
+  }, [])
+
+  // Up to 3 tiers for the teaser; middle one highlighted
+  const teaserTiers = tiers.slice(0, 3)
+  const popularIdx  = Math.floor((teaserTiers.length - 1) / 2)
+
   return (
 
     <div className="flex flex-col min-h-screen w-full overflow-hidden">
@@ -473,24 +507,37 @@ export function LandingHome() {
               Draft, paused, or archived positions never count towards your limit.
             </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            <PricingCard
-              limit="10"
-              price={39}
-              features={['Automated captures', 'Evidence timeline', 'LMIA-ready PDF', 'Email alerts']}
-            />
-            <PricingCard
-              limit="25"
-              price={79}
-              isPopular
-              features={['Automated captures', 'Evidence timeline', 'LMIA-ready PDF', 'Email alerts', 'Priority processing']}
-            />
-            <PricingCard
-              limit="50"
-              price={119}
-              features={['Automated captures', 'Evidence timeline', 'LMIA-ready PDF', 'Email alerts', 'Extended retention']}
-            />
-          </div>
+          {tiersLoading && (
+            <div className="flex items-center justify-center gap-3 py-12 text-brand-charcoal/50">
+              <Loader2 size={22} className="animate-spin" />
+              <span>Loading plans…</span>
+            </div>
+          )}
+
+          {!tiersLoading && teaserTiers.length > 0 && (
+            <div className={`grid md:grid-cols-${Math.min(teaserTiers.length, 3)} gap-8 max-w-5xl mx-auto`}>
+              {teaserTiers.map((tier, idx) => (
+                <PricingCard
+                  key={tier.id}
+                  limit={tierToPostingsLimit(tier)}
+                  price={tier.price_per_month ?? 'Contact Sales'}
+                  isPopular={idx === popularIdx && teaserTiers.length > 1}
+                  features={tierFeatures(tier)}
+                />
+              ))}
+            </div>
+          )}
+
+          {!tiersLoading && teaserTiers.length === 0 && (
+            <div className={`grid md:grid-cols-3 gap-8 max-w-5xl mx-auto`}>
+              <PricingCard limit="10" price={39}
+                features={['Automated captures', 'Evidence timeline', 'LMIA-ready PDF', 'Email alerts']} />
+              <PricingCard limit="25" price={79} isPopular
+                features={['Automated captures', 'Evidence timeline', 'LMIA-ready PDF', 'Email alerts', 'Priority processing']} />
+              <PricingCard limit="50" price={119}
+                features={['Automated captures', 'Evidence timeline', 'LMIA-ready PDF', 'Email alerts', 'Extended retention']} />
+            </div>
+          )}
           <div className="text-center mt-12">
             <Link
               to="/pricing"

@@ -81,13 +81,21 @@ export default function AdminTiers() {
     }
   }
 
-  async function handleDeactivate(tier: SubscriptionTier) {
-    if (!await askConfirm({ title: 'Deactivate Tier', message: `Deactivate "${tier.display_name}"? Users on this tier keep access but it won't be available for new assignments.`, confirmLabel: 'Deactivate', variant: 'primary' })) return
+  async function handleToggleActive(tier: SubscriptionTier) {
+    const turningOff = tier.is_active
+    if (turningOff) {
+      if (!await askConfirm({
+        title: 'Hide Tier from Website',
+        message: `Hide "${tier.display_name}" from the website? Existing users keep access, but it won't be available for new assignments.`,
+        confirmLabel: 'Hide',
+        variant: 'primary',
+      })) return
+    }
     try {
-      await admin.deactivateTier(tier.id)
-      setTiers(prev => prev.map(t => t.id === tier.id ? { ...t, is_active: false } : t))
+      const updated = await admin.updateTier(tier.id, { is_active: !tier.is_active })
+      setTiers(prev => prev.map(t => t.id === tier.id ? updated : t))
     } catch {
-      setError('Failed to deactivate tier.')
+      setError('Failed to update tier visibility.')
     }
   }
 
@@ -193,14 +201,18 @@ export default function AdminTiers() {
                   >
                     Edit
                   </button>
-                  {tier.is_active && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                     <button
-                      className="admin-btn admin-btn-danger"
-                      onClick={() => handleDeactivate(tier)}
+                      className={`toggle-switch ${tier.is_active ? 'toggle-switch--on' : 'toggle-switch--off'}`}
+                      onClick={() => handleToggleActive(tier)}
+                      title={tier.is_active ? 'Visible on website — click to hide' : 'Hidden from website — click to show'}
                     >
-                      Deactivate
+                      <span className="toggle-switch-thumb" />
                     </button>
-                  )}
+                    <span className="status-dot" style={{ color: tier.is_active ? '#16a34a' : '#9ca3af', fontSize: '0.75rem', fontWeight: 600 }}>
+                      {tier.is_active ? 'Visible' : 'Hidden'}
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}
