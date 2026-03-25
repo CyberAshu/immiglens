@@ -14,7 +14,14 @@ export const reports = {
       `${BASE}/api/employers/${employerId}/positions/${positionId}/reports/documents?doc_type=${docType}`,
       { method: 'POST', headers: authHeaders(), body: form },
     )
-    if (!res.ok) throw new Error(`Upload failed: ${res.status}`)
+    if (!res.ok) {
+      let detail = `Upload failed (${res.status})`
+      try {
+        const body = await res.json()
+        if (body?.detail) detail = body.detail
+      } catch { /* ignore parse errors */ }
+      throw new Error(detail)
+    }
     return res.json()
   },
 

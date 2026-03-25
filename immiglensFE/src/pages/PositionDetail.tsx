@@ -135,6 +135,9 @@ export default function PositionDetail() {
     try {
       const doc = await reportsApi.uploadDocument(eId, pId, file, 'supporting')
       setDocuments(prev => [...prev, doc])
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Upload failed'
+      showToast(msg, 'error')
     } finally {
       setUploadingDoc(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -153,6 +156,9 @@ export default function PositionDetail() {
     try {
       const doc = await reportsApi.uploadDocument(eId, pId, file, 'job_match')
       setJobMatchDocs(prev => [...prev, doc])
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Upload failed'
+      showToast(msg, 'error')
     } finally {
       setUploadingJobMatch(false)
       if (jobMatchRef.current) jobMatchRef.current.value = ''
