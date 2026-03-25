@@ -1,12 +1,13 @@
 import hashlib
 import logging
+import re
 import secrets
 import smtplib
 import ssl
 from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,7 +42,74 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 MAX_OTP_ATTEMPTS = 5
+_DEVICE_COOKIE = "device_id"
 
+
+def _parse_user_agent(ua_string: str | None) -> tuple[str, str, str]:
+    """Parse a User-Agent header into (browser, os, device_name).
+    Returns human-readable strings like ('Chrome 123', 'Windows 10/11', 'Chrome 123 on Windows 10/11').
+    No external library required.
+    """
+    if not ua_string:
+        return "Unknown Browser", "Unknown OS", "Unknown Device"
+
+    ua = ua_string
+
+    if re.search(r"Edg[eA]?/", ua):
+        m = re.search(r"Edg[eA]?/(\d+)", ua)
+        browser = f"Edge {m.group(1)}" if m else "Edge"
+    elif "OPR/" in ua or "Opera/" in ua:
+        m = re.search(r"(?:OPR|Opera)/(\d+)", ua)
+        browser = f"Opera {m.group(1)}" if m else "Opera"
+    elif "Chrome/" in ua:
+        m = re.search(r"Chrome/(\d+)", ua)
+        browser = f"Chrome {m.group(1)}" if m else "Chrome"
+    elif "Firefox/" in ua:
+        m = re.search(r"Firefox/(\d+)", ua)
+        browser = f"Firefox {m.group(1)}" if m else "Firefox"
+    elif "Safari/" in ua:
+        m = re.search(r"Version/(\d+)", ua)
+        browser = f"Safari {m.group(1)}" if m else "Safari"
+    else:
+        browser = "Unknown Browser"
+
+    if "Windows NT 10.0" in ua:
+        os_name = "Windows 10/11"
+    elif "Windows NT 6.3" in ua:
+        os_name = "Windows 8.1"
+    elif "Windows NT 6.1" in ua:
+        os_name = "Windows 7"
+    elif "Windows" in ua:
+        os_name = "Windows"
+    elif "iPhone" in ua:
+        m = re.search(r"iPhone OS ([\d_]+)", ua)
+        os_name = f"iOS {m.group(1).replace('_', '.')}" if m else "iOS"
+    elif "iPad" in ua:
+        os_name = "iPadOS"
+    elif "Android" in ua:
+        m = re.search(r"Android ([\d.]+)", ua)
+        os_name = f"Android {m.group(1)}" if m else "Android"
+    elif "Mac OS X" in ua:
+        m = re.search(r"Mac OS X ([\d_]+)", ua)
+        ver = m.group(1).replace("_", ".") if m else ""
+        os_name = f"macOS {ver}" if ver else "macOS"
+    elif "Linux" in ua or "X11" in ua:
+        os_name = "Linux"
+    else:
+        os_name = "Unknown OS"
+
+    return browser, os_name, f"{browser} on {os_name}"
+
+
+def _get_client_ip(request: Request) -> str:
+    """Extract the real client IP, accounting for nginx/proxy X-Forwarded-For."""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else "0.0.0.0"
 
 
 def _generate_otp() -> str:
@@ -79,7 +147,6 @@ def _send_otp_email(to_email: str, otp: str) -> None:
         smtp.send_message(msg)
 
 
-
 def _send_reset_email(to_email: str, reset_url: str) -> None:
     if not settings.SMTP_HOST:
         print(f"[DEV RESET] {to_email} → {reset_url}")
@@ -112,18 +179,20 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
 
 
 @router.post("/login", status_code=200)
-async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(payload: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """Step 1 – verify credentials.
-    If a valid trusted-device token is supplied, skip OTP and return JWT directly.
-    Otherwise dispatch a one-time code to the Gmail.
+    Checks HttpOnly cookie first, then body device_token (backward compat).
+    If a valid trusted-device token is found, skip OTP and return JWT directly.
+    Otherwise dispatch a one-time code to the user's email.
     """
     user = await get_user_by_email(db, payload.email)
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials.")
 
-    if payload.device_token:
+    candidate_token = request.cookies.get(_DEVICE_COOKIE) or payload.device_token
+    if candidate_token:
         now = datetime.now(timezone.utc)
-        token_hash = _hash_token(payload.device_token)
+        token_hash = _hash_token(candidate_token)
         td_result = await db.execute(
             select(TrustedDevice).where(
                 TrustedDevice.user_id == user.id,
@@ -134,6 +203,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
         trusted = td_result.scalar_one_or_none()
         if trusted:
             trusted.expires_at = now + timedelta(days=settings.TRUSTED_DEVICE_DAYS)
+            trusted.last_used_at = now
             await db.execute(
                 delete(TrustedDevice).where(
                     TrustedDevice.user_id == user.id,
@@ -170,7 +240,10 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/verify-otp", response_model=TokenResponse)
 async def verify_otp(
-    payload: OTPVerifyRequest, db: AsyncSession = Depends(get_db)
+    payload: OTPVerifyRequest,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
 ):
     """Step 2 – validate the OTP and return a JWT access token."""
     user = await get_user_by_email(db, payload.email)
@@ -210,24 +283,37 @@ async def verify_otp(
 
     record.used = True
 
-    raw_device_token: str | None = None
     if payload.remember_device:
         raw_device_token = secrets.token_hex(32)
+        ua = request.headers.get("user-agent")
+        browser, os_name, device_name = _parse_user_agent(ua)
+        ip = _get_client_ip(request)
         db.add(
             TrustedDevice(
                 user_id=user.id,
                 token_hash=_hash_token(raw_device_token),
+                device_name=device_name,
+                browser=browser,
+                os=os_name,
+                ip_address=ip,
                 expires_at=now + timedelta(days=settings.TRUSTED_DEVICE_DAYS),
             )
         )
-        logger.info("Trusted device registered for %s", payload.email)
+        is_secure = settings.FRONTEND_URL.startswith("https")
+        response.set_cookie(
+            key=_DEVICE_COOKIE,
+            value=raw_device_token,
+            max_age=settings.TRUSTED_DEVICE_DAYS * 86400,
+            httponly=True,
+            secure=is_secure,
+            samesite="strict",
+            path="/",
+        )
+        logger.info("Trusted device registered for %s (browser=%s, os=%s, ip=%s)", payload.email, browser, os_name, ip)
 
     await db.commit()
 
-    return TokenResponse(
-        access_token=create_access_token(user.id),
-        device_token=raw_device_token,
-    )
+    return TokenResponse(access_token=create_access_token(user.id))
 
 
 @router.get("/me", response_model=UserOut)
@@ -286,9 +372,27 @@ async def list_trusted_devices(
     return result.scalars().all()
 
 
+@router.delete("/trusted-devices", status_code=200)
+async def revoke_all_trusted_devices(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Revoke ALL trusted devices for the current user and clear the device cookie."""
+    await db.execute(
+        delete(TrustedDevice).where(TrustedDevice.user_id == current_user.id)
+    )
+    await db.commit()
+    response.delete_cookie(_DEVICE_COOKIE, path="/")
+    logger.info("All trusted devices revoked for user_id=%s", current_user.id)
+    return {"message": "All devices revoked."}
+
+
 @router.delete("/trusted-devices/{device_id}", status_code=200)
 async def revoke_trusted_device(
     device_id: int,
+    request: Request,
+    response: Response,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -302,6 +406,9 @@ async def revoke_trusted_device(
     device = result.scalar_one_or_none()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found.")
+    cookie_token = request.cookies.get(_DEVICE_COOKIE)
+    if cookie_token and _hash_token(cookie_token) == device.token_hash:
+        response.delete_cookie(_DEVICE_COOKIE, path="/")
     await db.delete(device)
     await db.commit()
     return {"message": "Device revoked."}
@@ -320,12 +427,11 @@ async def forgot_password(
     if not user:
         return _GENERIC_MSG
 
-    # Invalidate any existing reset tokens for this user
     await db.execute(
         delete(PasswordResetToken).where(PasswordResetToken.user_id == user.id)
     )
 
-    raw_token = secrets.token_hex(32)  # 64 hex chars, URL-safe
+    raw_token = secrets.token_hex(32)
     db.add(
         PasswordResetToken(
             user_id=user.id,
@@ -374,7 +480,6 @@ async def reset_password(
 
     user.hashed_password = hash_password(payload.new_password)
 
-    # Consume the token and clear all trusted devices (security: force re-auth)
     await db.execute(
         delete(PasswordResetToken).where(PasswordResetToken.user_id == record.user_id)
     )

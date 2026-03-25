@@ -10,6 +10,7 @@ export function authHeaders(): Record<string, string> {
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...authHeaders(),

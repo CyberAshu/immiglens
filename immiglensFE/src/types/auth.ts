@@ -10,11 +10,15 @@ export interface User {
 export interface TokenResponse {
   access_token: string
   token_type: string
-  device_token?: string | null
 }
 
 export interface TrustedDevice {
   id: number
+  device_name: string | null
+  browser: string | null
+  os: string | null
+  ip_address: string | null
   created_at: string
   expires_at: string
+  last_used_at: string | null
 }

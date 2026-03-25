@@ -121,13 +121,6 @@ export default function Login() {
     setLoading(true)
     try {
       const res = await auth.verifyOtp(email, otp, rememberDevice)
-      // If user chose "remember device", save the new token.
-      // If not, remove any stale/expired token so it doesn't block future logins.
-      if (rememberDevice && res.device_token) {
-        auth.saveDeviceToken(res.device_token)
-      } else {
-        auth.clearDeviceToken()
-      }
       const me = await loginWithToken(res.access_token)
       navigate(me.is_admin ? '/admin' : '/dashboard')
     } catch (err: unknown) {

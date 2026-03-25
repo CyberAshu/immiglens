@@ -58,7 +58,6 @@ class ResetPasswordRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    device_token: str | None = None  # only set when remember_device=True
 
 
 class UserOut(BaseModel):
@@ -85,5 +84,10 @@ class TrustedDeviceOut(BaseModel):
     model_config = {"from_attributes": True}
 
     id: int
+    device_name: Optional[str] = None
+    browser: Optional[str] = None
+    os: Optional[str] = None
+    ip_address: Optional[str] = None
     created_at: datetime
     expires_at: datetime
+    last_used_at: Optional[datetime] = None

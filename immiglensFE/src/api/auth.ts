@@ -1,8 +1,6 @@
 import { request } from './client'
 import type { TokenResponse, TrustedDevice, User } from '../types'
 
-const DEVICE_TOKEN_KEY = 'device_token'
-
 export const auth = {
   register: (email: string, password: string, full_name: string) =>
     request<User>('/api/auth/register', {
@@ -11,10 +9,10 @@ export const auth = {
     }),
 
   requestOtp: (email: string, password: string) => {
-    const device_token = localStorage.getItem(DEVICE_TOKEN_KEY) ?? undefined
+    localStorage.removeItem('device_token')
     return request<{ message: string } | TokenResponse>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password, device_token }),
+      body: JSON.stringify({ email, password }),
     })
   },
 
@@ -23,12 +21,6 @@ export const auth = {
       method: 'POST',
       body: JSON.stringify({ email, otp, remember_device }),
     }),
-
-  saveDeviceToken: (token: string | null | undefined) => {
-    if (token) localStorage.setItem(DEVICE_TOKEN_KEY, token)
-  },
-
-  clearDeviceToken: () => localStorage.removeItem(DEVICE_TOKEN_KEY),
 
   me: () => request<User>('/api/auth/me'),
 
@@ -61,4 +53,7 @@ export const auth = {
 
   revokeDevice: (id: number) =>
     request<{ message: string }>(`/api/auth/trusted-devices/${id}`, { method: 'DELETE' }),
+
+  revokeAllDevices: () =>
+    request<{ message: string }>('/api/auth/trusted-devices', { method: 'DELETE' }),
 }

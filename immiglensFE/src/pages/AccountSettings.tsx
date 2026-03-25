@@ -10,6 +10,7 @@ import {
   Monitor,
   Pencil,
   Shield,
+  Smartphone,
   Trash2,
   UserCircle2,
 } from 'lucide-react'
@@ -32,6 +33,7 @@ export default function AccountSettings() {
   const [devices, setDevices]               = useState<TrustedDevice[]>([])
   const [devicesLoading, setDevicesLoading] = useState(false)
   const [revoking, setRevoking]             = useState<number | null>(null)
+  const [revokingAll, setRevokingAll]       = useState(false)
 
   useEffect(() => { setFullName(user?.full_name ?? '') }, [user])
 
@@ -87,6 +89,16 @@ export default function AccountSettings() {
       setDevices(prev => prev.filter(d => d.id !== id))
     } catch { /* ignore */ } finally {
       setRevoking(null)
+    }
+  }
+
+  async function handleRevokeAll() {
+    setRevokingAll(true)
+    try {
+      await authApi.revokeAllDevices()
+      setDevices([])
+    } catch { /* ignore */ } finally {
+      setRevokingAll(false)
     }
   }
 
@@ -232,19 +244,48 @@ export default function AccountSettings() {
                   </div>
                 ) : (
                   <div className="acct-devices-list">
-                    {devices.map(device => (
-                      <div key={device.id} className="acct-device-row">
-                        <div className="acct-device-icon-wrap"><Monitor size={15} strokeWidth={1.8} /></div>
-                        <div className="acct-device-info">
-                          <div className="acct-device-name">Trusted Device</div>
-                          <div className="acct-device-meta">Added {fmt(device.created_at)} · Expires {fmt(device.expires_at)}</div>
+                    {devices.map(device => {
+                      const isMobile = device.os && /ios|android|ipad/i.test(device.os)
+                      const displayName = device.device_name ?? 'Trusted Device'
+                      return (
+                        <div key={device.id} className="acct-device-row">
+                          <div className="acct-device-icon-wrap">
+                            {isMobile
+                              ? <Smartphone size={15} strokeWidth={1.8} />
+                              : <Monitor size={15} strokeWidth={1.8} />}
+                          </div>
+                          <div className="acct-device-info">
+                            <div className="acct-device-name">{displayName}</div>
+                            <div className="acct-device-meta">
+                              {device.ip_address && <span>{device.ip_address} &middot; </span>}
+                              Added {fmt(device.created_at)}
+                              {device.last_used_at && <span> &middot; Last used {fmt(device.last_used_at)}</span>}
+                              <span> &middot; Expires {fmt(device.expires_at)}</span>
+                            </div>
+                          </div>
+                          <button
+                            className="acct-revoke-btn"
+                            onClick={e => { e.stopPropagation(); handleRevoke(device.id) }}
+                            disabled={revoking === device.id || revokingAll}
+                          >
+                            <Trash2 size={12} strokeWidth={2} />
+                            {revoking === device.id ? 'Revoking...' : 'Revoke'}
+                          </button>
                         </div>
-                        <button className="acct-revoke-btn" onClick={e => { e.stopPropagation(); handleRevoke(device.id) }} disabled={revoking === device.id}>
+                      )
+                    })}
+                    {devices.length > 1 && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                        <button
+                          className="acct-revoke-btn acct-revoke-btn--all"
+                          onClick={handleRevokeAll}
+                          disabled={revokingAll}
+                        >
                           <Trash2 size={12} strokeWidth={2} />
-                          {revoking === device.id ? 'Revoking...' : 'Revoke'}
+                          {revokingAll ? 'Revoking all...' : 'Revoke All Devices'}
                         </button>
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </div>
