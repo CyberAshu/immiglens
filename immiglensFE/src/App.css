@@ -31,7 +31,7 @@
   flex-shrink: 0;
 }
 
-.nav-brand {
+.navbar .nav-brand {
   font-size: 1.15rem;
   font-weight: 800;
   color: #fff;
@@ -41,7 +41,7 @@
   align-items: center;
   gap: 0.6rem;
 }
-.nav-brand:hover { color: #fff; }
+.navbar .nav-brand:hover { color: #fff; }
 
 .nav-brand-icon {
   width: 34px;
@@ -154,11 +154,6 @@
   vertical-align: middle;
 }
 
-.admin-sidebar {
-  border-right-color: #1a3352;
-  background: #061629;
-}
-
 .role-badge {
   display: inline-block;
   font-size: 0.72rem;
@@ -173,10 +168,23 @@
 
 /* ===== Sidebar ===== */
 .sidebar {
+  /* ===== Tier Cards ===== */
+  --sb-bg:               #ffffff;
+  --sb-border:           rgba(0,0,0,0.08);
+  --sb-label-color:      rgba(30,35,41,0.35);
+  --sb-link-color:       rgba(30,35,41,0.5);
+  --sb-link-hover-bg:    rgba(200,162,74,0.07);
+  --sb-link-hover-color: #1E2329;
+  --sb-active-bg:        rgba(200,162,74,0.14);
+  --sb-active-color:     #C8A24A;
+  --sb-active-accent:    #C8A24A;
+  --sb-separator:        rgba(0,0,0,0.07);
+  --sb-quicklink-color:  rgba(200,162,74,0.75);
+
   width: 230px;
   min-width: 230px;
-  background: #0B1F3B;
-  border-right: 1px solid rgba(255,255,255,0.07);
+  background: var(--sb-bg);
+  border-right: 1px solid var(--sb-border);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
@@ -190,7 +198,7 @@
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.28);
+  color: var(--sb-label-color);
   padding: 0 0.75rem;
   margin: 1rem 0 0.4rem;
 }
@@ -210,19 +218,19 @@
   border-radius: 8px;
   font-size: 0.875rem;
   font-weight: 500;
-  color: rgba(255,255,255,0.48);
+  color: var(--sb-link-color);
   text-decoration: none;
   transition: background 0.15s, color 0.15s;
   white-space: nowrap;
   position: relative;
 }
 .sidebar-link:hover {
-  background: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.88);
+  background: var(--sb-link-hover-bg);
+  color: var(--sb-link-hover-color);
 }
 .sidebar-link--active {
-  background: rgba(200,162,74,0.14);
-  color: #d4aa55;
+  background: var(--sb-active-bg);
+  color: var(--sb-active-color);
   font-weight: 600;
 }
 .sidebar-link--active::before {
@@ -232,18 +240,21 @@
   top: 20%;
   height: 60%;
   width: 3px;
-  background: #C8A24A;
+  background: var(--sb-active-accent);
   border-radius: 0 3px 3px 0;
 }
 .sidebar-link--admin {
-  color: rgba(200,162,74,0.7);
+  color: var(--sb-quicklink-color);
   margin-top: auto;
 }
-.sidebar-link--admin:hover { background: rgba(200,162,74,0.08); color: #C8A24A; }
+.sidebar-link--admin:hover {
+  background: rgba(200,162,74,0.08);
+  color: #C8A24A;
+}
 
 .sidebar-separator {
   height: 1px;
-  background: rgba(255,255,255,0.07);
+  background: var(--sb-separator);
   margin: 0.75rem 0;
 }
 
@@ -1594,7 +1605,7 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
 .audit-details-btn:hover { background: #f3f4f6; border-color: #9ca3af; color: #374151; }
 .audit-details-btn svg { flex-shrink: 0; }
 
-/* ── Expanded detail pane ─── */
+/* ===== Tier Cards ===== */
 .audit-detail-pane {
   background: #f8fafc;
   border-bottom: 1px solid #e5e7eb;
@@ -1642,7 +1653,7 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   word-break: break-word;
 }
 
-/* ── Pagination bar ─── */
+/* ===== Tier Cards ===== */
 .pagination-bar {
   display: flex;
   align-items: center;
@@ -2271,7 +2282,7 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 .admin-tab-active:hover { background: #0B1F3B; color: #fff; }
 
-/* â”€â”€ Tier Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ===== Tier Cards ===== */
 .tier-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -2360,7 +2371,7 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   margin-top: auto;
 }
 
-/* â”€â”€ Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ===== Tier Cards ===== */
 .admin-modal-overlay {
   position: fixed;
   inset: 0;
@@ -2429,7 +2440,7 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   gap: 0.75rem;
 }
 
-/* ── Confirm dialog ─────────────────────────────────────────────────────── */
+/* ===== Tier Cards ===== */
 .confirm-modal {
   background: #fff;
   border-radius: 14px;
@@ -2566,7 +2577,7 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   border-left: 3px solid #0B1F3B;
 }
 
-/* ===== Navbar â€” icon button (bell) ===== */
+/* ===== Navbar — icon button (bell) ===== */
 .nav-icon-btn {
   position: relative;
   display: flex;
@@ -2607,7 +2618,7 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   line-height: 1;
 }
 
-/* ===== Navbar â€” profile button ===== */
+/* ===== Navbar — profile button ===== */
 .nav-profile-btn {
   display: flex;
   align-items: center;
@@ -2659,12 +2670,12 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   transform: rotate(180deg);
 }
 
-/* ===== Navbar â€” dropdown wrapper ===== */
+/* ===== Navbar — dropdown wrapper ===== */
 .nav-dropdown-wrap {
   position: relative;
 }
 
-/* ===== Navbar â€” dropdown panel ===== */
+/* ===== Navbar — dropdown panel ===== */
 .nav-dropdown {
   position: absolute;
   top: calc(100% + 8px);
@@ -2861,7 +2872,7 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   gap: 1.5rem;
 }
 
-/* â”€â”€ Hero banner â”€â”€ */
+/* ===== Tier Cards ===== */
 .acct-hero {
   display: flex;
   align-items: center;
@@ -2921,7 +2932,7 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   flex-shrink: 0;
 }
 
-/* â”€â”€ Two-column grid â”€â”€ */
+/* ===== Tier Cards ===== */
 .acct-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2933,7 +2944,7 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   .acct-grid { grid-template-columns: 1fr; }
 }
 
-/* â”€â”€ Card â”€â”€ */
+/* ===== Tier Cards ===== */
 .acct-card-a {
   background: #fff;
   border: 1px solid #e5e7eb;
@@ -2996,7 +3007,7 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   padding: 0;
 }
 
-/* â”€â”€ Form fields â”€â”€ */
+/* ===== Tier Cards ===== */
 .acct-field {
   display: flex;
   flex-direction: column;
@@ -3058,7 +3069,7 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   color: #b0b8c4;
 }
 
-/* â”€â”€ Messages â”€â”€ */
+/* ===== Tier Cards ===== */
 .acct-msg {
   display: flex;
   align-items: center;
@@ -3071,7 +3082,7 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
 .acct-msg--ok  { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
 .acct-msg--err { background: #fff5f5; color: #dc2626; border: 1px solid #fecaca; }
 
-/* â”€â”€ Save button (gold) â”€â”€ */
+/* ===== Tier Cards ===== */
 .btn-save {
   display: inline-flex;
   align-items: center;
@@ -3098,7 +3109,7 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   margin-top: 0.25rem;
 }
 
-/* â”€â”€ Security card rows â”€â”€ */
+/* ===== Tier Cards ===== */
 .acct-sec-row {
   display: flex;
   align-items: center;
@@ -3163,7 +3174,7 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   margin: 0 1.5rem;
 }
 
-/* â”€â”€ Expand areas â”€â”€ */
+/* ===== Tier Cards ===== */
 .acct-expand {
   display: flex;
   flex-direction: column;
@@ -3211,7 +3222,7 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 .acct-cancel-btn:hover { background: #f9fafb; border-color: #d1d5db; }
 
-/* â”€â”€ Devices â”€â”€ */
+/* ===== Tier Cards ===== */
 .acct-devices-list {
   display: flex;
   flex-direction: column;

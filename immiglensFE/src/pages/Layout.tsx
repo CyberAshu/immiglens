@@ -258,6 +258,17 @@ export default function Layout() {
             </NavLink>
           </nav>
 
+          {user?.is_admin && (
+            <>
+              <div className="sidebar-separator" />
+              <span className="sidebar-section-label">Quick Link</span>
+              <nav className="sidebar-nav">
+                <NavLink to="/admin" className="sidebar-link sidebar-link--admin">
+                  <ShieldCheck size={15} strokeWidth={2} />Back to Admin Panel
+                </NavLink>
+              </nav>
+            </>
+          )}
         </aside>
 
         {/* ── Main content ────────────────────────────── */}

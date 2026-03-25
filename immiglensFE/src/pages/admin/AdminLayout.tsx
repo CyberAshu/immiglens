@@ -45,8 +45,8 @@ export default function AdminLayout() {
       {/* ── Top bar ─────────────────────────────── */}
       <nav className="navbar admin-navbar">
         <div className="nav-brand">
-          <div className="nav-brand-icon" style={{ background: 'linear-gradient(135deg, #1a3352 0%, #0B1F3B 100%)', border: '1px solid rgba(200,162,74,0.4)' }}>
-            <ShieldCheck size={18} color="#C8A24A" strokeWidth={2.5} />
+          <div className="nav-brand-icon">
+            <ShieldCheck size={18} color="#fff" strokeWidth={2.5} />
           </div>
           ImmigLens
           <span className="admin-panel-tag">Admin</span>
