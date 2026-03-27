@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { auth } from '../api'
-import { ShieldCheck } from 'lucide-react'
+import { Eye, EyeOff, ShieldCheck } from 'lucide-react'
 
 type Step = 'credentials' | 'otp'
 
@@ -293,9 +293,9 @@ export default function Login() {
     <div className="auth-page">
       <div className="auth-card">
 
-        {/* Brand — centered icon like SupportCode */}
-        <div className="auth-logo" style={{ justifyContent: 'center', marginBottom: '2rem' }}>
-          <Link to="/" style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '0.6rem', textDecoration: 'none' }}>
+        {/* Brand */}
+        <div className="auth-logo" style={{ justifyContent: 'center', marginBottom: '1.5rem' }}>
+          <Link to="/" style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}>
             <div className="auth-logo-mark" style={{ width: 52, height: 52, borderRadius: 14, fontSize: 'unset', boxShadow: '0 4px 20px rgba(11,31,59,0.25)' }}>
               <ShieldCheck size={26} color="#C8A24A" strokeWidth={2.5} />
             </div>
@@ -303,7 +303,7 @@ export default function Login() {
           </Link>
         </div>
 
-        <div className="auth-header" style={{ textAlign: 'center' }}>
+        <div className="auth-header" style={{ textAlign: 'center', marginBottom: '1rem' }}>
           <h1 className="auth-title">Welcome back</h1>
           <p className="auth-sub">Log in to your ImmigLens account</p>
         </div>
@@ -345,7 +345,7 @@ export default function Login() {
                 tabIndex={-1}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                {showPassword ? 'Hide' : 'Show'}
+                {showPassword ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
               </button>
             </div>
             <div style={{ textAlign: 'right', marginTop: '0.35rem' }}>

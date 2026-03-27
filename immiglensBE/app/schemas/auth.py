@@ -12,11 +12,36 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     full_name: str
+    accept_terms: bool = False
+    accept_privacy: bool = False
+    accept_acceptable_use: bool = False
 
     @field_validator("email", mode="before")
     @classmethod
     def normalize_email(cls, v: str) -> str:
         return _normalize_email(v)
+
+    @field_validator("password")
+    @classmethod
+    def password_strength(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters.")
+        return v
+
+    @field_validator("full_name", mode="before")
+    @classmethod
+    def strip_full_name(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("Full name must not be blank.")
+        return stripped
+
+    @field_validator("accept_terms", "accept_privacy", "accept_acceptable_use")
+    @classmethod
+    def must_accept(cls, v: bool, info) -> bool:
+        if not v:
+            raise ValueError(f"{info.field_name} must be accepted to register.")
+        return v
 
 
 class LoginRequest(BaseModel):

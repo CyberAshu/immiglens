@@ -2,19 +2,22 @@ import { request } from './client'
 import type { TokenResponse, TrustedDevice, User } from '../types'
 
 export const auth = {
-  register: (email: string, password: string, full_name: string) =>
+  register: (
+    email: string,
+    password: string,
+    full_name: string,
+    consent: { accept_terms: boolean; accept_privacy: boolean; accept_acceptable_use: boolean },
+  ) =>
     request<User>('/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, full_name }),
+      body: JSON.stringify({ email, password, full_name, ...consent }),
     }),
 
-  requestOtp: (email: string, password: string) => {
-    localStorage.removeItem('device_token')
-    return request<{ message: string } | TokenResponse>('/api/auth/login', {
+  requestOtp: (email: string, password: string) =>
+    request<{ message: string } | TokenResponse>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
-    })
-  },
+    }),
 
   verifyOtp: (email: string, otp: string, remember_device: boolean) =>
     request<TokenResponse>('/api/auth/verify-otp', {

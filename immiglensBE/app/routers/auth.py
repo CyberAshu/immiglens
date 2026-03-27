@@ -174,7 +174,15 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
     existing = await get_user_by_email(db, payload.email)
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered.")
-    user = await create_user(db, payload.email, payload.password, payload.full_name)
+    user = await create_user(
+        db,
+        payload.email,
+        payload.password,
+        payload.full_name,
+        terms_accepted=payload.accept_terms,
+        privacy_accepted=payload.accept_privacy,
+        acceptable_use_accepted=payload.accept_acceptable_use,
+    )
     return user
 
 

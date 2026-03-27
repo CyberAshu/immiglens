@@ -49,12 +49,23 @@ async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
 
 
 async def create_user(
-    db: AsyncSession, email: str, password: str, full_name: str
+    db: AsyncSession,
+    email: str,
+    password: str,
+    full_name: str,
+    *,
+    terms_accepted: bool = False,
+    privacy_accepted: bool = False,
+    acceptable_use_accepted: bool = False,
 ) -> User:
+    now = datetime.now(timezone.utc)
     user = User(
         email=email.strip().lower(),
         hashed_password=hash_password(password),
         full_name=full_name,
+        terms_accepted_at=now if terms_accepted else None,
+        privacy_accepted_at=now if privacy_accepted else None,
+        acceptable_use_accepted_at=now if acceptable_use_accepted else None,
     )
     db.add(user)
     await db.commit()
