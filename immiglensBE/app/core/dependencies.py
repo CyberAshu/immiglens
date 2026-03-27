@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from sqlalchemy import select
@@ -9,6 +9,17 @@ from app.core.security import decode_token
 from app.models.user import User
 
 bearer = HTTPBearer(auto_error=False)
+
+
+def get_client_ip(request: Request) -> str:
+    """Extract the real client IP, accounting for reverse-proxy X-Forwarded-For headers."""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else "0.0.0.0"
 
 
 async def get_current_user(

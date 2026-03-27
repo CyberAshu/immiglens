@@ -12,6 +12,8 @@ class AuditLogOut(BaseModel):
     action: str
     resource_type: str
     resource_id: Optional[int]
+    employer_id: Optional[int] = None
+    position_id: Optional[int] = None
     old_data: Optional[dict[str, Any]]
     new_data: Optional[dict[str, Any]]
     ip_address: Optional[str]

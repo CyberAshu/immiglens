@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.audit import log_action
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_client_ip, get_current_user
 from app.core.permissions import check_monthly_capture_limit
 from app.models.capture import CaptureResult, CaptureRound, CaptureStatus
 from app.models.employer import Employer
@@ -55,6 +55,7 @@ async def trigger_capture_round(
     employer_id: int,
     position_id: int,
     round_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -94,7 +95,9 @@ async def trigger_capture_round(
     await force_run_capture_round(round_id)
     await log_action(db, user_id=current_user.id, action="CREATE",
                      resource_type="capture_round", resource_id=round_id,
-                     new_data={"position_id": position_id, "triggered_manually": True})
+                     employer_id=employer_id, position_id=position_id,
+                     new_data={"position_id": position_id, "triggered_manually": True},
+                     ip_address=get_client_ip(request))
     await db.commit()
     await db.refresh(round_)
     result2 = await db.execute(

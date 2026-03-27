@@ -25,6 +25,9 @@ class AuditLog(Base):
     action: Mapped[str] = mapped_column(String(50), index=True)        # CREATE / UPDATE / DELETE / VIEW
     resource_type: Mapped[str] = mapped_column(String(50), index=True) # employer / position / capture_round …
     resource_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # Denormalized foreign keys for efficient filtering by employer/position
+    employer_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    position_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
     old_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     new_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     ip_address: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)

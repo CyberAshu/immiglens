@@ -1,11 +1,11 @@
-﻿from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import log_action
 from app.core.permissions import deactivate_user_positions
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_client_ip, get_current_user
 from app.models.capture import CaptureResult, CaptureRound, ResultStatus
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
@@ -147,6 +147,7 @@ async def admin_list_users(
 @router.patch("/users/{user_id}/toggle-admin", response_model=UserOut)
 async def toggle_admin(
     user_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
@@ -160,7 +161,8 @@ async def toggle_admin(
     await db.refresh(user)
     await log_action(db, user_id=current_user.id, action="UPDATE",
                      resource_type="user", resource_id=user.id,
-                     new_data={"is_admin": user.is_admin, "email": user.email})
+                     new_data={"is_admin": user.is_admin, "email": user.email},
+                     ip_address=get_client_ip(request))
     await db.commit()
     return user
 
@@ -169,6 +171,7 @@ async def toggle_admin(
 async def assign_tier(
     user_id: int,
     body: AssignTierRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
@@ -215,7 +218,8 @@ async def assign_tier(
     await log_action(db, user_id=current_user.id, action="UPDATE",
                      resource_type="user", resource_id=user.id,
                      old_data={"tier_id": old_tier_id},
-                     new_data={"tier_id": body.tier_id, "tier_expires_at": str(body.tier_expires_at)})
+                     new_data={"tier_id": body.tier_id, "tier_expires_at": str(body.tier_expires_at)},
+                     ip_address=get_client_ip(request))
     await db.commit()
     return user
 
@@ -223,6 +227,7 @@ async def assign_tier(
 @router.delete("/users/{user_id}", status_code=204)
 async def admin_delete_user(
     user_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
@@ -233,7 +238,8 @@ async def admin_delete_user(
         raise HTTPException(status_code=404, detail="User not found.")
     await log_action(db, user_id=current_user.id, action="DELETE",
                      resource_type="user", resource_id=user.id,
-                     old_data={"email": user.email})
+                     old_data={"email": user.email},
+                     ip_address=get_client_ip(request))
     await db.delete(user)
     await db.commit()
 
@@ -288,6 +294,7 @@ async def admin_list_orgs(
 @router.delete("/organizations/{org_id}", status_code=204)
 async def admin_delete_org(
     org_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
@@ -296,7 +303,8 @@ async def admin_delete_org(
         raise HTTPException(status_code=404, detail="Organization not found.")
     await log_action(db, user_id=current_user.id, action="DELETE",
                      resource_type="organization", resource_id=org.id,
-                     old_data={"name": org.name})
+                     old_data={"name": org.name},
+                     ip_address=get_client_ip(request))
     await db.delete(org)
     await db.commit()
 
@@ -316,6 +324,7 @@ async def admin_list_tiers(
 @router.post("/subscriptions/tiers", response_model=SubscriptionTierOut, status_code=201)
 async def admin_create_tier(
     body: TierCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
@@ -330,7 +339,8 @@ async def admin_create_tier(
     await db.refresh(tier)
     await log_action(db, user_id=current_user.id, action="CREATE",
                      resource_type="subscription_tier", resource_id=tier.id,
-                     new_data={"name": tier.name, "display_name": tier.display_name})
+                     new_data={"name": tier.name, "display_name": tier.display_name},
+                     ip_address=get_client_ip(request))
     await db.commit()
     return tier
 
@@ -339,6 +349,7 @@ async def admin_create_tier(
 async def admin_update_tier(
     tier_id: int,
     body: TierUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
@@ -352,7 +363,8 @@ async def admin_update_tier(
     await db.refresh(tier)
     await log_action(db, user_id=current_user.id, action="UPDATE",
                      resource_type="subscription_tier", resource_id=tier.id,
-                     old_data=old, new_data={"display_name": tier.display_name})
+                     old_data=old, new_data={"display_name": tier.display_name},
+                     ip_address=get_client_ip(request))
     await db.commit()
     return tier
 
@@ -360,6 +372,7 @@ async def admin_update_tier(
 @router.delete("/subscriptions/tiers/{tier_id}", status_code=204)
 async def admin_delete_tier(
     tier_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
@@ -370,5 +383,6 @@ async def admin_delete_tier(
     tier.is_active = False
     await log_action(db, user_id=current_user.id, action="UPDATE",
                      resource_type="subscription_tier", resource_id=tier.id,
-                     old_data={"is_active": True}, new_data={"is_active": False})
+                     old_data={"is_active": True}, new_data={"is_active": False},
+                     ip_address=get_client_ip(request))
     await db.commit()

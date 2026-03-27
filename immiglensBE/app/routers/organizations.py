@@ -17,14 +17,14 @@ Endpoints:
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import log_action
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_client_ip, get_current_user
 from app.models.organization import OrgInvitation, OrgMembership, OrgRole, Organization
 from app.models.user import User
 from app.schemas.organization import (
@@ -71,6 +71,7 @@ async def _require_admin(db: AsyncSession, org_id: int, user_id: int) -> OrgMemb
 @router.post("", response_model=OrganizationOut, status_code=201)
 async def create_organization(
     body: OrganizationCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -87,7 +88,8 @@ async def create_organization(
     await db.refresh(org)
     await log_action(db, user_id=current_user.id, action="CREATE",
                      resource_type="organization", resource_id=org.id,
-                     new_data={"name": org.name})
+                     new_data={"name": org.name},
+                     ip_address=get_client_ip(request))
     await db.commit()
     return org
 
@@ -130,6 +132,7 @@ async def get_organization(
 @router.delete("/{org_id}", status_code=204)
 async def delete_organization(
     org_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -139,7 +142,8 @@ async def delete_organization(
     org = await _require_org(db, org_id)
     await log_action(db, user_id=current_user.id, action="DELETE",
                      resource_type="organization", resource_id=org.id,
-                     old_data={"name": org.name})
+                     old_data={"name": org.name},
+                     ip_address=get_client_ip(request))
     await db.delete(org)
     await db.commit()
 
@@ -195,6 +199,7 @@ async def change_member_role(
 async def remove_member(
     org_id: int,
     uid: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -206,7 +211,8 @@ async def remove_member(
         raise HTTPException(status_code=400, detail="Cannot remove the organization owner")
     await log_action(db, user_id=current_user.id, action="DELETE",
                      resource_type="org_member", resource_id=target.id,
-                     old_data={"user_id": uid, "org_id": org_id})
+                     old_data={"user_id": uid, "org_id": org_id},
+                     ip_address=get_client_ip(request))
     await db.delete(target)
     await db.commit()
 
@@ -217,6 +223,7 @@ async def remove_member(
 async def invite_member(
     org_id: int,
     body: InviteRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -249,7 +256,8 @@ async def invite_member(
     await db.refresh(invitation)
     await log_action(db, user_id=current_user.id, action="CREATE",
                      resource_type="org_invitation", resource_id=invitation.id,
-                     new_data={"email": body.email, "role": body.role, "org_id": org_id})
+                     new_data={"email": body.email, "role": body.role, "org_id": org_id},
+                     ip_address=get_client_ip(request))
     await db.commit()
     return invitation
 

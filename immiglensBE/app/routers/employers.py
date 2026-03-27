@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import log_action
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_client_ip, get_current_user
 from app.core.permissions import check_employer_limit, check_employer_activate_limit
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
@@ -40,6 +40,7 @@ async def list_employers(
 @router.post("", response_model=EmployerOut, status_code=201)
 async def create_employer(
     payload: EmployerCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -50,7 +51,9 @@ async def create_employer(
     await db.refresh(employer)
     await log_action(db, user_id=current_user.id, action="CREATE",
                      resource_type="employer", resource_id=employer.id,
-                     new_data={"business_name": employer.business_name})
+                     employer_id=employer.id,
+                     new_data={"business_name": employer.business_name},
+                     ip_address=get_client_ip(request))
     await db.commit()
     return employer
 
@@ -68,6 +71,7 @@ async def get_employer(
 async def update_employer(
     employer_id: int,
     payload: EmployerUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -79,7 +83,9 @@ async def update_employer(
     await db.refresh(employer)
     await log_action(db, user_id=current_user.id, action="UPDATE",
                      resource_type="employer", resource_id=employer.id,
-                     old_data=old, new_data={"business_name": employer.business_name})
+                     employer_id=employer.id,
+                     old_data=old, new_data={"business_name": employer.business_name},
+                     ip_address=get_client_ip(request))
     await db.commit()
     return employer
 
@@ -87,6 +93,7 @@ async def update_employer(
 @router.patch("/{employer_id}/toggle", response_model=EmployerOut)
 async def toggle_employer(
     employer_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -118,19 +125,25 @@ async def toggle_employer(
     await db.refresh(employer)
     await log_action(db, user_id=current_user.id, action="UPDATE",
                      resource_type="employer", resource_id=employer.id,
-                     new_data={"is_active": employer.is_active})
+                     employer_id=employer.id,
+                     new_data={"business_name": employer.business_name, "is_active": employer.is_active},
+                     ip_address=get_client_ip(request))
     await db.commit()
     return employer
 
 
 @router.delete("/{employer_id}", status_code=204)
-async def delete_employer(    employer_id: int,
+async def delete_employer(
+    employer_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     employer = await _get_employer_or_404(employer_id, current_user, db)
     await log_action(db, user_id=current_user.id, action="DELETE",
                      resource_type="employer", resource_id=employer.id,
-                     old_data={"business_name": employer.business_name})
+                     employer_id=employer.id,
+                     old_data={"business_name": employer.business_name},
+                     ip_address=get_client_ip(request))
     await db.delete(employer)
     await db.commit()

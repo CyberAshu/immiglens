@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.audit import log_action
 from app.core.database import get_db
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_client_ip, get_current_user
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
 from app.models.job_posting import JobPosting
@@ -72,6 +72,7 @@ async def list_positions(
 async def create_position(
     employer_id: int,
     payload: JobPositionCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -98,7 +99,9 @@ async def create_position(
     await db.refresh(position)
     await log_action(db, user_id=current_user.id, action="CREATE",
                      resource_type="position", resource_id=position.id,
-                     new_data={"job_title": position.job_title, "employer_id": employer_id})
+                     employer_id=employer_id, position_id=position.id,
+                     new_data={"job_title": position.job_title, "employer_id": employer_id},
+                     ip_address=get_client_ip(request))
     await db.commit()
     await schedule_rounds_for_position(db, position)
     result = await db.execute(
@@ -127,6 +130,7 @@ async def update_position(
     employer_id: int,
     position_id: int,
     payload: JobPositionUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -156,7 +160,9 @@ async def update_position(
     if old_data:
         await log_action(db, user_id=current_user.id, action="UPDATE",
                          resource_type="position", resource_id=position.id,
-                         old_data=old_data, new_data=new_data)
+                         employer_id=employer_id, position_id=position_id,
+                         old_data=old_data, new_data=new_data,
+                         ip_address=get_client_ip(request))
         await db.commit()
 
     return position
@@ -166,13 +172,16 @@ async def update_position(
 async def delete_position(
     employer_id: int,
     position_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     position = await _get_position_or_404(employer_id, position_id, current_user, db)
     await log_action(db, user_id=current_user.id, action="DELETE",
                      resource_type="position", resource_id=position.id,
-                     old_data={"job_title": position.job_title})
+                     employer_id=employer_id, position_id=position_id,
+                     old_data={"job_title": position.job_title},
+                     ip_address=get_client_ip(request))
     await db.delete(position)
     await db.commit()
 
@@ -181,6 +190,7 @@ async def delete_position(
 async def toggle_position(
     employer_id: int,
     position_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -204,7 +214,9 @@ async def toggle_position(
         await requeue_rounds_for_position(db, position)
     await log_action(db, user_id=current_user.id, action="UPDATE",
                      resource_type="position", resource_id=position.id,
-                     new_data={"is_active": position.is_active})
+                     employer_id=employer_id, position_id=position_id,
+                     new_data={"job_title": position.job_title, "is_active": position.is_active},
+                     ip_address=get_client_ip(request))
     await db.commit()
     result = await db.execute(
         select(JobPosition)
@@ -222,6 +234,7 @@ async def add_posting(
     employer_id: int,
     position_id: int,
     payload: JobPostingCreate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -238,7 +251,9 @@ async def add_posting(
     await db.refresh(posting)
     await log_action(db, user_id=current_user.id, action="CREATE",
                      resource_type="posting", resource_id=posting.id,
-                     new_data={"url": posting.url, "position_id": position_id})
+                     employer_id=employer_id, position_id=position_id,
+                     new_data={"url": posting.url, "position_id": position_id},
+                     ip_address=get_client_ip(request))
     await db.commit()
     return posting
 
@@ -249,6 +264,7 @@ async def update_posting(
     position_id: int,
     posting_id: int,
     payload: JobPostingUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -268,7 +284,9 @@ async def update_posting(
         posting.url = payload.url
     await log_action(db, user_id=current_user.id, action="UPDATE",
                      resource_type="posting", resource_id=posting.id,
-                     new_data={"url": posting.url})
+                     employer_id=employer_id, position_id=position_id,
+                     new_data={"url": posting.url},
+                     ip_address=get_client_ip(request))
     await db.commit()
     await db.refresh(posting)
     return posting
@@ -279,6 +297,7 @@ async def delete_posting(
     employer_id: int,
     position_id: int,
     posting_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -293,7 +312,10 @@ async def delete_posting(
     if posting is None:
         raise HTTPException(status_code=404, detail="Posting not found.")
     await log_action(db, user_id=current_user.id, action="DELETE",
-                     resource_type="posting", resource_id=posting.id)
+                     resource_type="posting", resource_id=posting.id,
+                     employer_id=employer_id, position_id=position_id,
+                     old_data={"url": posting.url},
+                     ip_address=get_client_ip(request))
     await db.delete(posting)
     await db.commit()
 
@@ -303,6 +325,7 @@ async def toggle_posting(
     employer_id: int,
     position_id: int,
     posting_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -324,6 +347,8 @@ async def toggle_posting(
     await db.refresh(posting)
     await log_action(db, user_id=current_user.id, action="UPDATE",
                      resource_type="posting", resource_id=posting.id,
-                     new_data={"is_active": posting.is_active})
+                     employer_id=employer_id, position_id=position_id,
+                     new_data={"url": posting.url, "is_active": posting.is_active},
+                     ip_address=get_client_ip(request))
     await db.commit()
     return posting
