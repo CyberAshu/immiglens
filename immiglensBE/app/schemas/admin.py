@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -86,3 +86,26 @@ class TierUpdate(BaseModel):
 class AssignTierRequest(BaseModel):
     tier_id: Optional[int] = None  # None means revert to free
     tier_expires_at: Optional[datetime] = None
+
+
+# ── Capture management admin schemas ────────────────────────
+
+class AdminCaptureRoundRecord(BaseModel):
+    round_id: int
+    status: str
+    scheduled_at: datetime
+    captured_at: Optional[datetime] = None
+    position_title: str
+    employer_name: str
+    user_email: str
+    user_id: int
+    employer_id: int
+    position_id: int
+    failed_results: int
+    total_results: int
+    error_sample: Optional[str] = None
+
+
+class AdminCaptureListResponse(BaseModel):
+    rounds: List[AdminCaptureRoundRecord]
+    total: int

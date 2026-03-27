@@ -6,6 +6,7 @@ import { BackToTop } from '../../components/BackToTop'
 import {
   BarChart2,
   BookOpen,
+  Camera,
   ClipboardList,
   CreditCard,
   Building2,
@@ -89,6 +90,9 @@ export default function AdminLayout() {
             </NavLink>
             <NavLink to="/admin/noc-codes" className={navCls}>
               <BookOpen size={15} strokeWidth={2} />NOC Codes
+            </NavLink>
+            <NavLink to="/admin/captures" className={navCls}>
+              <Camera size={15} strokeWidth={2} />Capture Monitor
             </NavLink>
           </nav>
           <div className="sidebar-separator" />

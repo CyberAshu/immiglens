@@ -14,6 +14,8 @@ from app.models.organization import Organization, OrgMembership
 from app.models.subscription import SubscriptionTier
 from app.models.user import User
 from app.schemas.admin import (
+    AdminCaptureListResponse,
+    AdminCaptureRoundRecord,
     AdminGlobalStats,
     AdminOrgMember,
     AdminOrgOut,
@@ -386,3 +388,203 @@ async def admin_delete_tier(
                      old_data={"is_active": True}, new_data={"is_active": False},
                      ip_address=get_client_ip(request))
     await db.commit()
+
+
+# ── Capture round management ─────────────────────────────────
+
+@router.get("/captures/problematic", response_model=AdminCaptureListResponse)
+async def admin_list_problematic_captures(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Return failed, stuck-running, and overdue-pending capture rounds across all users."""
+    from datetime import datetime, timezone
+    from app.models.capture import CaptureStatus
+
+    now = datetime.now(timezone.utc)
+
+    # Aggregate subqueries — computed once, joined in, not looped
+    total_sq = (
+        select(
+            CaptureResult.capture_round_id.label("round_id"),
+            func.count().label("total"),
+        )
+        .group_by(CaptureResult.capture_round_id)
+        .subquery()
+    )
+
+    failed_sq = (
+        select(
+            CaptureResult.capture_round_id.label("round_id"),
+            func.count().label("failed"),
+        )
+        .where(CaptureResult.status == ResultStatus.FAILED)
+        .group_by(CaptureResult.capture_round_id)
+        .subquery()
+    )
+
+    error_sq = (
+        select(
+            CaptureResult.capture_round_id.label("round_id"),
+            func.min(CaptureResult.error).label("error_sample"),
+        )
+        .where(
+            CaptureResult.status == ResultStatus.FAILED,
+            CaptureResult.error.isnot(None),
+        )
+        .group_by(CaptureResult.capture_round_id)
+        .subquery()
+    )
+
+    stmt = (
+        select(
+            CaptureRound,
+            JobPosition,
+            Employer,
+            User,
+            func.coalesce(total_sq.c.total, 0).label("total_results"),
+            func.coalesce(failed_sq.c.failed, 0).label("failed_results"),
+            error_sq.c.error_sample,
+        )
+        .join(JobPosition, CaptureRound.job_position_id == JobPosition.id)
+        .join(Employer, JobPosition.employer_id == Employer.id)
+        .join(User, Employer.user_id == User.id)
+        .outerjoin(total_sq, CaptureRound.id == total_sq.c.round_id)
+        .outerjoin(failed_sq, CaptureRound.id == failed_sq.c.round_id)
+        .outerjoin(error_sq, CaptureRound.id == error_sq.c.round_id)
+        .where(
+            (CaptureRound.status == CaptureStatus.FAILED)
+            | (CaptureRound.status == CaptureStatus.RUNNING)
+            | (
+                (CaptureRound.status == CaptureStatus.PENDING)
+                & (CaptureRound.scheduled_at <= now)  # overdue only, not future
+            )
+        )
+        .order_by(CaptureRound.scheduled_at.desc())
+        .limit(500)
+    )
+    rows = (await db.execute(stmt)).all()
+
+    records = [
+        AdminCaptureRoundRecord(
+            round_id=round_.id,
+            status=round_.status.value,
+            scheduled_at=round_.scheduled_at,
+            captured_at=round_.captured_at,
+            position_title=position.job_title,
+            employer_name=employer.business_name,
+            user_email=user.email,
+            user_id=user.id,
+            employer_id=employer.id,
+            position_id=position.id,
+            failed_results=failed_results,
+            total_results=total_results,
+            error_sample=error_sample,
+        )
+        for round_, position, employer, user, total_results, failed_results, error_sample in rows
+    ]
+
+    return AdminCaptureListResponse(rounds=records, total=len(records))
+
+
+@router.post("/captures/{round_id}/retry", status_code=202)
+async def admin_retry_capture_round(
+    round_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Admin: force-retry a capture round regardless of its current status."""
+    from app.services.scheduler import force_run_capture_round
+    import asyncio
+
+    round_ = await db.get(CaptureRound, round_id)
+    if not round_:
+        raise HTTPException(status_code=404, detail="Capture round not found.")
+
+    await log_action(
+        db, user_id=current_user.id, action="UPDATE",
+        resource_type="capture_round", resource_id=round_id,
+        old_data={"status": round_.status.value},
+        new_data={"status": "pending", "admin_retry": True},
+        ip_address=get_client_ip(request),
+    )
+
+    asyncio.create_task(force_run_capture_round(round_id))
+    return {"detail": "Retry queued", "round_id": round_id}
+
+
+@router.post("/captures/bulk-retry", status_code=202)
+async def admin_bulk_retry_captures(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Admin: retry ALL failed capture rounds."""
+    from app.models.capture import CaptureStatus
+    from app.services.scheduler import force_run_capture_round
+    import asyncio
+
+    result = await db.execute(
+        select(CaptureRound).where(CaptureRound.status == CaptureStatus.FAILED)
+    )
+    failed_rounds = result.scalars().all()
+
+    if not failed_rounds:
+        return {"detail": "No failed rounds found", "queued": 0}
+
+    for round_ in failed_rounds:
+        await log_action(
+            db, user_id=current_user.id, action="UPDATE",
+            resource_type="capture_round", resource_id=round_.id,
+            old_data={"status": "failed"},
+            new_data={"status": "pending", "admin_bulk_retry": True},
+            ip_address=get_client_ip(request),
+        )
+        asyncio.create_task(force_run_capture_round(round_.id))
+
+    return {"detail": "Bulk retry queued", "queued": len(failed_rounds)}
+
+
+@router.post("/captures/recover-all", status_code=202)
+async def admin_recover_all_captures(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Admin: reset ALL stuck rounds (RUNNING + overdue PENDING + FAILED) and re-queue them."""
+    from datetime import datetime, timezone
+    from app.models.capture import CaptureStatus
+    from app.services.scheduler import force_run_capture_round
+    import asyncio
+
+    now = datetime.now(timezone.utc)
+
+    result = await db.execute(
+        select(CaptureRound).where(
+            (CaptureRound.status == CaptureStatus.FAILED)
+            | (CaptureRound.status == CaptureStatus.RUNNING)
+            | (
+                (CaptureRound.status == CaptureStatus.PENDING)
+                & (CaptureRound.scheduled_at <= now)
+            )
+        )
+    )
+    rounds = result.scalars().all()
+
+    if not rounds:
+        return {"detail": "No problematic rounds found", "queued": 0}
+
+    for round_ in rounds:
+        await log_action(
+            db, user_id=current_user.id, action="UPDATE",
+            resource_type="capture_round", resource_id=round_.id,
+            old_data={"status": round_.status.value},
+            new_data={"status": "pending", "admin_recover_all": True},
+            ip_address=get_client_ip(request),
+        )
+
+    for round_ in rounds:
+        asyncio.create_task(force_run_capture_round(round_.id))
+
+    return {"detail": "All stuck rounds queued for recovery", "queued": len(rounds)}

@@ -1,5 +1,6 @@
 import { request } from './client'
 import type {
+  AdminCaptureListResponse,
   AdminGlobalStats,
   AdminOrgOut,
   AdminUserRecord,
@@ -45,4 +46,14 @@ export const admin = {
     }),
   deactivateTier: (tierId: number) =>
     request<void>(`/api/admin/subscriptions/tiers/${tierId}`, { method: 'DELETE' }),
+
+  // ── Capture management ────────────────────────────────────
+  problematicCaptures: () =>
+    request<AdminCaptureListResponse>('/api/admin/captures/problematic'),
+  retryCapture: (roundId: number) =>
+    request<{ detail: string; round_id: number }>(`/api/admin/captures/${roundId}/retry`, { method: 'POST' }),
+  bulkRetryCaptures: () =>
+    request<{ detail: string; queued: number }>('/api/admin/captures/bulk-retry', { method: 'POST' }),
+  recoverAll: () =>
+    request<{ detail: string; queued: number }>('/api/admin/captures/recover-all', { method: 'POST' }),
 }

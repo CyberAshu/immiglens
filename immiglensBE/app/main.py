@@ -31,7 +31,7 @@ from app.routers.noc_codes import admin_router as admin_noc_codes_router
 from apscheduler.triggers.cron import CronTrigger
 from app.services.browser import browser_manager
 from app.services.job_store import store
-from app.services.scheduler import scheduler, recover_pending_rounds, _expire_subscriptions_job
+from app.services.scheduler import scheduler, recover_pending_rounds, recover_stuck_rounds, _expire_subscriptions_job
 
 
 async def _purge_loop() -> None:
@@ -53,6 +53,13 @@ async def lifespan(app: FastAPI):
         _expire_subscriptions_job,
         trigger=CronTrigger(hour=0, minute=5, timezone="UTC"),
         id="expire_subscriptions",
+        replace_existing=True,
+    )
+    # Every 30 min: detect and reset rounds stuck in RUNNING state
+    scheduler.add_job(
+        recover_stuck_rounds,
+        trigger=CronTrigger(minute="*/30"),
+        id="recover_stuck_rounds",
         replace_existing=True,
     )
     purge_task = asyncio.create_task(_purge_loop())

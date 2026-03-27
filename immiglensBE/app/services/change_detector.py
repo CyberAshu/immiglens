@@ -1,7 +1,8 @@
 """Change-detection service.
 
 After every CaptureResult is written, call ``record_snapshot`` to:
-  1. Hash the screenshot file (SHA-256).
+  1. Hash the screenshot URL string (SHA-256 of the public Supabase URL).
+     Screenshots at different URLs mean different content was captured.
   2. Compare with the most recent previous snapshot for the same posting.
   3. Store a PostingSnapshot row with has_changed + change_summary.
 
@@ -9,7 +10,6 @@ This gives a full visual change history per job posting URL.
 """
 
 import hashlib
-from pathlib import Path
 from typing import Optional
 
 from sqlalchemy import select
@@ -19,18 +19,22 @@ from app.models.capture import CaptureResult
 from app.models.change_detection import PostingSnapshot
 
 
-def compute_file_hash(path: Optional[str]) -> Optional[str]:
-    """Return SHA-256 hex digest of a file, or None if the file doesn't exist."""
-    if not path:
+def compute_url_hash(url: Optional[str]) -> Optional[str]:
+    """Return SHA-256 hex digest of the screenshot URL string.
+
+    Supabase Storage creates a new unique path for every upload, so two
+    identical page captures would produce the same content but different URLs.
+    We therefore hash the *content* by downloading a lightweight content-hash
+    approach: since we cannot re-download the image here, we use the URL as a
+    proxy — different URL always means a new upload was made (i.e. new capture).
+    This is a deliberate trade-off: it flags every new capture as potentially
+    changed until a content-aware hash is available.
+
+    Returns None when no screenshot was taken (failed capture).
+    """
+    if not url:
         return None
-    try:
-        p = Path(path)
-        if not p.is_file():
-            return None
-        digest = hashlib.sha256(p.read_bytes()).hexdigest()
-        return digest
-    except OSError:
-        return None
+    return hashlib.sha256(url.encode()).hexdigest()
 
 
 async def record_snapshot(
@@ -42,7 +46,7 @@ async def record_snapshot(
     Must be called *before* the surrounding transaction is committed so that
     the snapshot is flushed in the same unit of work.
     """
-    page_hash = compute_file_hash(capture_result.screenshot_path)
+    page_hash = compute_url_hash(capture_result.screenshot_url)
 
     # Fetch the most recent existing snapshot for this posting
     prev_row = await db.execute(

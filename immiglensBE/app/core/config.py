@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     JOB_MAX_AGE_S: int = 3_600
 
     RECRUITMENT_PERIOD_DAYS: int = 28
+    ADMIN_ALERT_EMAIL: str = "immigera@gmail.com"
+    STUCK_ROUND_TIMEOUT_MINUTES: int = 60
 
     # ── Email / SMTP ─────────────────────────────────────────────────────────
     SMTP_HOST: str = ""

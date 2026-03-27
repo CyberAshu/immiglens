@@ -16,6 +16,7 @@ Usage (from scheduler or router):
 
 import asyncio
 import json
+import logging
 import smtplib
 import ssl
 from datetime import datetime, timezone
@@ -68,6 +69,31 @@ def _build_email_body(event: NotificationEvent, context: dict[str, Any]) -> str:
             f"Scheduled at: {context.get('scheduled_at', 'N/A')}\n"
         )
     return f"ImmigLens event: {event.value}\n\n{json.dumps(context, indent=2)}"
+
+
+async def send_admin_alert(subject: str, body: str) -> None:
+    """Send a plain-text alert email to the configured ADMIN_ALERT_EMAIL.
+
+    Silently does nothing when ADMIN_ALERT_EMAIL or SMTP_HOST is not set.
+    Should never raise — all errors are logged and swallowed.
+    """
+    if not settings.ADMIN_ALERT_EMAIL or not settings.SMTP_HOST:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None,
+            _send_email_sync,
+            settings.ADMIN_ALERT_EMAIL,
+            f"[ImmigLens Admin] {subject}",
+            body,
+        )
+        logger.info("Admin alert sent: %s", subject)
+    except Exception:
+        logger.exception("Failed to send admin alert: %s", subject)
+
+
+logger = logging.getLogger(__name__)
 
 
 def _send_email_sync(to: str, subject: str, body: str) -> None:

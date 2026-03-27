@@ -96,7 +96,7 @@ export default function ChangeHistory() {
                       {preview === item.screenshot_url && item.screenshot_url && (
                         <div className="change-screenshot">
                           <img
-                            src={`${BASE}${item.screenshot_url.startsWith('/') ? '' : '/'}${item.screenshot_url}`}
+                            src={item.screenshot_url.startsWith('http') ? item.screenshot_url : `${BASE}${item.screenshot_url.startsWith('/') ? '' : '/'}${item.screenshot_url}`}
                             alt="Screenshot"
                             className="change-screenshot-img"
                           />

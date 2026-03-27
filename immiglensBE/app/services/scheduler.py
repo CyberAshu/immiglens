@@ -16,7 +16,7 @@ from app.models.employer import Employer
 from app.models.job_position import JobPosition
 from app.models.notification import NotificationEvent
 from app.services.change_detector import record_snapshot
-from app.services.notification_service import dispatch_event
+from app.services.notification_service import dispatch_event, send_admin_alert
 from app.services.screenshot import capture
 
 scheduler = AsyncIOScheduler()
@@ -330,7 +330,7 @@ async def reschedule_rounds_for_position(db: AsyncSession, position: JobPosition
 
 
 async def recapture_result(result_id: int) -> None:
-    """Re-run the screenshot for a single capture result."""
+    """Re-run the screenshot for a single capture result and record a new snapshot."""
     async with AsyncSessionLocal() as db:
         res = await db.execute(
             select(CaptureResult)
@@ -348,6 +348,11 @@ async def recapture_result(result_id: int) -> None:
         result.page_pdf_url = screenshot_result.page_pdf_url
         result.error = screenshot_result.error
         result.duration_ms = screenshot_result.duration_ms
+        await db.flush()
+
+        # Record a change snapshot for the recaptured result
+        await record_snapshot(db, result)
+
         await db.commit()
 
         # If all results for the round are now done/failed, mark round completed
@@ -491,6 +496,17 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                 )
             except Exception:
                 pass
+        # Always alert the platform admin regardless of user preference settings
+        await send_admin_alert(
+            subject=f"Capture round {round_.id} FAILED",
+            body=(
+                f"Capture round {round_.id} failed unexpectedly.\n\n"
+                f"Position : {round_.job_position.job_title}\n"
+                f"Round ID : {round_.id}\n"
+                f"Error    : {exc}\n"
+                f"Time     : {datetime.now(timezone.utc).isoformat()}\n"
+            ),
+        )
         logger.exception("Capture round %s failed", round_.id)
         return
 
@@ -528,3 +544,57 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                     )
         except Exception:
             pass  # Notification failures must never block the capture flow
+
+
+async def recover_stuck_rounds() -> None:
+    """Periodic job: find RUNNING rounds that have been stuck too long, reset and auto-retry them.
+
+    A round stuck in RUNNING state means the server crashed mid-capture.
+    We reset them to FAILED and immediately re-trigger so they run without manual intervention.
+    Runs every 30 minutes via APScheduler (registered in main.py lifespan).
+    """
+    timeout_minutes = settings.STUCK_ROUND_TIMEOUT_MINUTES
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=timeout_minutes)
+
+    async with AsyncSessionLocal() as db:
+        res = await db.execute(
+            select(CaptureRound)
+            .where(
+                CaptureRound.status == CaptureStatus.RUNNING,
+                CaptureRound.scheduled_at <= cutoff,
+            )
+            .options(
+                selectinload(CaptureRound.job_position)
+            )
+        )
+        stuck = res.scalars().all()
+        if not stuck:
+            return
+
+        for round_ in stuck:
+            round_.status = CaptureStatus.FAILED
+            logger.warning(
+                "Stuck round detected and reset to FAILED: round_id=%s position=%s",
+                round_.id,
+                getattr(round_.job_position, "job_title", "?"),
+            )
+
+        await db.commit()
+
+        round_ids = [r.id for r in stuck]
+        positions = [getattr(r.job_position, "job_title", f"Position #{r.job_position_id}") for r in stuck]
+        await send_admin_alert(
+            subject=f"{len(stuck)} stuck capture round(s) detected and auto-retried",
+            body=(
+                f"{len(stuck)} capture round(s) were stuck in RUNNING state "
+                f"for more than {timeout_minutes} minutes. They have been reset and re-queued automatically.\n\n"
+                f"Round IDs : {', '.join(str(i) for i in round_ids)}\n"
+                f"Positions : {', '.join(positions)}\n"
+                f"Time      : {datetime.now(timezone.utc).isoformat()}\n"
+            ),
+        )
+
+    # Auto-retry each recovered round outside the DB session
+    import asyncio
+    for round_id in round_ids:
+        asyncio.create_task(force_run_capture_round(round_id))

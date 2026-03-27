@@ -131,6 +131,8 @@ async def recapture_single_result(
             detail="This position is deactivated. Activate it to re-enable captures.",
         )
 
+    await check_monthly_capture_limit(db, current_user)
+
     res = await db.execute(
         select(CaptureResult).where(
             CaptureResult.id == result_id,

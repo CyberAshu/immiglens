@@ -73,3 +73,24 @@ export interface AssignTierRequest {
   tier_id: number | null
   tier_expires_at?: string | null
 }
+
+export interface AdminCaptureRound {
+  round_id: number
+  status: string
+  scheduled_at: string
+  captured_at: string | null
+  position_title: string
+  employer_name: string
+  user_email: string
+  user_id: number
+  employer_id: number
+  position_id: number
+  failed_results: number
+  total_results: number
+  error_sample: string | null
+}
+
+export interface AdminCaptureListResponse {
+  rounds: AdminCaptureRound[]
+  total: number
+}

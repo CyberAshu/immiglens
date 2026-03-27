@@ -1,9 +1,7 @@
 import asyncio
-from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
-from app.core.config import settings
 from app.schemas.screenshot import BatchJob, BatchRequest, BatchSubmitResponse
 from app.services.job_store import store
 from app.services.screenshot import capture
@@ -12,14 +10,12 @@ router = APIRouter(prefix="/api/screenshots")
 
 
 async def _run_batch(job_id: str, urls: list[str]) -> None:
-    output_dir = Path(settings.SCREENSHOTS_DIR)
-    output_dir.mkdir(parents=True, exist_ok=True)
     await store.mark_running(job_id)
-    await asyncio.gather(*[_process_url(job_id, url, output_dir) for url in urls])
+    await asyncio.gather(*[_process_url(job_id, url) for url in urls])
 
 
-async def _process_url(job_id: str, url: str, output_dir: Path) -> None:
-    result = await capture(url, output_dir)
+async def _process_url(job_id: str, url: str) -> None:
+    result = await capture(url)
     await store.update_result(job_id, result)
 
 

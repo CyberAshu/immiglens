@@ -14,6 +14,7 @@ class CaptureResultOut(BaseModel):
     url: str
     status: ResultStatus
     screenshot_url: Optional[str]
+    page_pdf_url: Optional[str]
     error: Optional[str]
     duration_ms: Optional[int]
 

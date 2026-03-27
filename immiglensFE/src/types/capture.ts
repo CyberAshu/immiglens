@@ -4,6 +4,7 @@ export interface CaptureResult {
   url: string
   status: string
   screenshot_url: string | null
+  page_pdf_url: string | null
   error: string | null
   duration_ms: number | null
 }
