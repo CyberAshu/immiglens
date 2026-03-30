@@ -26,6 +26,8 @@ class SubscriptionTier(Base):
     max_captures_per_month: Mapped[int] = mapped_column(Integer, default=50)
     min_capture_frequency_days: Mapped[int] = mapped_column(Integer, default=7, server_default="7")
     price_per_month: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
+    stripe_product_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, default=None)
+    stripe_price_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, default=None)
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true"
     )

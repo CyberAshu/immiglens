@@ -26,6 +26,7 @@ from app.schemas.admin import (
 )
 from app.schemas.auth import UserOut
 from app.schemas.subscription import SubscriptionTierOut
+from app.services import stripe_service
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -344,6 +345,18 @@ async def admin_create_tier(
                      new_data={"name": tier.name, "display_name": tier.display_name},
                      ip_address=get_client_ip(request))
     await db.commit()
+
+    # Sync to Stripe (best-effort; don't fail the whole request if Stripe is down)
+    try:
+        product_id, price_id = stripe_service.create_product_and_price(tier)
+        tier.stripe_product_id = product_id
+        tier.stripe_price_id   = price_id
+        await db.commit()
+        await db.refresh(tier)
+    except Exception as exc:  # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).warning("Stripe sync failed for new tier %s: %s", tier.id, exc)
+
     return tier
 
 
@@ -358,7 +371,11 @@ async def admin_update_tier(
     tier = await db.get(SubscriptionTier, tier_id)
     if not tier:
         raise HTTPException(status_code=404, detail="Tier not found.")
-    old = {"display_name": tier.display_name, "max_active_positions": tier.max_active_positions}
+    old = {"display_name": tier.display_name, "max_active_positions": tier.max_active_positions,
+           "price_per_month": tier.price_per_month}
+
+    old_price   = tier.price_per_month
+    old_name    = tier.display_name
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(tier, field, value)
     await db.commit()
@@ -368,6 +385,34 @@ async def admin_update_tier(
                      old_data=old, new_data={"display_name": tier.display_name},
                      ip_address=get_client_ip(request))
     await db.commit()
+
+    # Stripe sync (best-effort)
+    try:
+        if tier.stripe_product_id:
+            if tier.display_name != old_name:
+                stripe_service.update_product_name(tier.stripe_product_id, tier.display_name)
+            if tier.price_per_month != old_price:
+                if tier.stripe_price_id:
+                    stripe_service.archive_price(tier.stripe_price_id)
+                if tier.price_per_month and tier.price_per_month > 0:
+                    tier.stripe_price_id = stripe_service.create_new_price(
+                        tier.stripe_product_id, tier.id, tier.price_per_month
+                    )
+                else:
+                    tier.stripe_price_id = None
+                await db.commit()
+                await db.refresh(tier)
+        else:
+            # Tier was created before Stripe was configured (or has $0 price) — sync now
+            product_id, price_id = stripe_service.create_product_and_price(tier)
+            tier.stripe_product_id = product_id
+            tier.stripe_price_id   = price_id
+            await db.commit()
+            await db.refresh(tier)
+    except Exception as exc:  # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).warning("Stripe sync failed for tier %s update: %s", tier.id, exc)
+
     return tier
 
 
@@ -388,6 +433,16 @@ async def admin_delete_tier(
                      old_data={"is_active": True}, new_data={"is_active": False},
                      ip_address=get_client_ip(request))
     await db.commit()
+
+    # Archive in Stripe (best-effort)
+    try:
+        if tier.stripe_price_id:
+            stripe_service.archive_price(tier.stripe_price_id)
+        if tier.stripe_product_id:
+            stripe_service.archive_product(tier.stripe_product_id)
+    except Exception as exc:  # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).warning("Stripe archive failed for tier %s: %s", tier.id, exc)
 
 
 # ── Capture round management ─────────────────────────────────

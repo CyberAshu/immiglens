@@ -7,6 +7,8 @@ export interface SubscriptionTier {
   max_captures_per_month: number
   min_capture_frequency_days: number
   price_per_month: number | null
+  stripe_product_id: string | null
+  stripe_price_id: string | null
   is_active: boolean
   created_at: string
 }

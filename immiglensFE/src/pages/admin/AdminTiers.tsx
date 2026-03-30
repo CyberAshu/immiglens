@@ -166,7 +166,13 @@ export default function AdminTiers() {
                     <div className="tier-card-name">{tier.display_name}</div>
                     <code className="tier-card-slug">{tier.name}</code>
                   </div>
-                  {!tier.is_active && <span className="tier-badge-inactive">Inactive</span>}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.3rem' }}>
+                    {!tier.is_active && <span className="tier-badge-inactive">Inactive</span>}
+                    {tier.stripe_product_id
+                      ? <span className="tier-badge-stripe-synced" title={`Product: ${tier.stripe_product_id}`}>Stripe ✓</span>
+                      : <span className="tier-badge-stripe-unsynced">Stripe —</span>
+                    }
+                  </div>
                 </div>
                 <div className="tier-limits">
                   <div className="tier-limit-row">

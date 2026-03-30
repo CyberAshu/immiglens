@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { subscriptions as subApi } from '../api'
-import type { UsageSummary } from '../types'
+import { useSearchParams } from 'react-router-dom'
+import { subscriptions as subApi, billing } from '../api'
+import type { UsageSummary, SubscriptionTier } from '../types'
 
 function tierColor(name: string) {
   if (name === 'enterprise') return '#f59e0b'
@@ -28,22 +29,57 @@ function UsageBar({ used, max, color }: { used: number; max: number; color: stri
 }
 
 export default function Subscriptions() {
-  const [data, setData]       = useState<UsageSummary | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState<string | null>(null)
+  const [data, setData]           = useState<UsageSummary | null>(null)
+  const [otherTiers, setOtherTiers] = useState<SubscriptionTier[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState<string | null>(null)
+  const [checkoutLoading, setCheckoutLoading] = useState<number | null>(null)
+  const [portalLoading, setPortalLoading]     = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
 
   useEffect(() => {
-    subApi.usage()
-      .then(setData)
+    Promise.all([subApi.usage(), subApi.tiers()])
+      .then(([usage, tiers]) => {
+        setData(usage)
+        setOtherTiers(tiers.filter(t => t.id !== usage.tier.id && t.is_active && t.stripe_price_id))
+      })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false))
   }, [])
+
+  async function handleUpgrade(tierId: number) {
+    setCheckoutLoading(tierId)
+    // Offer free trial if user has never had a stripe_customer_id (never subscribed)
+    const isFirstSubscription = !data?.tier.stripe_price_id
+    const trialDays = isFirstSubscription ? 14 : 0
+    try {
+      const { url } = await billing.createCheckout(tierId, trialDays)
+      window.location.href = url
+    } catch (e) {
+      alert((e as Error).message)
+    } finally {
+      setCheckoutLoading(null)
+    }
+  }
+
+  async function handlePortal() {
+    setPortalLoading(true)
+    try {
+      const { url } = await billing.createPortal()
+      window.location.href = url
+    } catch (e) {
+      alert((e as Error).message)
+    } finally {
+      setPortalLoading(false)
+    }
+  }
 
   if (loading) return <div className="loading">Loading…</div>
   if (error)   return <div className="error-msg">{error}</div>
   if (!data)   return null
 
   const { tier } = data
+  const checkoutStatus = searchParams.get('checkout')
 
   const metrics = [
     { label: 'Active Positions',     used: data.active_positions_used, max: tier.max_active_positions,   color: '#C8A24A' },
@@ -59,6 +95,19 @@ export default function Subscriptions() {
         </div>
       </div>
 
+      {checkoutStatus === 'success' && (
+        <div className="banner banner-success">
+          🎉 Payment successful! Your plan has been updated.
+          <button className="banner-close" onClick={() => setSearchParams({})}>✕</button>
+        </div>
+      )}
+      {checkoutStatus === 'cancelled' && (
+        <div className="banner banner-info">
+          Checkout was cancelled. Your plan has not changed.
+          <button className="banner-close" onClick={() => setSearchParams({})}>✕</button>
+        </div>
+      )}
+
       {/* ── Plan card ─────────────────────────── */}
       <div className="card sub-plan-card" style={{ borderColor: tierColor(tier.name) + '44' }}>
         <div className="sub-plan-header">
@@ -73,7 +122,6 @@ export default function Subscriptions() {
         <p className="sub-admin-note">ℹ️ Your plan is managed by the platform administrator.
           Contact support to request an upgrade.
         </p>
-
         <div className="sub-limits-grid">
           {[
             { label: 'Max Active Positions',  val: tier.max_active_positions },
@@ -86,7 +134,54 @@ export default function Subscriptions() {
             </div>
           ))}
         </div>
+
+        {/* Portal link for users with an active Stripe subscription */}
+        {data.tier.stripe_price_id && (
+          <div className="sub-portal-row">
+            <button
+              className="sub-portal-btn"
+              onClick={handlePortal}
+              disabled={portalLoading}
+            >
+              {portalLoading ? 'Opening…' : 'Manage Billing →'}
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* ── Upgrade options ───────────────────── */}
+      {otherTiers.length > 0 && (
+        <div className="card section-top">
+          <div className="card-title">Available Plans</div>
+          <div className="sub-upgrade-grid">
+            {otherTiers.map(t => (
+              <div key={t.id} className="sub-upgrade-card">
+                <div className="sub-upgrade-name">{t.display_name}</div>
+                {t.price_per_month != null && (
+                  <div className="sub-upgrade-price">${t.price_per_month}<span>/mo</span></div>
+                )}
+                <ul className="sub-upgrade-limits">
+                  <li>{t.max_active_positions === -1 ? '∞' : t.max_active_positions} active positions</li>
+                  <li>{t.max_urls_per_position === -1 ? '∞' : t.max_urls_per_position} URLs / position</li>
+                  <li>{t.max_captures_per_month === -1 ? '∞' : t.max_captures_per_month} captures / month</li>
+                </ul>
+                <button
+                  className="sub-upgrade-btn"
+                  onClick={() => handleUpgrade(t.id)}
+                  disabled={checkoutLoading === t.id}
+                >
+                  {checkoutLoading === t.id
+                    ? 'Redirecting…'
+                    : !data.tier.stripe_price_id
+                      ? 'Start 14-Day Free Trial'
+                      : 'Upgrade'
+                  }
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Usage ─────────────────────────────── */}
       <div className="card section-top">

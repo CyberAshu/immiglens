@@ -28,6 +28,7 @@ from app.routers.report_config import router as report_config_router
 from app.routers.report_config import client_router as report_config_client_router
 from app.routers.noc_codes import router as noc_codes_router
 from app.routers.noc_codes import admin_router as admin_noc_codes_router
+from app.routers.billing import router as billing_router
 from apscheduler.triggers.cron import CronTrigger
 from app.services.browser import browser_manager
 from app.services.job_store import store
@@ -98,4 +99,5 @@ app.include_router(report_config_router)
 app.include_router(report_config_client_router)
 app.include_router(noc_codes_router)
 app.include_router(admin_noc_codes_router)
+app.include_router(billing_router)
 

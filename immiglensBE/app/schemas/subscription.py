@@ -12,6 +12,8 @@ class SubscriptionTierOut(BaseModel):
     max_captures_per_month: int
     min_capture_frequency_days: int
     price_per_month: Optional[float] = None
+    stripe_product_id: Optional[str] = None
+    stripe_price_id: Optional[str] = None
     is_active: bool
     created_at: datetime
 

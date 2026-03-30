@@ -55,5 +55,10 @@ class Settings(BaseSettings):
     FRONTEND_URL: str = "http://35.183.11.44"
     PASSWORD_RESET_EXPIRE_HOURS: int = 1
 
+    # ── Stripe ───────────────────────────────────────────────────────────────
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_PUBLISHABLE_KEY: str = ""
+
 
 settings = Settings()

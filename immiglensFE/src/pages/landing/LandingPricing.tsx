@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Check, Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { subscriptions } from '../../api/subscriptions'
+import { billing } from '../../api/billing'
 import { ROICard, FAQAccordion, CTABand } from './LandingUI'
 import type { SubscriptionTier } from '../../types'
 
@@ -29,7 +30,21 @@ const tableRows: { label: string; key: keyof SubscriptionTier }[] = [
 
 // ── Plan Card ─────────────────────────────────────────────────────────────────
 
-function TierCard({ tier, isHighlighted, isAnnual }: { tier: SubscriptionTier; isHighlighted: boolean; isAnnual: boolean }) {
+function TierCard({ tier, isHighlighted, isAnnual, isLoggedIn }: { tier: SubscriptionTier; isHighlighted: boolean; isAnnual: boolean; isLoggedIn: boolean }) {
+  const [loading, setLoading] = useState(false)
+
+  async function handleGetStarted() {
+    if (!isLoggedIn || !tier.stripe_price_id) return
+    setLoading(true)
+    try {
+      const { url } = await billing.createCheckout(tier.id, 14)
+      window.location.href = url
+    } catch (e) {
+      alert((e as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }
   const features = tierFeatureList(tier)
   const monthlyPrice = tier.price_per_month
   const displayPrice = monthlyPrice != null && isAnnual
@@ -83,16 +98,30 @@ function TierCard({ tier, isHighlighted, isAnnual }: { tier: SubscriptionTier; i
         )}
       </div>
 
-      <Link
-        to="/register"
-        className={`w-full block text-center py-3.5 rounded-xl font-semibold mb-8 transition-colors border ${
-          isHighlighted
-            ? 'bg-brand-navy hover:bg-brand-charcoal text-white border-transparent shadow-md'
-            : 'bg-white hover:bg-gray-50 text-brand-navy border-gray-200'
-        }`}
-      >
-        Get Started
-      </Link>
+      {isLoggedIn && tier.stripe_price_id ? (
+        <button
+          onClick={handleGetStarted}
+          disabled={loading}
+          className={`w-full block text-center py-3.5 rounded-xl font-semibold mb-8 transition-colors border ${
+            isHighlighted
+              ? 'bg-brand-navy hover:bg-brand-charcoal text-white border-transparent shadow-md'
+              : 'bg-white hover:bg-gray-50 text-brand-navy border-gray-200'
+          }`}
+        >
+          {loading ? 'Redirecting…' : 'Start Free Trial'}
+        </button>
+      ) : (
+        <Link
+          to="/register"
+          className={`w-full block text-center py-3.5 rounded-xl font-semibold mb-8 transition-colors border ${
+            isHighlighted
+              ? 'bg-brand-navy hover:bg-brand-charcoal text-white border-transparent shadow-md'
+              : 'bg-white hover:bg-gray-50 text-brand-navy border-gray-200'
+          }`}
+        >
+          Get Started
+        </Link>
+      )}
 
       <div className="mt-auto">
         <p className="text-xs font-semibold text-brand-navy uppercase tracking-wider mb-4">
@@ -114,6 +143,10 @@ function TierCard({ tier, isHighlighted, isAnnual }: { tier: SubscriptionTier; i
 // ── Static FAQ ────────────────────────────────────────────────────────────────
 
 const faqItems = [
+  {
+    q: 'How does the free trial work?',
+    a: 'Every paid plan includes a 14-day free trial. You\'ll need to enter a card to start — you won\'t be charged until the trial ends. Cancel anytime from your billing portal before the 14 days are up.',
+  },
   {
     q: 'What is an active posting?',
     a: 'An active posting is any job position currently being tracked and scheduled for screenshot captures. Draft, paused, or archived positions do not count towards your limit.',
@@ -144,6 +177,9 @@ export function LandingPricing() {
   const [error, setError]     = useState(false)
   const [isAnnual, setIsAnnual] = useState(true)
 
+  // Detect if user is logged in (token in localStorage)
+  const isLoggedIn = !!localStorage.getItem('token')
+
   useEffect(() => {
     subscriptions.tiers()
       .then(data => setTiers(data))
@@ -163,7 +199,7 @@ export function LandingPricing() {
           Simple, Transparent Plans
         </h1>
         <p className="text-xl text-brand-charcoal/70 mb-8 max-w-2xl mx-auto">
-          Each plan is tailored to your filing volume. Contact us to get assigned the right tier.
+          Start with a 14-day free trial on any plan. Card required — cancel anytime before the trial ends.
         </p>
 
         {/* Annual toggle */}
@@ -221,6 +257,7 @@ export function LandingPricing() {
                   tier={tier}
                   isHighlighted={idx === popularIdx && tiers.length > 1}
                   isAnnual={isAnnual}
+                  isLoggedIn={isLoggedIn}
                 />
               ))}
             </div>
