@@ -164,8 +164,8 @@ async def create_checkout_session(
     customer_id = await get_or_create_customer(user, db)
     client = _client()
 
-    success_url = f"{settings.FRONTEND_URL}/subscription?checkout=success"
-    cancel_url  = f"{settings.FRONTEND_URL}/subscription?checkout=cancelled"
+    success_url = f"{settings.FRONTEND_URL}/plan?checkout=success"
+    cancel_url  = f"{settings.FRONTEND_URL}/plan?checkout=cancelled"
 
     subscription_data: dict = {
         "metadata": {"user_id": str(user.id), "tier_id": str(tier.id)}
