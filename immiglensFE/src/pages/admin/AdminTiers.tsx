@@ -7,9 +7,8 @@ import type { SubscriptionTier } from '../../types'
 const EMPTY_FORM: TierCreate = {
   name: '',
   display_name: '',
-  max_employers: 3,
-  max_positions_per_employer: 5,
-  max_postings_per_position: 10,
+  max_active_positions: 5,
+  max_urls_per_position: 7,
   max_captures_per_month: 50,
   min_capture_frequency_days: 28,
   price_per_month: null,
@@ -53,9 +52,8 @@ export default function AdminTiers() {
     setForm({
       name: tier.name,
       display_name: tier.display_name,
-      max_employers: tier.max_employers,
-      max_positions_per_employer: tier.max_positions_per_employer,
-      max_postings_per_position: tier.max_postings_per_position,
+      max_active_positions: tier.max_active_positions,
+      max_urls_per_position: tier.max_urls_per_position,
       max_captures_per_month: tier.max_captures_per_month,
       min_capture_frequency_days: tier.min_capture_frequency_days,
       price_per_month: tier.price_per_month ?? null,
@@ -172,16 +170,12 @@ export default function AdminTiers() {
                 </div>
                 <div className="tier-limits">
                   <div className="tier-limit-row">
-                    <span>Employers</span>
-                    <strong>{tier.max_employers < 0 ? '∞' : tier.max_employers}</strong>
+                    <span>Active Positions</span>
+                    <strong>{tier.max_active_positions < 0 ? '∞' : tier.max_active_positions}</strong>
                   </div>
                   <div className="tier-limit-row">
-                    <span>Positions / employer</span>
-                    <strong>{tier.max_positions_per_employer < 0 ? '∞' : tier.max_positions_per_employer}</strong>
-                  </div>
-                  <div className="tier-limit-row">
-                    <span>Postings / position</span>
-                    <strong>{tier.max_postings_per_position < 0 ? '∞' : tier.max_postings_per_position}</strong>
+                    <span>URLs / position</span>
+                    <strong>{tier.max_urls_per_position < 0 ? '∞' : tier.max_urls_per_position}</strong>
                   </div>
                   <div className="tier-limit-row">
                     <span>Captures / month</span>
@@ -322,30 +316,21 @@ export default function AdminTiers() {
                 />
               </label>
               <label className="admin-form-label">
-                Max Employers (-1 = unlimited)
+                Max Active Positions (-1 = unlimited)
                 <input
                   type="number"
                   className="admin-input"
-                  value={form.max_employers}
-                  onChange={e => setForm(f => ({ ...f, max_employers: Number(e.target.value) }))}
+                  value={form.max_active_positions}
+                  onChange={e => setForm(f => ({ ...f, max_active_positions: Number(e.target.value) }))}
                 />
               </label>
               <label className="admin-form-label">
-                Max Positions per Employer
+                Max URLs per Position (-1 = unlimited, ceiling 7)
                 <input
                   type="number"
                   className="admin-input"
-                  value={form.max_positions_per_employer}
-                  onChange={e => setForm(f => ({ ...f, max_positions_per_employer: Number(e.target.value) }))}
-                />
-              </label>
-              <label className="admin-form-label">
-                Max Postings per Position
-                <input
-                  type="number"
-                  className="admin-input"
-                  value={form.max_postings_per_position}
-                  onChange={e => setForm(f => ({ ...f, max_postings_per_position: Number(e.target.value) }))}
+                  value={form.max_urls_per_position}
+                  onChange={e => setForm(f => ({ ...f, max_urls_per_position: Number(e.target.value) }))}
                 />
               </label>
               <label className="admin-form-label">

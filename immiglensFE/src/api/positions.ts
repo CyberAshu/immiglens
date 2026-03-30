@@ -1,5 +1,5 @@
 import { request } from './client'
-import type { JobPosition, JobPosting } from '../types'
+import type { JobPosition, JobUrl } from '../types'
 
 export const positions = {
   list: (employerId: number) =>
@@ -10,7 +10,7 @@ export const positions = {
 
   create: (
     employerId: number,
-    data: Omit<JobPosition, 'id' | 'employer_id' | 'created_at' | 'job_postings' | 'is_active' | 'report_documents'>,
+    data: Omit<JobPosition, 'id' | 'employer_id' | 'created_at' | 'job_urls' | 'is_active' | 'report_documents'>,
   ) =>
     request<JobPosition>(`/api/employers/${employerId}/positions`, {
       method: 'POST',
@@ -26,30 +26,30 @@ export const positions = {
       body: JSON.stringify(data),
     }),
 
-  addPosting: (
+  addUrl: (
     employerId: number,
     positionId: number,
     data: { platform: string; url: string },
   ) =>
-    request<JobPosting>(
-      `/api/employers/${employerId}/positions/${positionId}/postings`,
+    request<JobUrl>(
+      `/api/employers/${employerId}/positions/${positionId}/urls`,
       { method: 'POST', body: JSON.stringify(data) },
     ),
 
-  removePosting: (employerId: number, positionId: number, postingId: number) =>
+  removeUrl: (employerId: number, positionId: number, urlId: number) =>
     request<void>(
-      `/api/employers/${employerId}/positions/${positionId}/postings/${postingId}`,
+      `/api/employers/${employerId}/positions/${positionId}/urls/${urlId}`,
       { method: 'DELETE' },
     ),
 
-  updatePosting: (
+  updateUrl: (
     employerId: number,
     positionId: number,
-    postingId: number,
+    urlId: number,
     data: { platform?: string; url?: string },
   ) =>
-    request<JobPosting>(
-      `/api/employers/${employerId}/positions/${positionId}/postings/${postingId}`,
+    request<JobUrl>(
+      `/api/employers/${employerId}/positions/${positionId}/urls/${urlId}`,
       { method: 'PATCH', body: JSON.stringify(data) },
     ),
 
@@ -59,9 +59,9 @@ export const positions = {
       { method: 'PATCH' },
     ),
 
-  togglePosting: (employerId: number, positionId: number, postingId: number) =>
-    request<JobPosting>(
-      `/api/employers/${employerId}/positions/${positionId}/postings/${postingId}/toggle`,
+  toggleUrl: (employerId: number, positionId: number, urlId: number) =>
+    request<JobUrl>(
+      `/api/employers/${employerId}/positions/${positionId}/urls/${urlId}/toggle`,
       { method: 'PATCH' },
     ),
 }

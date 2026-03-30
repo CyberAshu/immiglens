@@ -120,7 +120,7 @@ export default function AdminOverview() {
           <HeroKPI label="Total Users"        value={stats.total_users}         accent="#6366f1" sub={`${adminCount} admin · ${regularCount} regular`} />
           <HeroKPI label="Active Employers"   value={stats.active_employers}  accent="#22d3ee" sub={stats.active_employers === stats.total_employers ? `all ${stats.total_employers} active` : `of ${stats.total_employers} total`} />
           <HeroKPI label="Active Positions"   value={stats.active_positions}  accent="#a78bfa" sub={stats.active_positions === stats.total_positions ? `all ${stats.total_positions} active` : `of ${stats.total_positions} total`} />
-          <HeroKPI label="Active Job Boards"  value={stats.active_postings}   accent="#f59e0b" sub={stats.active_postings === stats.total_job_postings ? `all ${stats.total_job_postings} active` : `of ${stats.total_job_postings} total`} />
+          <HeroKPI label="Active Job Boards"  value={stats.active_postings}   accent="#f59e0b" sub={stats.active_postings === stats.total_job_urls ? `all ${stats.total_job_urls} active` : `of ${stats.total_job_urls} total`} />
           <HeroKPI label="Screenshots"        value={stats.total_screenshots}   accent="#22c55e" />
           <HeroKPI label="Success Rate"       value={successRate !== null ? `${successRate}%` : '—'} accent={healthColor} sub={stats.failed_screenshots > 0 ? `${stats.failed_screenshots} failed` : 'No failures'} />
         </div>
@@ -134,8 +134,8 @@ export default function AdminOverview() {
               <MetricTile label="Inactive Employers" value={stats.total_employers - stats.active_employers} accent="#f59e0b" warn={stats.total_employers - stats.active_employers > 0} />
               <MetricTile label="Total Positions"    value={stats.total_positions}    accent="#a78bfa" />
               <MetricTile label="Inactive Positions" value={stats.total_positions - stats.active_positions} accent="#f59e0b" warn={stats.total_positions - stats.active_positions > 0} />
-              <MetricTile label="Job Boards Total"   value={stats.total_job_postings} accent="#38bdf8" />
-              <MetricTile label="Inactive Boards"    value={stats.total_job_postings - stats.active_postings} accent="#f59e0b" warn={stats.total_job_postings - stats.active_postings > 0} />
+              <MetricTile label="Job Boards Total"   value={stats.total_job_urls} accent="#38bdf8" />
+              <MetricTile label="Inactive Boards"    value={stats.total_job_urls - stats.active_postings} accent="#f59e0b" warn={stats.total_job_urls - stats.active_postings > 0} />
             </div>
           </div>
           <div className="ov-metrics-group">

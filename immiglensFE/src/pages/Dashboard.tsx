@@ -48,7 +48,7 @@ const STAT_CARDS = (s: DashboardStats): StatCardDef[] => {
     {
       label: 'Active Job Boards',
       value: s.active_postings,
-      sub: `of ${s.total_job_postings} total`,
+      sub: `of ${s.total_job_urls} total`,
       accent: '#1a3352',
       icon: <Globe size={18} strokeWidth={1.8} />,
     },
@@ -93,11 +93,8 @@ export default function Dashboard() {
       .finally(() => setLoading(false))
   }, [])
 
-  const hasChartData = statsData && (
-    statsData.capture_breakdown.some(c => c.value > 0) ||
-    statsData.employer_breakdown.length > 0 ||
-    statsData.rounds_timeline.length > 0
-  )
+  const noCapturesYet = statsData && !statsData.capture_breakdown.some(c => c.value > 0)
+  const noRoundsYet   = statsData && statsData.rounds_timeline.length === 0
 
   return (
     <div className="page">
@@ -114,16 +111,16 @@ export default function Dashboard() {
           </div>
           <div className="plan-strip-divider" />
           <div className="plan-strip-stat">
-            <span className="plan-strip-label">Employers</span>
-            <strong>{planData.employers_used} / {planData.tier.max_employers === -1 ? '∞' : planData.tier.max_employers}</strong>
+            <span className="plan-strip-label">Active Positions</span>
+            <strong>{planData.active_positions_used} / {planData.tier.max_active_positions === -1 ? '∞' : planData.tier.max_active_positions}</strong>
+          </div>
+          <div className="plan-strip-stat">
+            <span className="plan-strip-label">URLs / Position</span>
+            <strong>{planData.tier.max_urls_per_position === -1 ? '∞' : `up to ${planData.tier.max_urls_per_position}`}</strong>
           </div>
           <div className="plan-strip-stat">
             <span className="plan-strip-label">Captures this month</span>
-            <strong>{planData.captures_this_month} / {planData.tier.max_captures_per_month === -1 ? '∞' : planData.tier.max_captures_per_month}</strong>
-          </div>
-          <div className="plan-strip-stat">
-            <span className="plan-strip-label">Positions tracked</span>
-            <strong>{planData.positions_used}</strong>
+            <strong>{planData.captures_this_month} / {planData.tier.max_captures_per_month === -1 ? '∞' : planData.tier.max_captures_per_month}</strong>
           </div>
           <Link to="/subscriptions" className="plan-strip-link">View Plan →</Link>
         </div>
@@ -133,43 +130,51 @@ export default function Dashboard() {
       {statsData && (
         <div className="stats-grid">
           {STAT_CARDS(statsData).map(c => (
-            <StatCard key={c.label} label={c.label} value={c.value} accent={c.accent} warn={c.warn} />
+            <StatCard key={c.label} label={c.label} value={c.value} accent={c.accent} sub={c.sub} icon={c.icon} warn={c.warn} />
           ))}
         </div>
       )}
 
       {/* ── Charts row ────────────────────────── */}
-      {hasChartData && statsData && (
+      {statsData && (
         <div className="charts-grid">
 
           {/* Donut — capture status */}
           <div className="chart-card">
             <div className="chart-title">Capture Status</div>
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie
-                  data={statsData.capture_breakdown.filter(d => d.value > 0)}
-                  cx="50%" cy="50%"
-                  innerRadius={58} outerRadius={88}
-                  paddingAngle={3}
-                  dataKey="value"
-                  label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
-                  labelLine={false}
-                >
-                  {statsData.capture_breakdown.map(entry => (
-                    <Cell key={entry.name} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}
-                  itemStyle={{ color: '#1E2329' }}
-                />
-                <Legend
-                  iconType="circle" iconSize={8}
-                  wrapperStyle={{ fontSize: 11, color: '#6b7280', paddingTop: 8 }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            {noCapturesYet ? (
+              <div className="chart-empty">
+                <CheckCircle2 size={32} strokeWidth={1.5} style={{ color: '#d1d5db', marginBottom: 8 }} />
+                <p>No captures yet</p>
+                <span>Capture rounds will appear here once your scheduler runs.</span>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={statsData.capture_breakdown.filter(d => d.value > 0)}
+                    cx="50%" cy="50%"
+                    innerRadius={58} outerRadius={88}
+                    paddingAngle={3}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
+                    labelLine={false}
+                  >
+                    {statsData.capture_breakdown.map(entry => (
+                      <Cell key={entry.name} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 12 }}
+                    itemStyle={{ color: '#1E2329' }}
+                  />
+                  <Legend
+                    iconType="circle" iconSize={8}
+                    wrapperStyle={{ fontSize: 11, color: '#6b7280', paddingTop: 8 }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           {/* Bar — per-employer breakdown */}
@@ -196,9 +201,15 @@ export default function Dashboard() {
           )}
 
           {/* Area — rounds timeline */}
-          {statsData.rounds_timeline.length > 0 && (
-            <div className="chart-card chart-card--full">
-              <div className="chart-title">Capture Rounds Timeline</div>
+          <div className="chart-card chart-card--full">
+            <div className="chart-title">Capture Rounds Timeline</div>
+            {noRoundsYet ? (
+              <div className="chart-empty">
+                <Clock size={32} strokeWidth={1.5} style={{ color: '#d1d5db', marginBottom: 8 }} />
+                <p>No capture rounds scheduled yet</p>
+                <span>Add job board URLs to a position and the scheduler will queue rounds automatically.</span>
+              </div>
+            ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={statsData.rounds_timeline}>
                   <defs>
@@ -228,8 +239,8 @@ export default function Dashboard() {
                   <Area type="monotone" dataKey="failed"    name="Failed"    stroke="#ef4444" fill="url(#gradFailed)"    strokeWidth={2} dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 

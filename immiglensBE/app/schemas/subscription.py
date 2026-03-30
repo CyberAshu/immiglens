@@ -7,9 +7,8 @@ class SubscriptionTierOut(BaseModel):
     id: int
     name: str
     display_name: str
-    max_employers: int
-    max_positions_per_employer: int
-    max_postings_per_position: int
+    max_active_positions: int
+    max_urls_per_position: int
     max_captures_per_month: int
     min_capture_frequency_days: int
     price_per_month: Optional[float] = None
@@ -22,6 +21,5 @@ class SubscriptionTierOut(BaseModel):
 class UsageSummary(BaseModel):
     """Current user's tier + consumption counters for the current month."""
     tier: SubscriptionTierOut
-    employers_used: int
+    active_positions_used: int
     captures_this_month: int
-    positions_used: int   # across all employers

@@ -8,17 +8,17 @@ from app.core.database import get_db
 from app.core.dependencies import get_client_ip, get_current_user
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
-from app.models.job_posting import JobPosting
+from app.models.job_url import JobUrl
 from app.models.user import User
 from app.schemas.job import (
     JobPositionCreate,
     JobPositionOut,
     JobPositionUpdate,
-    JobPostingCreate,
-    JobPostingOut,
-    JobPostingUpdate,
+    JobUrlCreate,
+    JobUrlOut,
+    JobUrlUpdate,
 )
-from app.core.permissions import check_employer_limit, check_position_limit, check_capture_frequency, check_posting_limit, check_position_activate_limit, check_posting_activate_limit
+from app.core.permissions import check_active_position_limit, check_capture_frequency, check_url_limit, check_position_reactivate_limit, check_url_reactivate_limit
 from app.services.scheduler import schedule_rounds_for_position, reschedule_rounds_for_position, requeue_rounds_for_position
 
 router = APIRouter(
@@ -39,7 +39,7 @@ async def _get_position_or_404(
             Employer.user_id == user.id,
         )
         .options(
-            selectinload(JobPosition.job_postings),
+            selectinload(JobPosition.job_urls),
             selectinload(JobPosition.report_documents),
         )
     )
@@ -60,7 +60,7 @@ async def list_positions(
         .join(Employer)
         .where(JobPosition.employer_id == employer_id, Employer.user_id == current_user.id)
         .options(
-            selectinload(JobPosition.job_postings),
+            selectinload(JobPosition.job_urls),
             selectinload(JobPosition.report_documents),
         )
         .order_by(JobPosition.created_at.desc())
@@ -91,7 +91,7 @@ async def create_position(
         )
 
     await check_capture_frequency(db, current_user, payload.capture_frequency_days)
-    await check_position_limit(db, current_user, employer_id)
+    await check_active_position_limit(db, current_user)
 
     position = JobPosition(**payload.model_dump(), employer_id=employer_id)
     db.add(position)
@@ -107,7 +107,7 @@ async def create_position(
     result = await db.execute(
         select(JobPosition)
         .options(
-            selectinload(JobPosition.job_postings),
+            selectinload(JobPosition.job_urls),
             selectinload(JobPosition.report_documents),
         )
         .where(JobPosition.id == position.id)
@@ -198,13 +198,13 @@ async def toggle_position(
     position = await _get_position_or_404(employer_id, position_id, current_user, db)
     was_inactive = not position.is_active
     if was_inactive:
-        await check_position_activate_limit(db, current_user, employer_id, exclude_id=position_id)
+        await check_position_reactivate_limit(db, current_user, exclude_id=position_id)
     position.is_active = not position.is_active
-    # On deactivation cascade: mark all child postings inactive too
+    # On deactivation cascade: mark all child URLs inactive too
     if not position.is_active:
         await db.execute(
-            update(JobPosting)
-            .where(JobPosting.job_position_id == position_id)
+            update(JobUrl)
+            .where(JobUrl.job_position_id == position_id)
             .values(is_active=False)
         )
     await db.commit()
@@ -221,7 +221,7 @@ async def toggle_position(
     result = await db.execute(
         select(JobPosition)
         .options(
-            selectinload(JobPosition.job_postings),
+            selectinload(JobPosition.job_urls),
             selectinload(JobPosition.report_documents),
         )
         .where(JobPosition.id == position.id)
@@ -229,11 +229,11 @@ async def toggle_position(
     return result.scalar_one()
 
 
-@router.post("/{position_id}/postings", response_model=JobPostingOut, status_code=201)
+@router.post("/{position_id}/urls", response_model=JobUrlOut, status_code=201)
 async def add_posting(
     employer_id: int,
     position_id: int,
-    payload: JobPostingCreate,
+    payload: JobUrlCreate,
     request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -244,111 +244,111 @@ async def add_posting(
             status_code=403,
             detail="This position is deactivated. Activate it to add job boards.",
         )
-    await check_posting_limit(db, current_user, position_id)
-    posting = JobPosting(**payload.model_dump(), job_position_id=position_id)
-    db.add(posting)
+    await check_url_limit(db, current_user, position_id)
+    job_url = JobUrl(**payload.model_dump(), job_position_id=position_id)
+    db.add(job_url)
     await db.commit()
-    await db.refresh(posting)
+    await db.refresh(job_url)
     await log_action(db, user_id=current_user.id, action="CREATE",
-                     resource_type="posting", resource_id=posting.id,
+                     resource_type="url", resource_id=job_url.id,
                      employer_id=employer_id, position_id=position_id,
-                     new_data={"url": posting.url, "position_id": position_id},
+                     new_data={"url": job_url.url, "position_id": position_id},
                      ip_address=get_client_ip(request))
     await db.commit()
-    return posting
+    return job_url
 
 
-@router.patch("/{position_id}/postings/{posting_id}", response_model=JobPostingOut)
-async def update_posting(
+@router.patch("/{position_id}/urls/{url_id}", response_model=JobUrlOut)
+async def update_url(
     employer_id: int,
     position_id: int,
-    posting_id: int,
-    payload: JobPostingUpdate,
+    url_id: int,
+    payload: JobUrlUpdate,
     request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     await _get_position_or_404(employer_id, position_id, current_user, db)
     result = await db.execute(
-        select(JobPosting).where(
-            JobPosting.id == posting_id,
-            JobPosting.job_position_id == position_id,
+        select(JobUrl).where(
+            JobUrl.id == url_id,
+            JobUrl.job_position_id == position_id,
         )
     )
-    posting = result.scalar_one_or_none()
-    if posting is None:
-        raise HTTPException(status_code=404, detail="Posting not found.")
+    job_url = result.scalar_one_or_none()
+    if job_url is None:
+        raise HTTPException(status_code=404, detail="URL not found.")
     if payload.platform is not None:
-        posting.platform = payload.platform
+        job_url.platform = payload.platform
     if payload.url is not None:
-        posting.url = payload.url
+        job_url.url = payload.url
     await log_action(db, user_id=current_user.id, action="UPDATE",
-                     resource_type="posting", resource_id=posting.id,
+                     resource_type="url", resource_id=job_url.id,
                      employer_id=employer_id, position_id=position_id,
-                     new_data={"url": posting.url},
+                     new_data={"url": job_url.url},
                      ip_address=get_client_ip(request))
     await db.commit()
-    await db.refresh(posting)
-    return posting
+    await db.refresh(job_url)
+    return job_url
 
 
-@router.delete("/{position_id}/postings/{posting_id}", status_code=204)
-async def delete_posting(
+@router.delete("/{position_id}/urls/{url_id}", status_code=204)
+async def delete_url(
     employer_id: int,
     position_id: int,
-    posting_id: int,
+    url_id: int,
     request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     await _get_position_or_404(employer_id, position_id, current_user, db)
     result = await db.execute(
-        select(JobPosting).where(
-            JobPosting.id == posting_id,
-            JobPosting.job_position_id == position_id,
+        select(JobUrl).where(
+            JobUrl.id == url_id,
+            JobUrl.job_position_id == position_id,
         )
     )
-    posting = result.scalar_one_or_none()
-    if posting is None:
-        raise HTTPException(status_code=404, detail="Posting not found.")
+    job_url = result.scalar_one_or_none()
+    if job_url is None:
+        raise HTTPException(status_code=404, detail="URL not found.")
     await log_action(db, user_id=current_user.id, action="DELETE",
-                     resource_type="posting", resource_id=posting.id,
+                     resource_type="url", resource_id=job_url.id,
                      employer_id=employer_id, position_id=position_id,
-                     old_data={"url": posting.url},
+                     old_data={"url": job_url.url},
                      ip_address=get_client_ip(request))
-    await db.delete(posting)
+    await db.delete(job_url)
     await db.commit()
 
 
-@router.patch("/{position_id}/postings/{posting_id}/toggle", response_model=JobPostingOut)
-async def toggle_posting(
+@router.patch("/{position_id}/urls/{url_id}/toggle", response_model=JobUrlOut)
+async def toggle_url(
     employer_id: int,
     position_id: int,
-    posting_id: int,
+    url_id: int,
     request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Toggle is_active for a posting. Activating is subject to tier posting limit."""
+    """Toggle is_active for a URL. Activating is subject to tier URL limit."""
     await _get_position_or_404(employer_id, position_id, current_user, db)
     result = await db.execute(
-        select(JobPosting).where(
-            JobPosting.id == posting_id,
-            JobPosting.job_position_id == position_id,
+        select(JobUrl).where(
+            JobUrl.id == url_id,
+            JobUrl.job_position_id == position_id,
         )
     )
-    posting = result.scalar_one_or_none()
-    if posting is None:
-        raise HTTPException(status_code=404, detail="Posting not found.")
-    if not posting.is_active:
-        await check_posting_activate_limit(db, current_user, position_id, exclude_id=posting_id)
-    posting.is_active = not posting.is_active
+    job_url = result.scalar_one_or_none()
+    if job_url is None:
+        raise HTTPException(status_code=404, detail="URL not found.")
+    if not job_url.is_active:
+        await check_url_reactivate_limit(db, current_user, position_id, exclude_id=url_id)
+    job_url.is_active = not job_url.is_active
     await db.commit()
-    await db.refresh(posting)
+    await db.refresh(job_url)
     await log_action(db, user_id=current_user.id, action="UPDATE",
-                     resource_type="posting", resource_id=posting.id,
+                     resource_type="url", resource_id=job_url.id,
                      employer_id=employer_id, position_id=position_id,
-                     new_data={"url": posting.url, "is_active": posting.is_active},
+                     new_data={"url": job_url.url, "is_active": job_url.is_active},
                      ip_address=get_client_ip(request))
     await db.commit()
-    return posting
+    return job_url

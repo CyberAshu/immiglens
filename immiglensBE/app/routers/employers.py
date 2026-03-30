@@ -5,13 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import log_action
 from app.core.database import get_db
 from app.core.dependencies import get_client_ip, get_current_user
-from app.core.permissions import check_employer_limit, check_employer_activate_limit
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
-from app.models.job_posting import JobPosting
+from app.models.job_url import JobUrl
 from app.models.user import User
 from app.schemas.employer import EmployerCreate, EmployerOut, EmployerUpdate
-from app.services.scheduler import pause_rounds_for_user
 
 router = APIRouter(prefix="/api/employers", tags=["employers"])
 
@@ -44,7 +42,6 @@ async def create_employer(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await check_employer_limit(db, current_user)
     employer = Employer(**payload.model_dump(), user_id=current_user.id)
     db.add(employer)
     await db.commit()
@@ -99,14 +96,18 @@ async def toggle_employer(
 ):
     """Toggle the is_active flag for an employer.
     Activating is subject to the user's tier employer limit.
+    On deactivation, child positions and postings are marked inactive so the
+    capture-round guard skips them. APScheduler pause is intentionally NOT called
+    here — pause only occurs on subscription downgrade or expiry.
     """
     employer = await _get_employer_or_404(employer_id, current_user, db)
     if not employer.is_active:
-        # About to activate — check limit
-        await check_employer_activate_limit(db, current_user, exclude_id=employer_id)
+        # About to activate — no employer count limit in new model
+        pass
     employer.is_active = not employer.is_active
-    # On deactivation cascade: mark all child positions and postings inactive too
-    # and pause their APScheduler jobs so they don't fire needlessly
+    # On deactivation cascade: mark all child positions and postings inactive.
+    # Pending capture rounds remain in APScheduler but are skipped by the
+    # is_active guard inside _run_capture_round — no explicit pause needed.
     if not employer.is_active:
         pos_ids = (
             await db.execute(select(JobPosition.id).where(JobPosition.employer_id == employer_id))
@@ -116,11 +117,10 @@ async def toggle_employer(
                 update(JobPosition).where(JobPosition.id.in_(pos_ids)).values(is_active=False)
             )
             await db.execute(
-                update(JobPosting)
-                .where(JobPosting.job_position_id.in_(pos_ids))
+                update(JobUrl)
+                .where(JobUrl.job_position_id.in_(pos_ids))
                 .values(is_active=False)
             )
-            await pause_rounds_for_user(db, [employer_id])
     await db.commit()
     await db.refresh(employer)
     await log_action(db, user_id=current_user.id, action="UPDATE",

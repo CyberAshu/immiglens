@@ -132,10 +132,9 @@ async def cancel_pending_rounds_for_user(db: AsyncSession, emp_ids: list[int]) -
 
 
 async def _expire_subscriptions_job() -> None:
-    """Daily job: deactivate employers, positions, and postings for users whose tier_expires_at has passed.
+    """Daily job: deactivate employers, positions, and URLs for users whose tier_expires_at has passed.
     Each user is processed in its own DB session so a failure for one user never blocks the others.
     """
-    from app.models.job_posting import JobPosting
     from app.models.user import User
 
     # Snapshot the list of expired user IDs first (read-only query)
@@ -191,14 +190,15 @@ async def _expire_subscriptions_job() -> None:
                         pos.is_active = False
 
                     if pos_ids:
-                        posting_res = await db.execute(
-                            select(JobPosting).where(
-                                JobPosting.job_position_id.in_(pos_ids),
-                                JobPosting.is_active.is_(True),
+                        from app.models.job_url import JobUrl
+                        url_res = await db.execute(
+                            select(JobUrl).where(
+                                JobUrl.job_position_id.in_(pos_ids),
+                                JobUrl.is_active.is_(True),
                             )
                         )
-                        for posting in posting_res.scalars().all():
-                            posting.is_active = False
+                        for job_url in url_res.scalars().all():
+                            job_url.is_active = False
 
                     await db.flush()
                     await pause_rounds_for_user(db, emp_ids)
@@ -373,7 +373,7 @@ async def _run_capture_round(round_id: int) -> None:
             select(CaptureRound)
             .where(CaptureRound.id == round_id)
             .options(
-                selectinload(CaptureRound.job_position).selectinload(JobPosition.job_postings),
+                selectinload(CaptureRound.job_position).selectinload(JobPosition.job_urls),
                 selectinload(CaptureRound.job_position).selectinload(JobPosition.employer),
             )
         )
@@ -383,8 +383,8 @@ async def _run_capture_round(round_id: int) -> None:
         if not round_.job_position.is_active:
             # Position was manually deactivated — skip silently, leave PENDING
             return
-        if not any(p.is_active for p in round_.job_position.job_postings):
-            # All postings are deactivated — leave PENDING
+        if not any(p.is_active for p in round_.job_position.job_urls):
+            # All URLs are deactivated — leave PENDING
             return
         await _execute_round(db, round_)
 
@@ -398,7 +398,7 @@ async def force_run_capture_round(round_id: int) -> None:
             select(CaptureRound)
             .where(CaptureRound.id == round_id)
             .options(
-                selectinload(CaptureRound.job_position).selectinload(JobPosition.job_postings)
+                selectinload(CaptureRound.job_position).selectinload(JobPosition.job_urls)
             )
         )
         round_ = result.scalar_one_or_none()
@@ -415,7 +415,7 @@ async def force_run_capture_round(round_id: int) -> None:
             select(CaptureRound)
             .where(CaptureRound.id == round_id)
             .options(
-                selectinload(CaptureRound.job_position).selectinload(JobPosition.job_postings),
+                selectinload(CaptureRound.job_position).selectinload(JobPosition.job_urls),
                 selectinload(CaptureRound.job_position).selectinload(JobPosition.employer),
             )
         )
@@ -458,13 +458,13 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
 
     snapshots: list[tuple] = []
     try:
-        for posting in round_.job_position.job_postings:
+        for posting in round_.job_position.job_urls:
             if not posting.is_active:
-                continue  # skip deactivated postings
+                continue  # skip deactivated URLs
             screenshot_result = await capture(posting.url)
             capture_result = CaptureResult(
                 capture_round_id=round_.id,
-                job_posting_id=posting.id,
+                job_url_id=posting.id,
                 url=posting.url,
                 status=ResultStatus(screenshot_result.status.value),
                 screenshot_path=None,

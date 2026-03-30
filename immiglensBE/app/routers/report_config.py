@@ -115,7 +115,7 @@ def _dummy_context(config: dict[str, Any]) -> dict[str, Any]:
         num_positions=2,
         start_date=date.today() - timedelta(days=30),
         capture_frequency_days=7,
-        job_postings=[posting],
+        job_urls=[posting],
     )
     employer = SimpleNamespace(
         business_name="Acme Corp Ltd.",
@@ -127,10 +127,10 @@ def _dummy_context(config: dict[str, Any]) -> dict[str, Any]:
     )
     now = datetime.now(timezone.utc)
     result1 = SimpleNamespace(
-        id=1, job_posting_id=1, status="done", duration_ms=1200, error=None, page_pdf_url=None,
+        id=1, job_url_id=1, status="done", duration_ms=1200, error=None, page_pdf_url=None,
     )
     result2 = SimpleNamespace(
-        id=2, job_posting_id=1, status="done", duration_ms=980, error=None, page_pdf_url=None,
+        id=2, job_url_id=1, status="done", duration_ms=980, error=None, page_pdf_url=None,
     )
     round1 = SimpleNamespace(
         id=1,

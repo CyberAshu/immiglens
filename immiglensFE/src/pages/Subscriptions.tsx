@@ -46,9 +46,8 @@ export default function Subscriptions() {
   const { tier } = data
 
   const metrics = [
-  { label: 'Employers',              used: data.employers_used,       max: tier.max_employers,              color: '#0B1F3B' },
-  { label: 'Total Positions',        used: data.positions_used,       max: tier.max_positions_per_employer === -1 ? -1 : tier.max_employers * tier.max_positions_per_employer, color: '#C8A24A' },
-    { label: 'Captures This Month',    used: data.captures_this_month,  max: tier.max_captures_per_month,     color: '#22c55e' },
+    { label: 'Active Positions',     used: data.active_positions_used, max: tier.max_active_positions,   color: '#C8A24A' },
+    { label: 'Captures This Month',  used: data.captures_this_month,   max: tier.max_captures_per_month, color: '#22c55e' },
   ]
 
   return (
@@ -77,10 +76,9 @@ export default function Subscriptions() {
 
         <div className="sub-limits-grid">
           {[
-            { label: 'Max Employers',             val: tier.max_employers },
-            { label: 'Positions / Employer',      val: tier.max_positions_per_employer },
-            { label: 'Postings / Position',       val: tier.max_postings_per_position },
-            { label: 'Captures / Month',          val: tier.max_captures_per_month },
+            { label: 'Max Active Positions',  val: tier.max_active_positions },
+            { label: 'URLs / Position',       val: tier.max_urls_per_position },
+            { label: 'Captures / Month',      val: tier.max_captures_per_month },
           ].map(({ label, val }) => (
             <div key={label} className="sub-limit-item">
               <div className="sub-limit-val">{val === -1 ? '∞' : val}</div>

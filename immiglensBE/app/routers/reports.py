@@ -36,7 +36,7 @@ async def _load_position(
             Employer.user_id == user.id,
         )
         .options(
-            selectinload(JobPosition.job_postings),
+            selectinload(JobPosition.job_urls),
             selectinload(JobPosition.capture_rounds).selectinload(CaptureRound.results),
             selectinload(JobPosition.report_documents),
         )

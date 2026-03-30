@@ -33,7 +33,7 @@ from app.core.database import Base
 from app.models.capture import CaptureRound, CaptureStatus
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
-from app.models.job_posting import JobPosting
+from app.models.job_url import JobUrl
 from app.models.user import User
 
 # ── In-memory SQLite engine (shared across all tests) ───────────────────────

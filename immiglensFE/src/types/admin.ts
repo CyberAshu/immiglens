@@ -4,7 +4,7 @@ export interface AdminGlobalStats {
   active_employers: number
   total_positions: number
   active_positions: number
-  total_job_postings: number
+  total_job_urls: number
   active_postings: number
   total_capture_rounds: number
   completed_rounds: number
@@ -50,9 +50,8 @@ export interface AdminOrgOut {
 export interface TierCreate {
   name: string
   display_name: string
-  max_employers: number
-  max_positions_per_employer: number
-  max_postings_per_position: number
+  max_active_positions: number
+  max_urls_per_position: number
   max_captures_per_month: number
   min_capture_frequency_days: number
   price_per_month: number | null
@@ -60,9 +59,8 @@ export interface TierCreate {
 
 export interface TierUpdate {
   display_name?: string
-  max_employers?: number
-  max_positions_per_employer?: number
-  max_postings_per_position?: number
+  max_active_positions?: number
+  max_urls_per_position?: number
   max_captures_per_month?: number
   min_capture_frequency_days?: number
   price_per_month?: number | null

@@ -79,16 +79,16 @@ async def trigger_capture_round(
             CaptureRound.id == round_id,
             CaptureRound.job_position_id == position_id,
         )
-        .options(selectinload(CaptureRound.job_position).selectinload(JobPosition.job_postings))
+        .options(selectinload(CaptureRound.job_position).selectinload(JobPosition.job_urls))
     )
     round_ = result.scalar_one_or_none()
     if round_ is None:
         raise HTTPException(status_code=404, detail="Capture round not found.")
 
-    if not any(p.is_active for p in round_.job_position.job_postings):
+    if not any(p.is_active for p in round_.job_position.job_urls):
         raise HTTPException(
             status_code=400,
-            detail="No active job board URLs on this position. Add or activate at least one posting before running a capture."
+            detail="No active job board URLs on this position. Add or activate at least one URL before running a capture."
         )
 
     await check_monthly_capture_limit(db, current_user)

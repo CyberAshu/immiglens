@@ -10,7 +10,7 @@ export interface Employer {
   created_at: string
 }
 
-export interface JobPosting {
+export interface JobUrl {
   id: number
   platform: string
   url: string
@@ -32,6 +32,6 @@ export interface JobPosition {
   work_location: string | null
   wage_stream: string | null
   created_at: string
-  job_postings: JobPosting[]
+  job_urls: JobUrl[]
   report_documents?: import('./report').ReportDocument[]
 }

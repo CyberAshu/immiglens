@@ -103,11 +103,11 @@ async def build_pdf_bytes(
         config = DEFAULT_CONFIG
 
     platform_stats: dict[int, dict] = {}
-    for posting in position.job_postings:
+    for posting in position.job_urls:
         dates, count = [], 0
         for round_ in capture_rounds:
             for result in round_.results:
-                if result.job_posting_id == posting.id and result.status == "done":
+                if result.job_url_id == posting.id and result.status == "done":
                     count += 1
                     if round_.captured_at:
                         dates.append(round_.captured_at)
@@ -141,10 +141,10 @@ async def build_pdf_bytes(
     )
 
     evidence_pdf_urls: list[str] = []
-    for posting in position.job_postings:
+    for posting in position.job_urls:
         for round_ in capture_rounds:
             for result in round_.results:
-                if result.job_posting_id == posting.id and result.status == "done" and result.page_pdf_url:
+                if result.job_url_id == posting.id and result.status == "done" and result.page_pdf_url:
                     evidence_pdf_urls.append(result.page_pdf_url)
 
     static_blocks, jm_blocks, appendix_blocks = _split_config_blocks(config)

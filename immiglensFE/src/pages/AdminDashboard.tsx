@@ -70,7 +70,7 @@ export default function AdminDashboard() {
     { label: 'Admin Users',     value: adminCount,              accent: '#a78bfa' },
     { label: 'Total Employers', value: stats.total_employers,   accent: '#22d3ee' },
     { label: 'Job Positions',   value: stats.total_positions,   accent: '#a78bfa' },
-    { label: 'Job Board URLs',  value: stats.total_job_postings,accent: '#f59e0b' },
+    { label: 'Job Board URLs',  value: stats.total_job_urls,accent: '#f59e0b' },
     { label: 'Capture Rounds',  value: `${stats.completed_rounds}/${stats.total_capture_rounds}`, accent: '#22c55e' },
     { label: 'Screenshots',     value: stats.total_screenshots, accent: '#38bdf8' },
     { label: 'Success Rate',    value: successRate !== null ? `${successRate}%` : '—',

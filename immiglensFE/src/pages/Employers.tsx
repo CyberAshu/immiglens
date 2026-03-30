@@ -19,7 +19,6 @@ export default function Employers() {
   })
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState<string | null>(null)
-  const [togglingId, setTogglingId] = useState<number | null>(null)
   const { toast, showToast, clearToast } = useToast()
   const { confirmModal, askConfirm }      = useConfirm()
 
@@ -95,18 +94,6 @@ export default function Employers() {
     if (!await askConfirm({ title: 'Delete Employer', message: 'Delete this employer and all associated positions, postings, and captures? This cannot be undone.', confirmLabel: 'Delete' })) return
     await employersApi.remove(id)
     setList(prev => prev.filter(e => e.id !== id))
-  }
-
-  async function handleToggle(emp: Employer) {
-    setTogglingId(emp.id)
-    try {
-      const updated = await employersApi.toggle(emp.id)
-      setList(prev => prev.map(e => e.id === updated.id ? updated : e))
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'Failed to toggle employer.', 'warning')
-    } finally {
-      setTogglingId(null)
-    }
   }
 
   const filtered = list.filter(e =>
@@ -205,14 +192,6 @@ export default function Employers() {
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
-                      <button
-                        className={emp.is_active ? 'btn-icon-warning' : 'btn-icon-success'}
-                        onClick={() => handleToggle(emp)}
-                        disabled={togglingId === emp.id}
-                        title={emp.is_active ? 'Deactivate employer' : 'Activate employer'}
-                      >
-                        {togglingId === emp.id ? '…' : emp.is_active ? '⏸' : '▶'}
-                      </button>
                       <button className="btn-icon" onClick={() => openEdit(emp)} title="Edit employer">
                         <Pencil size={14} strokeWidth={2} />
                       </button>

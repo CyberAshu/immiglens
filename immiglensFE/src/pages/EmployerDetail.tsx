@@ -183,9 +183,8 @@ export default function EmployerDetail() {
         }}>
           <span style={{ fontSize: '1.1rem' }}>⚠️</span>
           <span style={{ fontSize: '0.9rem', color: '#92400e', fontWeight: 500 }}>
-            This employer is <strong>deactivated</strong>. Use the ▶ toggle on the
-            {' '}<a href="/employers" style={{ color: '#92400e' }}>Employers page</a>{' '}
-            to re-activate it.
+            This employer is <strong>deactivated</strong>. This happens automatically when a subscription expires or is downgraded.
+            Contact your administrator to restore access.
           </span>
         </div>
       )}
@@ -363,7 +362,7 @@ export default function EmployerDetail() {
                   <td>{pos.num_positions}</td>
                   <td>{pos.start_date}</td>
                   <td>{pos.end_date ?? <span style={{ color: '#9ca3af' }}>+28 days</span>}</td>
-                  <td>{pos.job_postings.length}</td>
+                  <td>{pos.job_urls.length}</td>
                   <td>Every {pos.capture_frequency_days} days</td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.4rem' }}>

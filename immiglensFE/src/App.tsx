@@ -86,7 +86,7 @@ export default function App() {
             <Route path="/activity" element={<AuditLogs />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/organizations" element={<Organizations />} />
-            <Route path="/changes/postings/:postingId" element={<ChangeHistory />} />
+            <Route path="/changes/urls/:urlId" element={<ChangeHistory />} />
           </Route>
 
           {/* ── Separate Admin Panel ─────────────── */}

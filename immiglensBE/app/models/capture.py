@@ -9,7 +9,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.job_position import JobPosition
-    from app.models.job_posting import JobPosting
+    from app.models.job_url import JobUrl
     from app.models.change_detection import PostingSnapshot
 
 
@@ -57,7 +57,7 @@ class CaptureResult(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     capture_round_id: Mapped[int] = mapped_column(ForeignKey("capture_rounds.id"), index=True)
-    job_posting_id: Mapped[int] = mapped_column(ForeignKey("job_postings.id"), index=True)
+    job_url_id: Mapped[int] = mapped_column(ForeignKey("job_urls.id"), index=True)
     url: Mapped[str] = mapped_column(String(2048))
     # native_enum=False keeps this as VARCHAR in the DB — safe for existing data,
     # values_callable forces SQLAlchemy to use .value (lowercase) not member names.
@@ -73,7 +73,7 @@ class CaptureResult(Base):
     duration_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     capture_round: Mapped["CaptureRound"] = relationship(back_populates="results")
-    job_posting: Mapped["JobPosting"] = relationship(back_populates="capture_results")
+    job_url: Mapped["JobUrl"] = relationship(back_populates="capture_results")
     snapshot: Mapped[Optional["PostingSnapshot"]] = relationship(
         back_populates="capture_result", uselist=False
     )

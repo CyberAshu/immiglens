@@ -22,16 +22,10 @@ import type { SubscriptionTier } from '../../types'
 
 function fmt(v: number) { return v === -1 ? 'Unlimited' : String(v) }
 
-function tierToPostingsLimit(tier: SubscriptionTier): string {
-  if (tier.max_employers === -1 || tier.max_positions_per_employer === -1) return 'Unlimited'
-  return String(tier.max_employers * tier.max_positions_per_employer)
-}
-
 function tierFeatures(tier: SubscriptionTier): string[] {
   return [
-    `${fmt(tier.max_employers)} employer${tier.max_employers === 1 ? '' : 's'}`,
-    `${fmt(tier.max_positions_per_employer)} position${tier.max_positions_per_employer === 1 ? '' : 's'} per employer`,
-    `${fmt(tier.max_postings_per_position)} job board URL${tier.max_postings_per_position === 1 ? '' : 's'} per position`,
+    `${fmt(tier.max_active_positions)} active position${tier.max_active_positions === 1 ? '' : 's'}`,
+    `${fmt(tier.max_urls_per_position)} job board URL${tier.max_urls_per_position === 1 ? '' : 's'} per position`,
     `${fmt(tier.max_captures_per_month)} capture${tier.max_captures_per_month === 1 ? '' : 's'} / month`,
   ]
 }
@@ -519,7 +513,7 @@ export function LandingHome() {
               {teaserTiers.map((tier, idx) => (
                 <PricingCard
                   key={tier.id}
-                  limit={tierToPostingsLimit(tier)}
+                  limit={fmt(tier.max_active_positions)}
                   price={tier.price_per_month ?? 'Contact Sales'}
                   isPopular={idx === popularIdx && teaserTiers.length > 1}
                   features={tierFeatures(tier)}

@@ -141,7 +141,7 @@
       </tr>
     </thead>
     <tbody>
-      {% for posting in position.job_postings %}
+      {% for posting in position.job_urls %}
       {% set stats = platform_stats[posting.id] %}
       <tr>
         <td><strong>{{ posting.platform }}</strong></td>
@@ -172,7 +172,7 @@
 {% set f = block['fields'] %}
 <div class="section">
   <div class="section-heading">{{ block.get('title', 'Per-Platform Advertising Evidence') }}</div>
-  {% for posting in position.job_postings %}
+  {% for posting in position.job_urls %}
   <div class="platform-block">
     <div class="platform-header">
       <div class="pf-name">{{ posting.platform }}</div>
@@ -181,7 +181,7 @@
     {% set ns = namespace(found=false, idx=0) %}
     {% for round in capture_rounds %}
       {% for result in round.results %}
-        {% if result.job_posting_id == posting.id %}
+        {% if result.job_url_id == posting.id %}
           {% set ns.found = true %}
           {% set ns.idx = ns.idx + 1 %}
           <div class="capture-entry">

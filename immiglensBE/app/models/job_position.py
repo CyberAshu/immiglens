@@ -8,7 +8,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.employer import Employer
-    from app.models.job_posting import JobPosting
+    from app.models.job_url import JobUrl
     from app.models.capture import CaptureRound
     from app.models.report import ReportDocument
 
@@ -33,7 +33,7 @@ class JobPosition(Base):
     )
 
     employer: Mapped["Employer"] = relationship(back_populates="job_positions")
-    job_postings: Mapped[list["JobPosting"]] = relationship(
+    job_urls: Mapped[list["JobUrl"]] = relationship(
         back_populates="job_position", cascade="all, delete-orphan"
     )
     capture_rounds: Mapped[list["CaptureRound"]] = relationship(

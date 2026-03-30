@@ -7,7 +7,7 @@ from app.core.dependencies import get_current_user
 from app.models.capture import CaptureResult, CaptureRound, CaptureStatus, ResultStatus
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
-from app.models.job_posting import JobPosting
+from app.models.job_url import JobUrl
 from app.models.user import User
 from app.schemas.stats import (
     CaptureBreakdownItem,
@@ -53,13 +53,13 @@ async def get_stats(
     total_positions = len(pos_ids)
 
     total_postings = (await db.execute(
-        select(func.count()).select_from(JobPosting)
-        .where(JobPosting.job_position_id.in_(pos_ids))
+        select(func.count()).select_from(JobUrl)
+        .where(JobUrl.job_position_id.in_(pos_ids))
     )).scalar_one() if pos_ids else 0
 
     active_postings = (await db.execute(
-        select(func.count()).select_from(JobPosting)
-        .where(JobPosting.job_position_id.in_(pos_ids), JobPosting.is_active.is_(True))
+        select(func.count()).select_from(JobUrl)
+        .where(JobUrl.job_position_id.in_(pos_ids), JobUrl.is_active.isnot(False))
     )).scalar_one() if pos_ids else 0
 
     total_rounds = len(round_ids)
@@ -68,7 +68,7 @@ async def get_stats(
 
     result_rows = (await db.execute(
         select(CaptureResult.id, CaptureResult.capture_round_id,
-               CaptureResult.job_posting_id, CaptureResult.status)
+               CaptureResult.job_url_id, CaptureResult.status)
         .where(CaptureResult.capture_round_id.in_(round_ids))
     )).all() if round_ids else []
 
@@ -84,13 +84,13 @@ async def get_stats(
     ]
 
     # ── Per-employer bar chart data ──────────────────
-    posting_rows = (await db.execute(
-        select(JobPosting.id, JobPosting.job_position_id)
-        .where(JobPosting.job_position_id.in_(pos_ids))
+    url_rows = (await db.execute(
+        select(JobUrl.id, JobUrl.job_position_id)
+        .where(JobUrl.job_position_id.in_(pos_ids))
     )).all() if pos_ids else []
     posting_to_emp: dict[int, int] = {
         pr.id: pos_to_emp[pr.job_position_id]
-        for pr in posting_rows
+        for pr in url_rows
         if pr.job_position_id in pos_to_emp
     }
 
@@ -100,7 +100,7 @@ async def get_stats(
     for r in pos_rows:
         emp_positions[r.employer_id] = emp_positions.get(r.employer_id, 0) + 1
     for r in result_rows:
-        eid = posting_to_emp.get(r.job_posting_id)
+        eid = posting_to_emp.get(r.job_url_id)
         if eid:
             if r.status == ResultStatus.DONE:
                 emp_screenshots[eid] = emp_screenshots.get(eid, 0) + 1
@@ -137,7 +137,7 @@ async def get_stats(
         active_employers=active_employers,
         total_positions=total_positions,
         active_positions=active_positions,
-        total_job_postings=total_postings,
+        total_job_urls=total_postings,
         active_postings=active_postings,
         total_capture_rounds=total_rounds,
         completed_rounds=completed_rounds,

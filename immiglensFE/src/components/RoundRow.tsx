@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import type { CaptureRound, JobPosting } from '../types'
+import type { CaptureRound, JobUrl } from '../types'
 
 interface RoundRowProps {
   round: CaptureRound
-  postings: JobPosting[]
+  urls: JobUrl[]
   onRun: () => void
   running: boolean
   onRecapture: (roundId: number, resultId: number) => void
@@ -13,7 +13,7 @@ interface RoundRowProps {
 
 export function RoundRow({
   round,
-  postings,
+  urls,
   onRun,
   running,
   onRecapture,
@@ -48,8 +48,8 @@ export function RoundRow({
             <button
               className="btn-ghost btn-sm"
               onClick={e => { e.stopPropagation(); onRun() }}
-              disabled={running || postings.length === 0}
-              title={postings.length === 0 ? 'Add job posting URLs first' : undefined}
+              disabled={running || urls.length === 0}
+              title={urls.length === 0 ? 'Add job board URLs first' : undefined}
             >
               {running ? 'Running…' : 'Capture Now'}
             </button>
@@ -58,8 +58,8 @@ export function RoundRow({
             <button
               className="btn-ghost btn-sm"
               onClick={e => { e.stopPropagation(); onRun() }}
-              disabled={running || postings.length === 0}
-              title={postings.length === 0 ? 'Add job posting URLs first' : 'Re-run this failed capture'}
+              disabled={running || urls.length === 0}
+              title={urls.length === 0 ? 'Add job board URLs first' : 'Re-run this failed capture'}
             >
               {running ? 'Running…' : 'Re-run Capture'}
             </button>
@@ -80,8 +80,8 @@ export function RoundRow({
                   className="btn-ghost btn-sm"
                   style={{ alignSelf: 'flex-start' }}
                   onClick={() => onRun()}
-                  disabled={running || postings.length === 0}
-                  title={postings.length === 0 ? 'Add job posting URLs first' : 'Re-run this capture'}
+                  disabled={running || urls.length === 0}
+                  title={urls.length === 0 ? 'Add job board URLs first' : 'Re-run this capture'}
                 >
                   {running ? 'Running…' : 'Re-run Capture'}
                 </button>
@@ -91,11 +91,11 @@ export function RoundRow({
             )
           ) : (
             round.results.map(result => {
-              const posting = postings.find(p => p.id === result.job_posting_id)
+              const jobUrl = urls.find(p => p.id === result.job_url_id)
               return (
                 <div key={result.id} className="result-row">
                   <div className="result-row-info">
-                    <span className="posting-platform">{posting?.platform ?? 'Unknown'}</span>
+                    <span className="posting-platform">{jobUrl?.platform ?? 'Unknown'}</span>
                     <a
                       href={result.url}
                       target="_blank"

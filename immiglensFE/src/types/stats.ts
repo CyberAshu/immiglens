@@ -23,7 +23,7 @@ export interface DashboardStats {
   active_employers: number
   total_positions: number
   active_positions: number
-  total_job_postings: number
+  total_job_urls: number
   active_postings: number
   total_capture_rounds: number
   completed_rounds: number

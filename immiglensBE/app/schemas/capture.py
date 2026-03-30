@@ -10,7 +10,7 @@ class CaptureResultOut(BaseModel):
     model_config = {"from_attributes": True}
 
     id: int
-    job_posting_id: int
+    job_url_id: int
     url: str
     status: ResultStatus
     screenshot_url: Optional[str]

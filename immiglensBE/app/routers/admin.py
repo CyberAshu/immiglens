@@ -9,7 +9,7 @@ from app.core.dependencies import get_client_ip, get_current_user
 from app.models.capture import CaptureResult, CaptureRound, ResultStatus
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
-from app.models.job_posting import JobPosting
+from app.models.job_url import JobUrl
 from app.models.organization import Organization, OrgMembership
 from app.models.subscription import SubscriptionTier
 from app.models.user import User
@@ -51,8 +51,8 @@ async def admin_stats(
     active_employers = await count(select(func.count()).select_from(Employer).where(Employer.is_active.is_(True)))
     total_positions  = await count(select(func.count()).select_from(JobPosition))
     active_positions = await count(select(func.count()).select_from(JobPosition).where(JobPosition.is_active.is_(True)))
-    total_postings   = await count(select(func.count()).select_from(JobPosting))
-    active_postings  = await count(select(func.count()).select_from(JobPosting).where(JobPosting.is_active.is_(True)))
+    total_postings   = await count(select(func.count()).select_from(JobUrl))
+    active_postings  = await count(select(func.count()).select_from(JobUrl).where(JobUrl.is_active.is_(True)))
     total_rounds     = await count(select(func.count()).select_from(CaptureRound))
     completed_rounds = await count(select(func.count()).select_from(CaptureRound).where(CaptureRound.status == "completed"))
     pending_rounds   = await count(select(func.count()).select_from(CaptureRound).where(CaptureRound.status == "pending"))
@@ -65,7 +65,7 @@ async def admin_stats(
         active_employers=active_employers,
         total_positions=total_positions,
         active_positions=active_positions,
-        total_job_postings=total_postings,
+        total_job_urls=total_postings,
         active_postings=active_postings,
         total_capture_rounds=total_rounds,
         completed_rounds=completed_rounds,
@@ -106,7 +106,7 @@ async def admin_list_users(
             pos_count_by_user[uid] = pos_count_by_user.get(uid, 0) + 1
             pos_to_user[r.id] = uid
 
-    post_rows = (await db.execute(select(JobPosting.id, JobPosting.job_position_id))).all()
+    post_rows = (await db.execute(select(JobUrl.id, JobUrl.job_position_id))).all()
     post_to_user: dict[int, int] = {
         r.id: pos_to_user[r.job_position_id]
         for r in post_rows if r.job_position_id in pos_to_user
@@ -191,7 +191,7 @@ async def assign_tier(
     old_tier_obj: SubscriptionTier | None = (
         await db.get(SubscriptionTier, user.tier_id) if user.tier_id else None
     )
-    old_max = old_tier_obj.max_employers if old_tier_obj else -1  # -1 = unlimited
+    old_max = old_tier_obj.max_active_positions if old_tier_obj else -1  # -1 = unlimited
     # None (free) when new tier_id is None — load free tier for comparison
     if new_tier is None:
         from sqlalchemy import select as _sel
@@ -199,9 +199,9 @@ async def assign_tier(
             _sel(SubscriptionTier).where(SubscriptionTier.name == "free").limit(1)
         )
         free_tier = res.scalar_one_or_none()
-        new_max = free_tier.max_employers if free_tier else -1
+        new_max = free_tier.max_active_positions if free_tier else -1
     else:
-        new_max = new_tier.max_employers
+        new_max = new_tier.max_active_positions
 
     is_downgrade = (
         new_max != -1 and (old_max == -1 or new_max < old_max)
@@ -358,7 +358,7 @@ async def admin_update_tier(
     tier = await db.get(SubscriptionTier, tier_id)
     if not tier:
         raise HTTPException(status_code=404, detail="Tier not found.")
-    old = {"display_name": tier.display_name, "max_employers": tier.max_employers}
+    old = {"display_name": tier.display_name, "max_active_positions": tier.max_active_positions}
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(tier, field, value)
     await db.commit()

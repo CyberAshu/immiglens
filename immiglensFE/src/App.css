@@ -508,6 +508,29 @@
   margin-bottom: 0.75rem;
 }
 
+.chart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  padding: 1.5rem;
+  text-align: center;
+  color: #9ca3af;
+}
+.chart-empty p {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #6b7280;
+  margin: 0 0 0.25rem;
+}
+.chart-empty span {
+  font-size: 0.78rem;
+  color: #9ca3af;
+  max-width: 260px;
+  line-height: 1.5;
+}
+
 @media (max-width: 800px) {
   .charts-grid { grid-template-columns: 1fr; }
   .chart-card--wide, .chart-card--full { grid-column: 1 / -1; }

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 if TYPE_CHECKING:
-    from app.models.job_posting import JobPosting
+    from app.models.job_url import JobUrl
     from app.models.capture import CaptureResult
 
 
@@ -23,8 +23,8 @@ class PostingSnapshot(Base):
     __tablename__ = "posting_snapshots"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    job_posting_id: Mapped[int] = mapped_column(
-        ForeignKey("job_postings.id"), index=True
+    job_url_id: Mapped[int] = mapped_column(
+        ForeignKey("job_urls.id"), index=True
     )
     capture_result_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("capture_results.id", ondelete="SET NULL"),
@@ -42,7 +42,7 @@ class PostingSnapshot(Base):
         index=True,
     )
 
-    job_posting: Mapped["JobPosting"] = relationship(back_populates="snapshots")
+    job_url: Mapped["JobUrl"] = relationship(back_populates="snapshots")
     capture_result: Mapped[Optional["CaptureResult"]] = relationship(
         back_populates="snapshot", uselist=False
     )

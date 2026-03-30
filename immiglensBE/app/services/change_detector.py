@@ -51,7 +51,7 @@ async def record_snapshot(
     # Fetch the most recent existing snapshot for this posting
     prev_row = await db.execute(
         select(PostingSnapshot)
-        .where(PostingSnapshot.job_posting_id == capture_result.job_posting_id)
+        .where(PostingSnapshot.job_url_id == capture_result.job_url_id)
         .order_by(PostingSnapshot.captured_at.desc())
         .limit(1)
     )
@@ -71,7 +71,7 @@ async def record_snapshot(
             change_summary = "Page content has changed since the last capture"
 
     snapshot = PostingSnapshot(
-        job_posting_id=capture_result.job_posting_id,
+        job_url_id=capture_result.job_url_id,
         capture_result_id=capture_result.id,
         page_hash=page_hash,
         has_changed=has_changed,

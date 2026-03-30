@@ -1,6 +1,6 @@
 export interface CaptureResult {
   id: number
-  job_posting_id: number
+  job_url_id: number
   url: string
   status: string
   screenshot_url: string | null

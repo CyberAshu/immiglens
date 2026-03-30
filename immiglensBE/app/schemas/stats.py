@@ -26,7 +26,7 @@ class DashboardStats(BaseModel):
     active_employers: int
     total_positions: int
     active_positions: int
-    total_job_postings: int
+    total_job_urls: int
     active_postings: int
     total_capture_rounds: int
     completed_rounds: int

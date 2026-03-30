@@ -39,26 +39,24 @@ async def get_usage(
     """Return the current user's tier and resource consumption for this month."""
     tier = await _get_tier(db, current_user)
 
-    employers_used = (
-        await db.execute(
-            select(func.count()).select_from(Employer).where(Employer.user_id == current_user.id)
-        )
-    ).scalar_one()
-
+    # Global active positions count across all employers
     emp_ids_res = await db.execute(
         select(Employer.id).where(Employer.user_id == current_user.id)
     )
     emp_ids = [r[0] for r in emp_ids_res.all()]
 
-    positions_used = 0
+    active_positions_used = 0
     captures_this_month = 0
 
     if emp_ids:
-        positions_used = (
+        active_positions_used = (
             await db.execute(
                 select(func.count())
                 .select_from(JobPosition)
-                .where(JobPosition.employer_id.in_(emp_ids))
+                .where(
+                    JobPosition.employer_id.in_(emp_ids),
+                    JobPosition.is_active.is_(True),
+                )
             )
         ).scalar_one()
 
@@ -84,7 +82,6 @@ async def get_usage(
 
     return UsageSummary(
         tier=SubscriptionTierOut.model_validate(tier),
-        employers_used=employers_used,
-        positions_used=positions_used,
+        active_positions_used=active_positions_used,
         captures_this_month=captures_this_month,
     )

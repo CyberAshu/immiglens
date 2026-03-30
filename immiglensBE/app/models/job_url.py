@@ -12,8 +12,8 @@ if TYPE_CHECKING:
     from app.models.change_detection import PostingSnapshot
 
 
-class JobPosting(Base):
-    __tablename__ = "job_postings"
+class JobUrl(Base):
+    __tablename__ = "job_urls"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     job_position_id: Mapped[int] = mapped_column(ForeignKey("job_positions.id"), index=True)
@@ -24,10 +24,10 @@ class JobPosting(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    job_position: Mapped["JobPosition"] = relationship(back_populates="job_postings")
+    job_position: Mapped["JobPosition"] = relationship(back_populates="job_urls")
     capture_results: Mapped[list["CaptureResult"]] = relationship(
-        back_populates="job_posting", cascade="all, delete-orphan"
+        back_populates="job_url", cascade="all, delete-orphan"
     )
     snapshots: Mapped[list["PostingSnapshot"]] = relationship(
-        back_populates="job_posting", cascade="all, delete-orphan"
+        back_populates="job_url", cascade="all, delete-orphan"
     )

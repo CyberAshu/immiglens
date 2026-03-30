@@ -1,6 +1,6 @@
 from app.schemas.auth import TokenResponse, LoginRequest, RegisterRequest, UserOut
 from app.schemas.employer import EmployerCreate, EmployerUpdate, EmployerOut
-from app.schemas.job import JobPositionCreate, JobPositionUpdate, JobPositionOut, JobPostingCreate, JobPostingOut
+from app.schemas.job import JobPositionCreate, JobPositionUpdate, JobPositionOut, JobUrlCreate, JobUrlOut
 from app.schemas.capture import CaptureRoundOut, CaptureResultOut
 from app.schemas.report import ReportDocumentOut
 from app.schemas.stats import DashboardStats, CaptureBreakdownItem, EmployerBreakdownItem, RoundTimelineItem
@@ -21,7 +21,7 @@ __all__ = [
     "TokenResponse", "LoginRequest", "RegisterRequest", "UserOut",
     "EmployerCreate", "EmployerUpdate", "EmployerOut",
     "JobPositionCreate", "JobPositionUpdate", "JobPositionOut",
-    "JobPostingCreate", "JobPostingOut",
+    "JobUrlCreate", "JobUrlOut",
     "CaptureRoundOut", "CaptureResultOut",
     "ReportDocumentOut",
     "DashboardStats", "CaptureBreakdownItem", "EmployerBreakdownItem", "RoundTimelineItem",

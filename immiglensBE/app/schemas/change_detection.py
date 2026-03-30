@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 class PostingSnapshotOut(BaseModel):
     id: int
-    job_posting_id: int
+    job_url_id: int
     capture_result_id: Optional[int]
     page_hash: Optional[str]
     has_changed: Optional[bool]

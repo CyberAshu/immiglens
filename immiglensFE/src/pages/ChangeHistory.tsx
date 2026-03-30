@@ -13,7 +13,7 @@ function ChangeIndicator({ changed }: { changed: boolean | null }) {
 }
 
 export default function ChangeHistory() {
-  const { postingId } = useParams<{ postingId: string }>()
+  const { urlId } = useParams<{ urlId: string }>()
   const [history, setHistory] = useState<ChangeHistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
@@ -21,12 +21,12 @@ export default function ChangeHistory() {
   const [page, setPage]       = useState(1)
 
   useEffect(() => {
-    if (!postingId) return
-    changesApi.history(Number(postingId))
+    if (!urlId) return
+    changesApi.history(Number(urlId))
       .then(setHistory)
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false))
-  }, [postingId])
+  }, [urlId])
 
   const changed    = history.filter(h => h.has_changed === true).length
   const same        = history.filter(h => h.has_changed === false).length
@@ -43,7 +43,7 @@ export default function ChangeHistory() {
       <div className="page-header">
         <div>
           <h1>Change History</h1>
-          <p className="sub-text">Visual diff timeline for posting #{postingId}</p>
+          <p className="sub-text">Visual diff timeline for URL #{urlId}</p>
         </div>
       </div>
 

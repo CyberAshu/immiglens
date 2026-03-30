@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { captures as capturesApi, positions as positionsApi, reports as reportsApi } from '../api'
+import { captures as capturesApi, positions as positionsApi, reports as reportsApi, subscriptions as subApi } from '../api'
 import { setPendingPdf } from '../reportStore'
 import { RoundRow } from '../components/RoundRow'
 import Toast, { useToast } from '../components/Toast'
-import type { CaptureRound, JobPosition, ReportDocument } from '../types'
+import type { CaptureRound, JobPosition, ReportDocument, UsageSummary } from '../types'
 
-const MAX_URLS_PER_POSTING = 7
+const HARD_MAX_URLS = 7  // absolute ceiling regardless of tier
 
 export default function PositionDetail() {
   const { employerId, positionId } = useParams<{ employerId: string; positionId: string }>()
@@ -19,13 +19,13 @@ export default function PositionDetail() {
   const [rounds, setRounds] = useState<CaptureRound[]>([])
   const [documents, setDocuments] = useState<ReportDocument[]>([])
   const [jobMatchDocs, setJobMatchDocs] = useState<ReportDocument[]>([])
+  const [planData, setPlanData] = useState<UsageSummary | null>(null)
   const [loading, setLoading] = useState(true)
-  const [postingForm, setPostingForm] = useState({ platform: '', url: '' })
-  const [addingPosting, setAddingPosting] = useState(false)
-  const [editingPostingId, setEditingPostingId] = useState<number | null>(null)
-  const [editPostingForm, setEditPostingForm] = useState({ platform: '', url: '' })
-  const [savingPostingId, setSavingPostingId] = useState<number | null>(null)
-  const [togglingPostingId, setTogglingPostingId] = useState<number | null>(null)
+  const [urlForm, setUrlForm] = useState({ platform: '', url: '' })
+  const [addingUrl, setAddingUrl] = useState(false)
+  const [editingUrlId, setEditingUrlId] = useState<number | null>(null)
+  const [editUrlForm, setEditUrlForm] = useState({ platform: '', url: '' })
+  const [savingUrlId, setSavingUrlId] = useState<number | null>(null)
   const { toast, showToast, clearToast } = useToast()
   const [runningRound, setRunningRound] = useState<number | null>(null)
   const [recapturingResult, setRecapturingResult] = useState<Set<number>>(new Set())
@@ -38,10 +38,11 @@ export default function PositionDetail() {
   const jobMatchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    Promise.all([positionsApi.get(eId, pId), capturesApi.list(eId, pId)])
-      .then(([pos, rds]) => {
+    Promise.all([positionsApi.get(eId, pId), capturesApi.list(eId, pId), subApi.usage()])
+      .then(([pos, rds, plan]) => {
         setPosition(pos)
         setRounds(rds)
+        setPlanData(plan)
         const allDocs: ReportDocument[] = pos.report_documents ?? []
         setDocuments(allDocs.filter(d => d.doc_type !== 'job_match'))
         setJobMatchDocs(allDocs.filter(d => d.doc_type === 'job_match'))
@@ -49,57 +50,42 @@ export default function PositionDetail() {
       .finally(() => setLoading(false))
   }, [eId, pId])
 
-  async function handleAddPosting(e: React.FormEvent) {
+  async function handleAddUrl(e: React.FormEvent) {
     e.preventDefault()
-    setAddingPosting(true)
+    setAddingUrl(true)
     setError(null)
     try {
-      const posting = await positionsApi.addPosting(eId, pId, postingForm)
-      setPosition(prev => prev ? { ...prev, job_postings: [...prev.job_postings, posting] } : prev)
-      setPostingForm({ platform: '', url: '' })
+      const jobUrl = await positionsApi.addUrl(eId, pId, urlForm)
+      setPosition(prev => prev ? { ...prev, job_urls: [...prev.job_urls, jobUrl] } : prev)
+      setUrlForm({ platform: '', url: '' })
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to add posting.')
+      setError(err instanceof Error ? err.message : 'Failed to add URL.')
     } finally {
-      setAddingPosting(false)
+      setAddingUrl(false)
     }
   }
 
-  async function handleUpdatePosting(e: React.FormEvent, postingId: number) {
+  async function handleUpdateUrl(e: React.FormEvent, urlId: number) {
     e.preventDefault()
-    setSavingPostingId(postingId)
+    setSavingUrlId(urlId)
     setError(null)
     try {
-      const updated = await positionsApi.updatePosting(eId, pId, postingId, editPostingForm)
+      const updated = await positionsApi.updateUrl(eId, pId, urlId, editUrlForm)
       setPosition(prev => prev ? {
         ...prev,
-        job_postings: prev.job_postings.map(p => p.id === postingId ? updated : p),
+        job_urls: prev.job_urls.map(p => p.id === urlId ? updated : p),
       } : prev)
-      setEditingPostingId(null)
+      setEditingUrlId(null)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to update posting.')
+      setError(err instanceof Error ? err.message : 'Failed to update URL.')
     } finally {
-      setSavingPostingId(null)
+      setSavingUrlId(null)
     }
   }
 
-  async function handleRemovePosting(postingId: number) {
-    await positionsApi.removePosting(eId, pId, postingId)
-    setPosition(prev => prev ? { ...prev, job_postings: prev.job_postings.filter(p => p.id !== postingId) } : prev)
-  }
-
-  async function handleTogglePosting(postingId: number) {
-    setTogglingPostingId(postingId)
-    try {
-      const updated = await positionsApi.togglePosting(eId, pId, postingId)
-      setPosition(prev => prev ? {
-        ...prev,
-        job_postings: prev.job_postings.map(p => p.id === updated.id ? updated : p),
-      } : prev)
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : 'Failed to toggle posting.', 'warning')
-    } finally {
-      setTogglingPostingId(null)
-    }
+  async function handleRemoveUrl(urlId: number) {
+    await positionsApi.removeUrl(eId, pId, urlId)
+    setPosition(prev => prev ? { ...prev, job_urls: prev.job_urls.filter(p => p.id !== urlId) } : prev)
   }
 
   async function handleRunRound(roundId: number) {
@@ -172,8 +158,11 @@ export default function PositionDetail() {
 
   if (loading) return <div className="loading">Loading…</div>
   if (!position) return <div className="page"><p>Position not found.</p></div>
-
-  const completedRounds = rounds.filter(r => r.status === 'completed').length
+  const activeUrlCount = position.job_urls.filter(u => u.is_active).length
+  const maxUrls = planData
+    ? (planData.tier.max_urls_per_position === -1 ? HARD_MAX_URLS : Math.min(planData.tier.max_urls_per_position, HARD_MAX_URLS))
+    : HARD_MAX_URLS
+  const urlLimitReached = activeUrlCount >= maxUrls
   const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999)
   const firstPendingId = rounds
     .filter(r => r.status === 'pending' && new Date(r.scheduled_at) <= todayEnd)
@@ -255,41 +244,41 @@ export default function PositionDetail() {
           <h2 className="card-title">
             Job Boards
             <span className="card-title-sub">
-              {position.job_postings.length} / {MAX_URLS_PER_POSTING} URLs
+              {activeUrlCount} / {maxUrls} active URLs
             </span>
           </h2>
-          {position.job_postings.length === 0 ? (
+          {position.job_urls.length === 0 ? (
             <p className="empty-inline">No job boards linked yet.</p>
           ) : (
             <ul className="posting-list">
-              {position.job_postings.map(p => (
+              {position.job_urls.map(p => (
                 <li key={p.id}>
-                  {editingPostingId === p.id ? (
+                  {editingUrlId === p.id ? (
                     <form
                       style={{ display: 'flex', gap: '0.5rem', flex: 1, flexWrap: 'wrap' }}
-                      onSubmit={e => handleUpdatePosting(e, p.id)}
+                      onSubmit={e => handleUpdateUrl(e, p.id)}
                     >
                       <input
                         placeholder="Platform"
-                        value={editPostingForm.platform}
-                        onChange={e => setEditPostingForm(f => ({ ...f, platform: e.target.value }))}
+                        value={editUrlForm.platform}
+                        onChange={e => setEditUrlForm(f => ({ ...f, platform: e.target.value }))}
                         required
                         style={{ width: '120px', flex: '0 0 120px' }}
                       />
                       <input
                         placeholder="URL"
-                        value={editPostingForm.url}
-                        onChange={e => setEditPostingForm(f => ({ ...f, url: e.target.value }))}
+                        value={editUrlForm.url}
+                        onChange={e => setEditUrlForm(f => ({ ...f, url: e.target.value }))}
                         required
                         style={{ flex: 1, minWidth: '160px' }}
                       />
-                      <button className="btn-primary btn-sm" type="submit" disabled={savingPostingId === p.id}>
-                        {savingPostingId === p.id ? 'Saving…' : 'Save'}
+                      <button className="btn-primary btn-sm" type="submit" disabled={savingUrlId === p.id}>
+                        {savingUrlId === p.id ? 'Saving…' : 'Save'}
                       </button>
                       <button
                         className="btn-ghost btn-sm"
                         type="button"
-                        onClick={() => setEditingPostingId(null)}
+                        onClick={() => setEditingUrlId(null)}
                       >
                         Cancel
                       </button>
@@ -307,24 +296,15 @@ export default function PositionDetail() {
                           borderRadius: 10, padding: '2px 8px', whiteSpace: 'nowrap',
                         }}>✓ Submitted</span>
                         <button
-                          className={p.is_active ? 'btn-icon-warning' : 'btn-icon-success'}
-                          onClick={() => handleTogglePosting(p.id)}
-                          disabled={togglingPostingId === p.id}
-                          title={p.is_active ? 'Deactivate posting' : 'Activate posting'}
-                          style={{ fontSize: '0.75rem', padding: '3px 6px' }}
-                        >
-                          {togglingPostingId === p.id ? '…' : p.is_active ? '⏸' : '▶'}
-                        </button>
-                        <button
                           className="btn-ghost btn-sm"
                           onClick={() => {
-                            setEditingPostingId(p.id)
-                            setEditPostingForm({ platform: p.platform, url: p.url })
+                            setEditingUrlId(p.id)
+                            setEditUrlForm({ platform: p.platform, url: p.url })
                           }}
                         >
                           Edit
                         </button>
-                        <button className="btn-remove" onClick={() => handleRemovePosting(p.id)}>×</button>
+                        <button className="btn-remove" onClick={() => handleRemoveUrl(p.id)}>×</button>
                       </div>
                     </>
                   )}
@@ -332,31 +312,31 @@ export default function PositionDetail() {
               ))}
             </ul>
           )}
-          {position.job_postings.length >= MAX_URLS_PER_POSTING ? (
+          {urlLimitReached ? (
             <p style={{ margin: '0.75rem 0 0', fontSize: '0.82rem', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
-              Maximum of {MAX_URLS_PER_POSTING} job board URLs reached. Remove one to add another.
+              Maximum of {maxUrls} active job board URLs reached for your plan. Deactivate or remove one to add another.
             </p>
           ) : !position.is_active ? (
             <p style={{ margin: '0.75rem 0 0', fontSize: '0.82rem', color: '#b91c1c', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
               Position is deactivated — activate it to add job boards.
             </p>
           ) : (
-            <form className="add-posting-form" onSubmit={handleAddPosting}>
+            <form className="add-posting-form" onSubmit={handleAddUrl}>
               <p style={{ margin: '0.75rem 0 0.5rem', fontSize: '0.78rem', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Add Job Board</p>
               <input
                 placeholder="Platform (e.g. Indeed)"
-                value={postingForm.platform}
-                onChange={e => setPostingForm(p => ({ ...p, platform: e.target.value }))}
+                value={urlForm.platform}
+                onChange={e => setUrlForm(p => ({ ...p, platform: e.target.value }))}
                 required
               />
               <input
                 placeholder="https://..."
-                value={postingForm.url}
-                onChange={e => setPostingForm(p => ({ ...p, url: e.target.value }))}
+                value={urlForm.url}
+                onChange={e => setUrlForm(p => ({ ...p, url: e.target.value }))}
                 required
               />
-              <button className="btn-primary" disabled={addingPosting} type="submit">
-                {addingPosting ? '…' : 'Add'}
+              <button className="btn-primary" disabled={addingUrl} type="submit">
+                {addingUrl ? '…' : 'Add'}
               </button>
             </form>
           )}
@@ -425,14 +405,14 @@ export default function PositionDetail() {
           <span className="card-title-sub">{completedRounds}/{rounds.length} completed</span>
         </h2>
         {rounds.length === 0 ? (
-          <p className="empty-inline">Capture rounds will appear here after creating job postings.</p>
+          <p className="empty-inline">Capture rounds will appear here after adding job board URLs.</p>
         ) : (
           <div className="rounds-list">
             {rounds.map(round => (
               <RoundRow
                 key={round.id}
                 round={round}
-                postings={position.job_postings}
+                urls={position.job_urls}
                 onRun={() => handleRunRound(round.id)}
                 running={runningRound === round.id}
                 onRecapture={handleRecaptureResult}

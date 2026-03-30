@@ -13,20 +13,18 @@ function fmt(val: number): string {
 
 function tierFeatureList(tier: SubscriptionTier): string[] {
   return [
-    `${fmt(tier.max_employers)} employer${tier.max_employers === 1 ? '' : 's'}`,
-    `${fmt(tier.max_positions_per_employer)} position${tier.max_positions_per_employer === 1 ? '' : 's'} per employer`,
-    `${fmt(tier.max_postings_per_position)} job board URL${tier.max_postings_per_position === 1 ? '' : 's'} per position`,
+    `${fmt(tier.max_active_positions)} active position${tier.max_active_positions === 1 ? '' : 's'}`,
+    `${fmt(tier.max_urls_per_position)} job board URL${tier.max_urls_per_position === 1 ? '' : 's'} per position`,
     `${fmt(tier.max_captures_per_month)} capture${tier.max_captures_per_month === 1 ? '' : 's'} / month`,
     `Capture every ${tier.min_capture_frequency_days} day${tier.min_capture_frequency_days === 1 ? '' : 's'} minimum`,
   ]
 }
 
 const tableRows: { label: string; key: keyof SubscriptionTier }[] = [
-  { label: 'Max Employers',               key: 'max_employers' },
-  { label: 'Positions per Employer',       key: 'max_positions_per_employer' },
-  { label: 'Job Board URLs per Position',  key: 'max_postings_per_position' },
-  { label: 'Captures per Month',           key: 'max_captures_per_month' },
-  { label: 'Min. Capture Frequency (days)',key: 'min_capture_frequency_days' },
+  { label: 'Max Active Positions',          key: 'max_active_positions' },
+  { label: 'Job Board URLs per Position',   key: 'max_urls_per_position' },
+  { label: 'Captures per Month',            key: 'max_captures_per_month' },
+  { label: 'Min. Capture Frequency (days)', key: 'min_capture_frequency_days' },
 ]
 
 // ── Plan Card ─────────────────────────────────────────────────────────────────

@@ -6,7 +6,7 @@ from pydantic import BaseModel, field_validator, model_validator
 from app.schemas.report import ReportDocumentOut
 
 
-class JobPostingCreate(BaseModel):
+class JobUrlCreate(BaseModel):
     platform: str
     url: str
 
@@ -26,7 +26,7 @@ class JobPostingCreate(BaseModel):
         return v.strip()
 
 
-class JobPostingOut(BaseModel):
+class JobUrlOut(BaseModel):
     model_config = {"from_attributes": True}
 
     id: int
@@ -36,7 +36,7 @@ class JobPostingOut(BaseModel):
     created_at: datetime
 
 
-class JobPostingUpdate(BaseModel):
+class JobUrlUpdate(BaseModel):
     platform: Optional[str] = None
     url: Optional[str] = None
 
@@ -159,5 +159,5 @@ class JobPositionOut(BaseModel):
     work_location: Optional[str] = None
     wage_stream: Optional[str] = None
     created_at: datetime
-    job_postings: list[JobPostingOut] = []
+    job_urls: list[JobUrlOut] = []
     report_documents: list[ReportDocumentOut] = []

@@ -10,7 +10,7 @@ class AdminGlobalStats(BaseModel):
     active_employers: int
     total_positions: int
     active_positions: int
-    total_job_postings: int
+    total_job_urls: int
     active_postings: int
     total_capture_rounds: int
     completed_rounds: int
@@ -64,9 +64,8 @@ class AdminOrgOut(BaseModel):
 class TierCreate(BaseModel):
     name: str
     display_name: str
-    max_employers: int = 3
-    max_positions_per_employer: int = 5
-    max_postings_per_position: int = 10
+    max_active_positions: int = 5
+    max_urls_per_position: int = 7
     max_captures_per_month: int = 50
     min_capture_frequency_days: int = 7
     price_per_month: Optional[float] = None
@@ -74,9 +73,8 @@ class TierCreate(BaseModel):
 
 class TierUpdate(BaseModel):
     display_name: Optional[str] = None
-    max_employers: Optional[int] = None
-    max_positions_per_employer: Optional[int] = None
-    max_postings_per_position: Optional[int] = None
+    max_active_positions: Optional[int] = None
+    max_urls_per_position: Optional[int] = None
     max_captures_per_month: Optional[int] = None
     min_capture_frequency_days: Optional[int] = None
     price_per_month: Optional[float] = None

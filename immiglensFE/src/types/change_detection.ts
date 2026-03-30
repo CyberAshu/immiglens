@@ -1,6 +1,6 @@
 export interface PostingSnapshot {
   id: number
-  job_posting_id: number
+  job_url_id: number
   capture_result_id: number | null
   page_hash: string | null
   has_changed: boolean | null
