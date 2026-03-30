@@ -25,6 +25,7 @@ import AdminTiers from './pages/admin/AdminTiers'
 import AdminReportDesigner from './pages/admin/AdminReportDesigner'
 import AdminNocCodes from './pages/admin/AdminNocCodes'
 import AdminCaptures from './pages/admin/AdminCaptures'
+import AdminPromotions from './pages/admin/AdminPromotions'
 // Landing pages
 import { LandingLayout } from './pages/landing/LandingLayout'
 import { LandingHome } from './pages/landing/LandingHome'
@@ -99,6 +100,7 @@ export default function App() {
             <Route path="report-designer" element={<AdminReportDesigner />} />
             <Route path="noc-codes" element={<AdminNocCodes />} />
             <Route path="captures" element={<AdminCaptures />} />
+            <Route path="promotions" element={<AdminPromotions />} />
           </Route>
         </Routes>
       </Router>

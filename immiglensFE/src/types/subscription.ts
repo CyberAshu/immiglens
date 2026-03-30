@@ -18,4 +18,8 @@ export interface UsageSummary {
   active_positions_used: number
   captures_this_month: number
   has_billing_account: boolean
+  applied_promotion_name: string | null
+  applied_discount_type: 'percent' | 'fixed' | null
+  applied_discount_value: number | null
+  applied_discount_duration: string | null
 }

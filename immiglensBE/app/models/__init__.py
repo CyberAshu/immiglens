@@ -14,6 +14,7 @@ from app.models.otp import OTPRecord
 from app.models.trusted_device import TrustedDevice
 from app.models.noc_code import NocCode
 from app.models.password_reset import PasswordResetToken
+from app.models.promotion import Promotion, PromotionRedemption
 
 __all__ = [
     "User",

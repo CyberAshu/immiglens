@@ -89,6 +89,41 @@ def archive_product(product_id: str) -> None:
     client.products.update(product_id, params={"active": False})
 
 
+# ── Coupon management (for Promotions) ───────────────────────────────────────
+
+def create_coupon(
+    name: str,
+    discount_type: str,      # "percent" | "fixed"
+    discount_value: float,
+    duration: str,           # "forever" | "once" | "repeating"
+    duration_in_months: int | None = None,
+    promotion_id: int | None = None,
+) -> str:
+    """Create a Stripe Coupon for a Promotion and return its coupon_id."""
+    client = _client()
+    params: dict = {
+        "name": name,
+        "duration": duration,
+        "metadata": {"promotion_id": str(promotion_id) if promotion_id else ""},
+    }
+    if discount_type == "percent":
+        params["percent_off"] = discount_value
+    else:
+        params["amount_off"] = int(discount_value * 100)  # cents
+        params["currency"] = "usd"
+    if duration == "repeating" and duration_in_months:
+        params["duration_in_months"] = duration_in_months
+
+    coupon = client.coupons.create(params=params)
+    return coupon.id
+
+
+def archive_coupon(coupon_id: str) -> None:
+    """Delete/archive a Stripe coupon so it can no longer be applied."""
+    client = _client()
+    client.coupons.delete(coupon_id)
+
+
 # ── Customer management ───────────────────────────────────────────────────────
 
 async def get_or_create_customer(user: "User", db) -> str:
@@ -116,10 +151,12 @@ async def create_checkout_session(
     tier: "SubscriptionTier",
     db,
     trial_days: int = 0,
+    coupon_id: str | None = None,
 ) -> str:
     """Create a Stripe Checkout Session and return the hosted URL.
 
     Pass trial_days > 0 to start a free trial period before the first charge.
+    Pass coupon_id to apply a discount (e.g. founding member 20% forever).
     """
     if not tier.stripe_price_id:
         raise ValueError(f"Tier '{tier.name}' has no Stripe price configured.")
@@ -136,18 +173,20 @@ async def create_checkout_session(
     if trial_days > 0:
         subscription_data["trial_period_days"] = trial_days
 
-    session = client.checkout.sessions.create(
-        params={
-            "customer": customer_id,
-            "payment_method_types": ["card"],
-            "line_items": [{"price": tier.stripe_price_id, "quantity": 1}],
-            "mode": "subscription",
-            "success_url": success_url,
-            "cancel_url": cancel_url,
-            "metadata": {"user_id": str(user.id), "tier_id": str(tier.id)},
-            "subscription_data": subscription_data,
-        }
-    )
+    params: dict = {
+        "customer": customer_id,
+        "payment_method_types": ["card"],
+        "line_items": [{"price": tier.stripe_price_id, "quantity": 1}],
+        "mode": "subscription",
+        "success_url": success_url,
+        "cancel_url": cancel_url,
+        "metadata": {"user_id": str(user.id), "tier_id": str(tier.id)},
+        "subscription_data": subscription_data,
+    }
+    if coupon_id:
+        params["discounts"] = [{"coupon": coupon_id}]
+
+    session = client.checkout.sessions.create(params=params)
     return session.url  # type: ignore[return-value]
 
 

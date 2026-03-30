@@ -3,6 +3,8 @@ import { Check, Loader2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { subscriptions } from '../../api/subscriptions'
 import { billing } from '../../api/billing'
+import { promotions } from '../../api/promotions'
+import type { ActivePromotion } from '../../api/promotions'
 import { ROICard, FAQAccordion, CTABand } from './LandingUI'
 import type { SubscriptionTier } from '../../types'
 
@@ -30,8 +32,15 @@ const tableRows: { label: string; key: keyof SubscriptionTier }[] = [
 
 // ── Plan Card ─────────────────────────────────────────────────────────────────
 
-function TierCard({ tier, isHighlighted, isAnnual, isLoggedIn }: { tier: SubscriptionTier; isHighlighted: boolean; isAnnual: boolean; isLoggedIn: boolean }) {
+function TierCard({ tier, isHighlighted, isAnnual, isLoggedIn, bestPromo }: {
+  tier: SubscriptionTier
+  isHighlighted: boolean
+  isAnnual: boolean
+  isLoggedIn: boolean
+  bestPromo: ActivePromotion | null
+}) {
   const [loading, setLoading] = useState(false)
+  const hasDiscount = !!(bestPromo && bestPromo.remaining !== 0 && tier.stripe_price_id)
 
   async function handleGetStarted() {
     if (!isLoggedIn || !tier.stripe_price_id) return
@@ -67,8 +76,24 @@ function TierCard({ tier, isHighlighted, isAnnual, isLoggedIn }: { tier: Subscri
         </div>
       )}
 
+      {/* Discount badge */}
+      {hasDiscount && (
+        <div className="absolute -top-4 inset-x-0 flex justify-center" style={isHighlighted ? { top: '-2.5rem' } : {}}>
+          {!isHighlighted && bestPromo && (
+            <span className="bg-emerald-600 text-white text-xs font-bold uppercase tracking-wider py-1.5 px-4 rounded-full shadow-sm">
+              🌟 {bestPromo.name}
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="mb-4">
         <h3 className="text-xl font-bold text-brand-navy mb-1">{tier.display_name}</h3>
+        {hasDiscount && isHighlighted && bestPromo && (
+          <span className="inline-block mt-1 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+            🌟 {bestPromo.name}
+          </span>
+        )}
       </div>
 
       {/* Price */}
@@ -76,7 +101,18 @@ function TierCard({ tier, isHighlighted, isAnnual, isLoggedIn }: { tier: Subscri
         {displayPrice != null ? (
           <>
             <div className="flex items-baseline gap-1">
-              <span className="text-5xl font-extrabold text-brand-navy">${displayPrice}</span>
+              {hasDiscount && bestPromo && monthlyPrice != null && monthlyPrice > 0 && displayPrice != null ? (
+                <>
+                  <span className="text-3xl font-extrabold text-brand-charcoal/40 line-through">${displayPrice}</span>
+                  <span className="text-5xl font-extrabold text-emerald-700">
+                    ${bestPromo.discount_type === 'percent'
+                      ? Math.floor(displayPrice * (1 - bestPromo.discount_value / 100))
+                      : Math.max(0, displayPrice - bestPromo.discount_value)}
+                  </span>
+                </>
+              ) : (
+                <span className="text-5xl font-extrabold text-brand-navy">${displayPrice}</span>
+              )}
               <span className="text-brand-charcoal/60 font-medium">/mo</span>
             </div>
             {isAnnual && monthlyPrice != null && monthlyPrice > 0 && (
@@ -172,20 +208,26 @@ const faqItems = [
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function LandingPricing() {
-  const [tiers, setTiers]     = useState<SubscriptionTier[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState(false)
-  const [isAnnual, setIsAnnual] = useState(true)
+  const [tiers, setTiers]         = useState<SubscriptionTier[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState(false)
+  const [isAnnual, setIsAnnual]   = useState(true)
+  const [activePromos, setActivePromos] = useState<ActivePromotion[]>([])
 
   // Detect if user is logged in (token in localStorage)
   const isLoggedIn = !!localStorage.getItem('token')
 
   useEffect(() => {
-    subscriptions.tiers()
-      .then(data => setTiers(data))
+    Promise.all([
+      subscriptions.tiers(),
+      promotions.active().catch(() => []),
+    ])
+      .then(([data, promos]) => { setTiers(data); setActivePromos(promos) })
       .catch(() => setError(true))
       .finally(() => setLoading(false))
   }, [])
+
+  const bestPromo = activePromos[0] ?? null
 
   // Highlight the middle tier as "most popular"
   const popularIdx = Math.floor((tiers.length - 1) / 2)
@@ -201,6 +243,23 @@ export function LandingPricing() {
         <p className="text-xl text-brand-charcoal/70 mb-8 max-w-2xl mx-auto">
           Start with a 14-day free trial on any plan. Card required — cancel anytime before the trial ends.
         </p>
+
+        {/* Active promotion scarcity banner */}
+        {bestPromo && bestPromo.remaining !== 0 && (
+          <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-semibold px-5 py-2.5 rounded-full mb-6 shadow-sm">
+            🌟 {bestPromo.name}
+            {bestPromo.remaining != null && (
+              <> — <strong>{bestPromo.remaining} of {bestPromo.max_redemptions} spots</strong> remaining</>)}
+            {' '}·{' '}
+            {bestPromo.discount_type === 'percent' ? `${bestPromo.discount_value}% off` : `$${bestPromo.discount_value} off`}
+            {bestPromo.duration === 'forever' ? ' forever' : bestPromo.duration === 'once' ? ' first month' : ''}
+          </div>
+        )}
+        {bestPromo && bestPromo.remaining === 0 && (
+          <div className="inline-flex items-center gap-2 bg-gray-100 border border-gray-200 text-gray-500 text-sm font-medium px-5 py-2.5 rounded-full mb-6">
+            {bestPromo.name} spots are full
+          </div>
+        )}
 
         {/* Annual toggle */}
         <div className="flex items-center justify-center gap-4">
@@ -258,6 +317,7 @@ export function LandingPricing() {
                   isHighlighted={idx === popularIdx && tiers.length > 1}
                   isAnnual={isAnnual}
                   isLoggedIn={isLoggedIn}
+                  bestPromo={bestPromo}
                 />
               ))}
             </div>

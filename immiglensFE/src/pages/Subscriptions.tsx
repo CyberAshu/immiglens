@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { subscriptions as subApi, billing } from '../api'
+import { promotions } from '../api/promotions'
+import type { ActivePromotion } from '../api/promotions'
 import type { UsageSummary, SubscriptionTier } from '../types'
 
 function tierColor(name: string) {
@@ -35,14 +37,16 @@ export default function Subscriptions() {
   const [error, setError]         = useState<string | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState<number | null>(null)
   const [portalLoading, setPortalLoading]     = useState(false)
+  const [activePromos, setActivePromos]       = useState<ActivePromotion[]>([])
   const [searchParams, setSearchParams] = useSearchParams()
   const checkoutStatus = searchParams.get('checkout')
 
   function loadData() {
     setLoading(true)
-    Promise.all([subApi.usage(), subApi.tiers()])
-      .then(([usage, tiers]) => {
+    Promise.all([subApi.usage(), subApi.tiers(), promotions.active().catch(() => [])])
+      .then(([usage, tiers, promos]) => {
         setData(usage)
+        setActivePromos(promos)
         setOtherTiers(tiers.filter(t => t.id !== usage.tier.id && t.is_active && t.stripe_price_id))
       })
       .catch((e: Error) => setError(e.message))
@@ -159,18 +163,72 @@ export default function Subscriptions() {
             </button>
           </div>
         )}
+
+        {/* Applied discount badge */}
+        {data.applied_promotion_name && data.applied_discount_value != null && data.applied_discount_type && (
+          <div className="sub-discount-badge">
+            <span className="sub-discount-icon">🏷️</span>
+            <div className="sub-discount-text">
+              <strong>
+                {data.applied_discount_type === 'percent'
+                  ? `${data.applied_discount_value}% off`
+                  : `$${data.applied_discount_value} off`}
+                {data.applied_discount_duration === 'forever' ? ' forever'
+                  : data.applied_discount_duration === 'once' ? ' — first billing cycle'
+                  : ''}
+              </strong>
+              &nbsp;· {data.applied_promotion_name} discount applied to your subscription
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Upgrade options ───────────────────── */}
       {otherTiers.length > 0 && (
         <div className="card section-top">
           <div className="card-title">Available Plans</div>
+
+          {/* Active promotion banner */}
+          {activePromos[0] && activePromos[0].remaining !== 0 && (
+            <div className="banner banner-success" style={{ marginBottom: '1rem' }}>
+              🌟 <strong>{activePromos[0].name}</strong>
+              {activePromos[0].remaining != null && ` — ${activePromos[0].remaining} of ${activePromos[0].max_redemptions} spots left.`}
+              {' '}Get {activePromos[0].discount_type === 'percent'
+                ? `${activePromos[0].discount_value}% off`
+                : `$${activePromos[0].discount_value} off`} when you subscribe now.
+            </div>
+          )}
+
           <div className="sub-upgrade-grid">
-            {otherTiers.map(t => (
+            {otherTiers.map(t => {
+              const bestPromo = activePromos[0] ?? null
+              const hasDiscount = !!(bestPromo && bestPromo.remaining !== 0)
+              const discountedPrice = hasDiscount && bestPromo && t.price_per_month != null
+                ? bestPromo.discount_type === 'percent'
+                  ? Math.floor(t.price_per_month * (1 - bestPromo.discount_value / 100))
+                  : Math.max(0, t.price_per_month - bestPromo.discount_value)
+                : null
+              return (
               <div key={t.id} className="sub-upgrade-card">
                 <div className="sub-upgrade-name">{t.display_name}</div>
                 {t.price_per_month != null && (
-                  <div className="sub-upgrade-price">${t.price_per_month}<span>/mo</span></div>
+                  <div className="sub-upgrade-price">
+                    {hasDiscount && discountedPrice != null ? (
+                      <>
+                        <span style={{ textDecoration: 'line-through', color: '#9ca3af', fontSize: '1rem', fontWeight: 500 }}>${t.price_per_month}</span>
+                        {' '}${discountedPrice}
+                      </>
+                    ) : (
+                      <>${t.price_per_month}</>
+                    )}
+                    <span>/mo</span>
+                    {hasDiscount && bestPromo && (
+                      <div style={{ fontSize: '0.72rem', color: '#15803d', fontWeight: 700, marginTop: '0.1rem' }}>
+                        {bestPromo.discount_type === 'percent' ? `${bestPromo.discount_value}% off` : `$${bestPromo.discount_value} off`}
+                        {bestPromo.duration === 'forever' ? ' forever' : bestPromo.duration === 'once' ? ' first month' : ` for ${bestPromo.duration_in_months} months`}
+                      </div>
+                    )}
+                  </div>
                 )}
                 <ul className="sub-upgrade-limits">
                   <li>{t.max_active_positions === -1 ? '∞' : t.max_active_positions} active positions</li>
@@ -190,7 +248,8 @@ export default function Subscriptions() {
                   }
                 </button>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

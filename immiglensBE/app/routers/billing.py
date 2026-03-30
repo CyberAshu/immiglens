@@ -12,8 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.dependencies import get_current_user, get_db
+from app.models.promotion import Promotion, PromotionRedemption
 from app.models.subscription import SubscriptionTier
 from app.models.user import User
+from app.routers.promotions import _is_eligible
 from app.services import stripe_service
 
 log = logging.getLogger(__name__)
@@ -36,6 +38,23 @@ class PublishableKeyResponse(BaseModel):
     key: str
 
 
+# ── Helper: pick the best eligible promotion ─────────────────────────────────
+
+async def _best_promotion(db: AsyncSession) -> Promotion | None:
+    """Return the highest-value eligible promotion, or None."""
+    promos = (
+        await db.execute(
+            select(Promotion)
+            .where(Promotion.is_active.is_(True), Promotion.stripe_coupon_id.isnot(None))
+            .order_by(Promotion.discount_value.desc())
+        )
+    ).scalars().all()
+    for p in promos:
+        if _is_eligible(p):
+            return p
+    return None
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/publishable-key", response_model=PublishableKeyResponse)
@@ -52,7 +71,10 @@ async def create_checkout(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a Stripe Checkout session and return the hosted URL."""
+    """Create a Stripe Checkout session and return the hosted URL.
+
+    Automatically applies the best eligible active promotion coupon.
+    """
     tier = await db.get(SubscriptionTier, body.tier_id)
     if not tier or not tier.is_active:
         raise HTTPException(status_code=404, detail="Tier not found.")
@@ -61,12 +83,27 @@ async def create_checkout(
             status_code=400,
             detail="This tier is not yet synced with Stripe. Please contact support.",
         )
+
+    promo = await _best_promotion(db)
+    coupon_id = promo.stripe_coupon_id if promo else None
+
     try:
-        url = await stripe_service.create_checkout_session(current_user, tier, db, trial_days=body.trial_days)
+        url = await stripe_service.create_checkout_session(
+            current_user, tier, db,
+            trial_days=body.trial_days,
+            coupon_id=coupon_id,
+        )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # Record the redemption so the count stays accurate
+    if promo:
+        db.add(PromotionRedemption(promotion_id=promo.id, user_id=current_user.id))
+        promo.redemptions_count += 1
+        await db.commit()
+
     return {"url": url}
 
 

@@ -14,6 +14,7 @@ import {
   Paintbrush,
   Settings2,
   ShieldCheck,
+  Tag,
   Users,
 } from 'lucide-react'
 import '../../App.css'
@@ -93,6 +94,9 @@ export default function AdminLayout() {
             </NavLink>
             <NavLink to="/admin/captures" className={navCls}>
               <Camera size={15} strokeWidth={2} />Capture Monitor
+            </NavLink>
+            <NavLink to="/admin/promotions" className={navCls}>
+              <Tag size={15} strokeWidth={2} />Promotions
             </NavLink>
           </nav>
           <div className="sidebar-separator" />

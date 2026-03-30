@@ -11,6 +11,7 @@ from app.core.permissions import _get_tier
 from app.models.capture import CaptureRound, CaptureStatus
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
+from app.models.promotion import Promotion, PromotionRedemption
 from app.models.subscription import SubscriptionTier
 from app.models.user import User
 from app.schemas.subscription import SubscriptionTierOut, UsageSummary
@@ -80,9 +81,27 @@ async def get_usage(
                 )
             ).scalar_one()
 
+    # Look up the most recently redeemed promotion for this user
+    # Only relevant if they have an active billing account
+    applied_promo: Promotion | None = None
+    if current_user.stripe_customer_id:
+        applied_promo = (
+            await db.execute(
+                select(Promotion)
+                .join(PromotionRedemption, PromotionRedemption.promotion_id == Promotion.id)
+                .where(PromotionRedemption.user_id == current_user.id)
+                .order_by(PromotionRedemption.redeemed_at.desc())
+                .limit(1)
+            )
+        ).scalars().first()
+
     return UsageSummary(
         tier=SubscriptionTierOut.model_validate(tier),
         active_positions_used=active_positions_used,
         captures_this_month=captures_this_month,
         has_billing_account=bool(current_user.stripe_customer_id),
+        applied_promotion_name=applied_promo.name if applied_promo else None,
+        applied_discount_type=applied_promo.discount_type if applied_promo else None,
+        applied_discount_value=applied_promo.discount_value if applied_promo else None,
+        applied_discount_duration=applied_promo.duration if applied_promo else None,
     )
