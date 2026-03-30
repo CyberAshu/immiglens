@@ -26,6 +26,7 @@ import AdminReportDesigner from './pages/admin/AdminReportDesigner'
 import AdminNocCodes from './pages/admin/AdminNocCodes'
 import AdminCaptures from './pages/admin/AdminCaptures'
 import AdminPromotions from './pages/admin/AdminPromotions'
+import NotFound from './pages/NotFound'
 // Landing pages
 import { LandingLayout } from './pages/landing/LandingLayout'
 import { LandingHome } from './pages/landing/LandingHome'
@@ -102,6 +103,9 @@ export default function App() {
             <Route path="captures" element={<AdminCaptures />} />
             <Route path="promotions" element={<AdminPromotions />} />
           </Route>
+
+          {/* ── 404 catch-all ───────────────────── */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Router>
       </UploadProvider>
