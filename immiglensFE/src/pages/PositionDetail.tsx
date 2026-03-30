@@ -164,6 +164,7 @@ export default function PositionDetail() {
     : HARD_MAX_URLS
   const urlLimitReached = activeUrlCount >= maxUrls
   const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999)
+  const completedRounds = rounds.filter(r => r.status === 'completed').length
   const firstPendingId = rounds
     .filter(r => r.status === 'pending' && new Date(r.scheduled_at) <= todayEnd)
     .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())[0]?.id ?? null

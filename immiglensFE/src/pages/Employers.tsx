@@ -19,7 +19,7 @@ export default function Employers() {
   })
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState<string | null>(null)
-  const { toast, showToast, clearToast } = useToast()
+  const { toast, clearToast } = useToast()
   const { confirmModal, askConfirm }      = useConfirm()
 
   useEffect(() => {
