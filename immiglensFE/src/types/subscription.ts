@@ -17,4 +17,5 @@ export interface UsageSummary {
   tier: SubscriptionTier
   active_positions_used: number
   captures_this_month: number
+  has_billing_account: boolean
 }

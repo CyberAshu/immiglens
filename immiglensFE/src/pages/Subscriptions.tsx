@@ -36,8 +36,10 @@ export default function Subscriptions() {
   const [checkoutLoading, setCheckoutLoading] = useState<number | null>(null)
   const [portalLoading, setPortalLoading]     = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
+  const checkoutStatus = searchParams.get('checkout')
 
-  useEffect(() => {
+  function loadData() {
+    setLoading(true)
     Promise.all([subApi.usage(), subApi.tiers()])
       .then(([usage, tiers]) => {
         setData(usage)
@@ -45,13 +47,24 @@ export default function Subscriptions() {
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { loadData() }, [])
+
+  // On checkout=success: reload data so new tier shows immediately,
+  // then auto-clear the banner after 5 seconds
+  useEffect(() => {
+    if (checkoutStatus === 'success') {
+      loadData()
+      const t = setTimeout(() => setSearchParams({}), 5000)
+      return () => clearTimeout(t)
+    }
+  }, [checkoutStatus])
 
   async function handleUpgrade(tierId: number) {
     setCheckoutLoading(tierId)
-    // Offer free trial if user has never had a stripe_customer_id (never subscribed)
-    const isFirstSubscription = !data?.tier.stripe_price_id
-    const trialDays = isFirstSubscription ? 14 : 0
+    // Only offer 14-day trial if user has never subscribed before
+    const trialDays = !data?.has_billing_account ? 14 : 0
     try {
       const { url } = await billing.createCheckout(tierId, trialDays)
       window.location.href = url
@@ -79,7 +92,6 @@ export default function Subscriptions() {
   if (!data)   return null
 
   const { tier } = data
-  const checkoutStatus = searchParams.get('checkout')
 
   const metrics = [
     { label: 'Active Positions',     used: data.active_positions_used, max: tier.max_active_positions,   color: '#C8A24A' },
@@ -136,7 +148,7 @@ export default function Subscriptions() {
         </div>
 
         {/* Portal link for users with an active Stripe subscription */}
-        {data.tier.stripe_price_id && (
+        {data.has_billing_account && (
           <div className="sub-portal-row">
             <button
               className="sub-portal-btn"
@@ -172,7 +184,7 @@ export default function Subscriptions() {
                 >
                   {checkoutLoading === t.id
                     ? 'Redirecting…'
-                    : !data.tier.stripe_price_id
+                    : !data.has_billing_account
                       ? 'Start 14-Day Free Trial'
                       : 'Upgrade'
                   }

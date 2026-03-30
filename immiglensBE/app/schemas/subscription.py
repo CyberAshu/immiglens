@@ -25,3 +25,4 @@ class UsageSummary(BaseModel):
     tier: SubscriptionTierOut
     active_positions_used: int
     captures_this_month: int
+    has_billing_account: bool = False  # True when user has a stripe_customer_id

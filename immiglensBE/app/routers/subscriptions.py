@@ -84,4 +84,5 @@ async def get_usage(
         tier=SubscriptionTierOut.model_validate(tier),
         active_positions_used=active_positions_used,
         captures_this_month=captures_this_month,
+        has_billing_account=bool(current_user.stripe_customer_id),
     )
