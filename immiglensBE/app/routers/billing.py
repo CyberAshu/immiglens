@@ -162,8 +162,7 @@ async def sync_checkout(
         return SyncCheckoutResponse(tier_id=current_user.tier_id, tier_expires_at=current_user.tier_expires_at)
 
     metadata_obj = getattr(session, "metadata", None)
-    metadata: dict = dict(metadata_obj) if metadata_obj else {}
-    tier_id_str = metadata.get("tier_id")
+    tier_id_str = getattr(metadata_obj, "tier_id", None) if metadata_obj else None
     if not tier_id_str:
         return SyncCheckoutResponse(tier_id=current_user.tier_id, tier_expires_at=current_user.tier_expires_at)
 
@@ -304,10 +303,8 @@ def _get_period_end(sub: dict) -> int | None:
 async def _handle_checkout_completed(data: dict, db: AsyncSession) -> None:
     customer_id: str = getattr(data, "customer", "") or ""
     metadata_obj = getattr(data, "metadata", None)
-    metadata: dict = dict(metadata_obj) if metadata_obj else {}
-
-    user_id = metadata.get("user_id")
-    tier_id = metadata.get("tier_id")
+    user_id = getattr(metadata_obj, "user_id", None) if metadata_obj else None
+    tier_id = getattr(metadata_obj, "tier_id", None) if metadata_obj else None
 
     user: User | None = None
     if user_id:
@@ -376,8 +373,7 @@ async def _handle_subscription_updated(data: dict, db: AsyncSession) -> None:
 
     # Reflect plan change if metadata carries tier_id
     metadata_obj = getattr(data, "metadata", None)
-    metadata: dict = dict(metadata_obj) if metadata_obj else {}
-    tier_id = metadata.get("tier_id")
+    tier_id = getattr(metadata_obj, "tier_id", None) if metadata_obj else None
     if tier_id:
         tier = await db.get(SubscriptionTier, int(tier_id))
         if tier:
