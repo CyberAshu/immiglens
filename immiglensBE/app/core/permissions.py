@@ -11,7 +11,6 @@ from typing import Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select
-from sqlalchemy import update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.capture import CaptureRound, CaptureStatus
@@ -256,14 +255,14 @@ async def check_capture_frequency(db: AsyncSession, user: User, capture_frequenc
 
 
 async def deactivate_user_positions(db: AsyncSession, user: User) -> int:
-    """Deactivate all active employers, positions, and URLs belonging to *user*.
+    """Deactivate all active positions belonging to *user*.
 
-    Called on subscription downgrade or expiry. Cancels all pending capture
-    rounds so no further screenshots are taken.
+    Called on subscription downgrade or expiry. Only positions are affected —
+    employers and URLs are intentionally left untouched. Cancels all pending
+    capture rounds so no further screenshots are taken.
 
     Returns the total number of positions deactivated.
     """
-    from app.models.job_url import JobUrl
     from app.services.scheduler import pause_rounds_for_user
 
     emp_ids_res = await db.execute(
@@ -273,16 +272,6 @@ async def deactivate_user_positions(db: AsyncSession, user: User) -> int:
     if not emp_ids:
         return 0
 
-    # Deactivate all employers
-    emp_res = await db.execute(
-        select(Employer).where(
-            Employer.user_id == user.id,
-            Employer.is_active.is_(True),
-        )
-    )
-    for emp in emp_res.scalars().all():
-        emp.is_active = False
-
     # Deactivate all active positions
     pos_res = await db.execute(
         select(JobPosition).where(
@@ -291,20 +280,8 @@ async def deactivate_user_positions(db: AsyncSession, user: User) -> int:
         )
     )
     positions = pos_res.scalars().all()
-    pos_ids = [p.id for p in positions]
     for pos in positions:
         pos.is_active = False
-
-    # Deactivate all active URLs under those positions
-    if pos_ids:
-        url_res = await db.execute(
-            select(JobUrl).where(
-                JobUrl.job_position_id.in_(pos_ids),
-                JobUrl.is_active.is_(True),
-            )
-        )
-        for url in url_res.scalars().all():
-            url.is_active = False
 
     await db.flush()
     await pause_rounds_for_user(db, emp_ids)

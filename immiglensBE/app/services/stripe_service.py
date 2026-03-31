@@ -243,3 +243,59 @@ def construct_webhook_event(payload: bytes, sig_header: str) -> stripe.Event:
     return stripe.Webhook.construct_event(
         payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
     )
+
+
+# ── Subscription modification (upgrade / downgrade) ───────────────────────────
+
+def update_subscription_price(
+    user: "User",
+    new_tier: "SubscriptionTier",
+    is_annual: bool = False,
+) -> stripe.Subscription:
+    """Update an existing Stripe subscription to a new price (upgrade / downgrade).
+
+    Finds the customer's first active or trialing subscription and replaces the
+    price on the first item.  Raises ValueError if no subscription is found.
+    """
+    client = _client()
+    customer_id = user.stripe_customer_id
+    if not customer_id:
+        raise ValueError("User has no Stripe customer account.")
+
+    # Resolve target price — prefer annual when requested and available
+    annual_price_id: str | None = getattr(new_tier, "stripe_annual_price_id", None)
+    if is_annual and annual_price_id:
+        price_id = annual_price_id
+    elif new_tier.stripe_price_id:
+        price_id = new_tier.stripe_price_id
+    else:
+        raise ValueError(f"Tier '{new_tier.name}' has no Stripe price configured.")
+
+    # Find first active (or trialing) subscription for this customer
+    subs = client.subscriptions.list(
+        params={"customer": customer_id, "status": "active", "limit": 1}
+    )
+    if not subs.data:
+        subs = client.subscriptions.list(
+            params={"customer": customer_id, "status": "trialing", "limit": 1}
+        )
+    if not subs.data:
+        raise ValueError(
+            "No active subscription found. Please use checkout to start a new subscription."
+        )
+
+    sub = subs.data[0]
+    sub_item_id = sub.items.data[0].id
+    updated = client.subscriptions.update(
+        sub.id,
+        params={
+            "items": [{"id": sub_item_id, "price": price_id}],
+            "metadata": {
+                "user_id": str(user.id),
+                "tier_id": str(new_tier.id),
+                "billing_period": "annual" if is_annual else "monthly",
+            },
+            "proration_behavior": "always_invoice",
+        },
+    )
+    return updated

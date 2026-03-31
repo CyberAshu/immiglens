@@ -183,8 +183,7 @@ export default function EmployerDetail() {
         }}>
           <span style={{ fontSize: '1.1rem' }}>⚠️</span>
           <span style={{ fontSize: '0.9rem', color: '#92400e', fontWeight: 500 }}>
-            This employer is <strong>deactivated</strong>. This happens automatically when a subscription expires or is downgraded.
-            Contact your administrator to restore access.
+            This employer is <strong>deactivated</strong>. You can re-activate it using the toggle on the Employers page.
           </span>
         </div>
       )}

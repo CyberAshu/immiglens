@@ -13,12 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.dependencies import get_current_user, get_db
+from app.core.permissions import deactivate_user_positions
 from app.models.promotion import Promotion, PromotionRedemption
 from app.models.subscription import SubscriptionTier
 from app.models.user import User
 from app.routers.promotions import _is_eligible
 from app.services import stripe_service
-from sqlalchemy import select
 from app.services.email_service import (
     send_payment_failed_email,
     send_payment_successful_email,
@@ -230,6 +230,71 @@ async def create_portal(
     return {"url": url}
 
 
+class ChangePlanRequest(BaseModel):
+    tier_id: int
+    is_annual: bool = False
+
+
+@router.post("/change-plan", response_model=SyncCheckoutResponse)
+async def change_plan(
+    body: ChangePlanRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Upgrade or downgrade an existing subscriber's plan without a new checkout.
+
+    Updates the Stripe subscription in place so no duplicate subscription is
+    created.  Proration is invoiced immediately by Stripe.
+    """
+    if not current_user.stripe_customer_id:
+        raise HTTPException(
+            status_code=400, detail="No billing account found. Please subscribe first."
+        )
+
+    tier = await db.get(SubscriptionTier, body.tier_id)
+    if not tier or not tier.is_active:
+        raise HTTPException(status_code=404, detail="Tier not found.")
+    if not tier.stripe_price_id:
+        raise HTTPException(
+            status_code=400,
+            detail="This tier is not yet synced with Stripe. Please contact support.",
+        )
+
+    try:
+        updated_sub = stripe_service.update_subscription_price(
+            current_user, tier, body.is_annual
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    # Detect downgrade: new plan has a stricter active-position cap than the current one
+    old_tier = await db.get(SubscriptionTier, current_user.tier_id) if current_user.tier_id else None
+    old_max = old_tier.max_active_positions if old_tier else -1
+    new_max = tier.max_active_positions
+    is_downgrade = new_max != -1 and (old_max == -1 or new_max < old_max)
+
+    # Update DB immediately — webhook will arrive shortly but we're already synced
+    current_user.tier_id = tier.id
+    end_ts = _get_period_end(updated_sub)
+    if end_ts:
+        current_user.tier_expires_at = datetime.fromtimestamp(end_ts, tz=timezone.utc)
+
+    if is_downgrade:
+        # Deactivate excess positions only (employers and URLs are left untouched)
+        await deactivate_user_positions(db, current_user)
+    else:
+        await db.commit()
+    log.info("change-plan: user %s switched to tier %s (downgrade=%s)", current_user.id, tier.id, is_downgrade)
+
+    return SyncCheckoutResponse(
+        tier_id=current_user.tier_id,
+        tier_expires_at=current_user.tier_expires_at,
+        synced=True,
+    )
+
+
 @router.post("/webhook", status_code=200)
 async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """Receive and process Stripe webhook events.
@@ -390,13 +455,32 @@ async def _handle_subscription_updated(data: dict, db: AsyncSession) -> None:
     if end_ts:
         user.tier_expires_at = datetime.fromtimestamp(end_ts, tz=timezone.utc)
 
-    # Reflect plan change if metadata carries tier_id
+    # Primary: reflect plan change when metadata carries tier_id (our checkout flow)
     metadata_obj = getattr(data, "metadata", None)
     tier_id = getattr(metadata_obj, "tier_id", None) if metadata_obj else None
     if tier_id:
         tier = await db.get(SubscriptionTier, int(tier_id))
         if tier:
             user.tier_id = tier.id
+    else:
+        # Fallback: map the subscription's current price to a tier.
+        # This handles portal-initiated upgrades/downgrades which don't carry
+        # our custom tier_id metadata.
+        items_obj = getattr(data, "items", None)
+        items = getattr(items_obj, "data", []) if items_obj else []
+        if items:
+            price_obj = getattr(items[0], "price", None)
+            price_id = getattr(price_obj, "id", None) if price_obj else None
+            if price_id:
+                tier_row = (
+                    await db.execute(
+                        select(SubscriptionTier).where(
+                            SubscriptionTier.stripe_price_id == price_id
+                        )
+                    )
+                ).scalar_one_or_none()
+                if tier_row:
+                    user.tier_id = tier_row.id
 
     await db.commit()
 
@@ -537,12 +621,13 @@ async def _handle_invoice_paid(data: dict, db: AsyncSession) -> None:
     )
 
     try:
+        tier_obj = await db.get(SubscriptionTier, user.tier_id) if user.tier_id else None
         await send_payment_successful_email(
             user.email,
             user.full_name or "there",
             amount,
             invoice_number,
-            (await db.get(SubscriptionTier, user.tier_id)).name if user.tier_id else "ImmigLens",
+            tier_obj.name if tier_obj else "ImmigLens",
             billing_start,
             billing_end,
             next_billing_date,

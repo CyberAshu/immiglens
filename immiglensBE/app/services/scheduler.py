@@ -132,8 +132,11 @@ async def cancel_pending_rounds_for_user(db: AsyncSession, emp_ids: list[int]) -
 
 
 async def _expire_subscriptions_job() -> None:
-    """Daily job: deactivate employers, positions, and URLs for users whose tier_expires_at has passed.
-    Each user is processed in its own DB session so a failure for one user never blocks the others.
+    """Daily job: deactivate positions for users whose tier_expires_at has passed.
+
+    Only positions are deactivated — employers and URLs are intentionally left
+    untouched.  Each user is processed in its own DB session so a failure for
+    one user never blocks the others.
     """
     from app.models.user import User
 
@@ -169,15 +172,6 @@ async def _expire_subscriptions_job() -> None:
                 emp_ids = [r[0] for r in emp_ids_res.all()]
 
                 if emp_ids:
-                    emp_res = await db.execute(
-                        select(Employer).where(
-                            Employer.user_id == user.id,
-                            Employer.is_active.is_(True),
-                        )
-                    )
-                    for emp in emp_res.scalars().all():
-                        emp.is_active = False
-
                     pos_res = await db.execute(
                         select(JobPosition).where(
                             JobPosition.employer_id.in_(emp_ids),
@@ -185,20 +179,8 @@ async def _expire_subscriptions_job() -> None:
                         )
                     )
                     positions = pos_res.scalars().all()
-                    pos_ids = [p.id for p in positions]
                     for pos in positions:
                         pos.is_active = False
-
-                    if pos_ids:
-                        from app.models.job_url import JobUrl
-                        url_res = await db.execute(
-                            select(JobUrl).where(
-                                JobUrl.job_position_id.in_(pos_ids),
-                                JobUrl.is_active.is_(True),
-                            )
-                        )
-                        for job_url in url_res.scalars().all():
-                            job_url.is_active = False
 
                     await db.flush()
                     await pause_rounds_for_user(db, emp_ids)

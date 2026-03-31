@@ -5,6 +5,7 @@ import { subscriptions as subApi, billing } from '../api'
 import { promotions } from '../api/promotions'
 import type { ActivePromotion, PromoCodeValidation } from '../api/promotions'
 import type { UsageSummary, SubscriptionTier } from '../types'
+import { useConfirm } from '../components/ConfirmModal'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(val: number) { return val === -1 ? '∞' : String(val) }
@@ -47,6 +48,8 @@ export default function Subscriptions() {
   const [promoError, setPromoError]             = useState('')
   const [promoChecking, setPromoChecking]       = useState(false)
   const codeInputRef = useRef<HTMLInputElement>(null)
+
+  const { confirmModal, askConfirm } = useConfirm()
 
   const [searchParams, setSearchParams] = useSearchParams()
   const checkoutStatus = searchParams.get('checkout')
@@ -93,11 +96,29 @@ export default function Subscriptions() {
     finally { setPromoChecking(false) }
   }
 
-  async function handleUpgrade(tierId: number) {
+  async function handleUpgrade(tierId: number, isDowngrade: boolean) {
+    if (isDowngrade) {
+      const newTier = allTiers.find(t => t.id === tierId)
+      const confirmed = await askConfirm({
+        title: 'Downgrade plan?',
+        message: `Switching to ${newTier?.display_name ?? 'this plan'} will immediately deactivate all of your active job positions. Your employers and URLs will not be affected. You can re-activate positions manually after downgrading.`,
+        confirmLabel: 'Yes, downgrade',
+        cancelLabel: 'Keep current plan',
+        variant: 'danger',
+      })
+      if (!confirmed) return
+    }
     setCheckoutLoading(tierId)
     try {
-      const { url } = await billing.createCheckout(tierId, false, isAnnual, validatedPromo?.code ?? undefined)
-      window.location.href = url
+      if (data?.has_billing_account) {
+        // Existing subscriber: update the Stripe subscription directly.
+        // Creating a new checkout session would produce a duplicate subscription.
+        await billing.changePlan(tierId, isAnnual)
+        loadData()
+      } else {
+        const { url } = await billing.createCheckout(tierId, false, isAnnual, validatedPromo?.code ?? undefined)
+        window.location.href = url
+      }
     } catch (e) { alert((e as Error).message) }
     finally { setCheckoutLoading(null) }
   }
@@ -132,6 +153,7 @@ export default function Subscriptions() {
 
   return (
     <div className="page">
+      {confirmModal}
 
       {/* ── Status banners ──────────────────────── */}
       {checkoutStatus === 'success' && (
@@ -329,7 +351,7 @@ export default function Subscriptions() {
                       showDisc   ? 'sp-plan-cta--promo'   : '',
                       isDowngrade ? 'sp-plan-cta--downgrade' : '',
                     ].filter(Boolean).join(' ')}
-                    onClick={() => handleUpgrade(tier.id)}
+                    onClick={() => handleUpgrade(tier.id, isDowngrade)}
                     disabled={isLoading}
                   >
                     {isLoading

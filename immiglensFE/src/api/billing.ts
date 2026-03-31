@@ -28,4 +28,15 @@ export const billing = {
       '/api/billing/sync-checkout',
       { method: 'POST', body: JSON.stringify({ session_id: sessionId }) },
     ),
+
+  /**
+   * Upgrade or downgrade an existing subscriber to a different plan.
+   * Updates the Stripe subscription in place — no new checkout session is created,
+   * so no duplicate subscriptions.  Use this when `has_billing_account` is true.
+   */
+  changePlan: (tierId: number, isAnnual = false) =>
+    request<{ tier_id: number | null; tier_expires_at: string | null; synced: boolean }>(
+      '/api/billing/change-plan',
+      { method: 'POST', body: JSON.stringify({ tier_id: tierId, is_annual: isAnnual }) },
+    ),
 }
