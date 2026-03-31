@@ -172,11 +172,11 @@
   --sb-bg:               #ffffff;
   --sb-border:           rgba(0,0,0,0.08);
   --sb-label-color:      rgba(30,35,41,0.35);
-  --sb-link-color:       rgba(30,35,41,0.5);
+  --sb-link-color:       #1E2329;
   --sb-link-hover-bg:    rgba(200,162,74,0.07);
   --sb-link-hover-color: #1E2329;
   --sb-active-bg:        rgba(200,162,74,0.14);
-  --sb-active-color:     #C8A24A;
+  --sb-active-color:     #1E2329;
   --sb-active-accent:    #C8A24A;
   --sb-separator:        rgba(0,0,0,0.07);
   --sb-quicklink-color:  rgba(200,162,74,0.75);
