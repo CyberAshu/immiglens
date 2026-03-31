@@ -152,23 +152,45 @@ async def create_checkout_session(
     db,
     trial_days: int = 0,
     coupon_id: str | None = None,
+    onboarding: bool = False,
+    is_annual: bool = False,
 ) -> str:
     """Create a Stripe Checkout Session and return the hosted URL.
 
     Pass trial_days > 0 to start a free trial period before the first charge.
     Pass coupon_id to apply a discount (e.g. founding member 20% forever).
+    Pass onboarding=True to redirect back to onboarding wizard after checkout.
+    Pass is_annual=True to use the tier's annual price (stripe_annual_price_id)
+    if configured, otherwise falls back to the monthly price.
     """
-    if not tier.stripe_price_id:
+    # Resolve correct Stripe price — prefer annual when requested and available
+    annual_price_id: str | None = getattr(tier, "stripe_annual_price_id", None)
+    if is_annual and annual_price_id:
+        price_id = annual_price_id
+    elif tier.stripe_price_id:
+        price_id = tier.stripe_price_id
+    else:
         raise ValueError(f"Tier '{tier.name}' has no Stripe price configured.")
 
     customer_id = await get_or_create_customer(user, db)
     client = _client()
 
-    success_url = f"{settings.FRONTEND_URL}/plan?checkout=success"
-    cancel_url  = f"{settings.FRONTEND_URL}/plan?checkout=cancelled"
+    # {CHECKOUT_SESSION_ID} is a Stripe template variable — Stripe substitutes
+    # the real session ID before redirecting, giving the frontend session-level
+    # proof of payment so it can call /api/billing/sync-checkout immediately.
+    if onboarding:
+        success_url = f"{settings.FRONTEND_URL}/onboarding?step=done&checkout=success&session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url  = f"{settings.FRONTEND_URL}/onboarding?step=plan&checkout=cancelled"
+    else:
+        success_url = f"{settings.FRONTEND_URL}/plan?checkout=success&session_id={{CHECKOUT_SESSION_ID}}"
+        cancel_url  = f"{settings.FRONTEND_URL}/plan?checkout=cancelled"
 
     subscription_data: dict = {
-        "metadata": {"user_id": str(user.id), "tier_id": str(tier.id)}
+        "metadata": {
+            "user_id": str(user.id),
+            "tier_id": str(tier.id),
+            "billing_period": "annual" if is_annual else "monthly",
+        }
     }
     if trial_days > 0:
         subscription_data["trial_period_days"] = trial_days
@@ -176,11 +198,15 @@ async def create_checkout_session(
     params: dict = {
         "customer": customer_id,
         "payment_method_types": ["card"],
-        "line_items": [{"price": tier.stripe_price_id, "quantity": 1}],
+        "line_items": [{"price": price_id, "quantity": 1}],
         "mode": "subscription",
         "success_url": success_url,
         "cancel_url": cancel_url,
-        "metadata": {"user_id": str(user.id), "tier_id": str(tier.id)},
+        "metadata": {
+            "user_id": str(user.id),
+            "tier_id": str(tier.id),
+            "billing_period": "annual" if is_annual else "monthly",
+        },
         "subscription_data": subscription_data,
     }
     if coupon_id:
@@ -194,7 +220,7 @@ async def create_portal_session(user: "User", db) -> str:
     """Create a Stripe Customer Portal session and return the URL."""
     customer_id = await get_or_create_customer(user, db)
     client = _client()
-    return_url = f"{settings.FRONTEND_URL}/subscription"
+    return_url = f"{settings.FRONTEND_URL}/plan"
     portal = client.billing_portal.sessions.create(
         params={"customer": customer_id, "return_url": return_url}
     )

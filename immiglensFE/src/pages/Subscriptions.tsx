@@ -40,6 +40,7 @@ export default function Subscriptions() {
   const [activePromos, setActivePromos]       = useState<ActivePromotion[]>([])
   const [searchParams, setSearchParams] = useSearchParams()
   const checkoutStatus = searchParams.get('checkout')
+  const sessionId      = searchParams.get('session_id')
 
   function loadData() {
     setLoading(true)
@@ -55,14 +56,25 @@ export default function Subscriptions() {
 
   useEffect(() => { loadData() }, [])
 
-  // On checkout=success: reload data so new tier shows immediately,
-  // then auto-clear the banner after 5 seconds
+  // On checkout=success: sync subscription state proactively (race-condition fix),
+  // then reload usage data so the new tier shows immediately.
+  // Auto-clear the banner after 5 seconds.
   useEffect(() => {
-    if (checkoutStatus === 'success') {
+    if (checkoutStatus !== 'success') return
+
+    const doSync = async () => {
+      if (sessionId) {
+        // Wait for the sync so DB is up to date before we load usage
+        try { await billing.syncCheckout(sessionId) } catch { /* non-fatal */ }
+      }
       loadData()
-      const t = setTimeout(() => setSearchParams({}), 5000)
-      return () => clearTimeout(t)
     }
+    doSync()
+
+    const t = setTimeout(() => setSearchParams(p => {
+      p.delete('checkout'); p.delete('session_id'); return p
+    }), 5000)
+    return () => clearTimeout(t)
   }, [checkoutStatus])
 
   async function handleUpgrade(tierId: number) {
@@ -135,9 +147,6 @@ export default function Subscriptions() {
             {tier.name.toUpperCase()}
           </div>
         </div>
-        <p className="sub-admin-note">ℹ️ Your plan is managed by the platform administrator.
-          Contact support to request an upgrade.
-        </p>
         <div className="sub-limits-grid">
           {[
             { label: 'Max Active Positions',  val: tier.max_active_positions },

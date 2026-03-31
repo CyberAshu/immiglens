@@ -92,6 +92,7 @@ class UserOut(BaseModel):
     email: str
     full_name: str
     is_admin: bool = False
+    tier_id: Optional[int] = None
     tier_expires_at: Optional[datetime] = None
     created_at: datetime
 

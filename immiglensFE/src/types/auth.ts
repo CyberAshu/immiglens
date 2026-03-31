@@ -3,6 +3,7 @@ export interface User {
   email: string
   full_name: string
   is_admin: boolean
+  tier_id: number | null
   tier_expires_at?: string | null
   created_at: string
 }

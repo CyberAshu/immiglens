@@ -1,64 +1,111 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+﻿import { useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { auth } from '../api'
-import { Eye, EyeOff, MailCheck, ShieldCheck } from 'lucide-react'
+import {
+  Eye, EyeOff, ShieldCheck,
+  CheckCircle2, Clock, Shield, ArrowRight,
+} from 'lucide-react'
 
 function pwStrengthLevel(pw: string): 0 | 1 | 2 | 3 {
   if (!pw) return 0
   if (pw.length < 8) return 1
-  const hasUpper = /[A-Z]/.test(pw)
-  const hasDigit = /[0-9]/.test(pw)
+  const hasUpper  = /[A-Z]/.test(pw)
+  const hasDigit  = /[0-9]/.test(pw)
   const hasSymbol = /[^A-Za-z0-9]/.test(pw)
   const extras = (hasUpper ? 1 : 0) + (hasDigit ? 1 : 0) + (hasSymbol ? 1 : 0)
   if (pw.length >= 12 && extras >= 2) return 3
-  if (pw.length >= 8 && extras >= 1) return 2
+  if (pw.length >= 8  && extras >= 1) return 2
   return 1
 }
 
-const PW_STRENGTH_LABELS = ['', 'Weak', 'Good', 'Strong'] as const
-const PW_STRENGTH_COLORS = ['', '#ef4444', '#f59e0b', '#22c55e'] as const
+const PW_LABELS = ['', 'Weak', 'Good', 'Strong'] as const
+const PW_COLORS = ['', '#ef4444', '#f59e0b', '#22c55e'] as const
+
+function LeftPanel() {
+  return (
+    <div className="asl-panel">
+      <div className="asl-grid-overlay" />
+      <div className="asl-content">
+        <Link to="/" className="asl-brand">
+          <div className="asl-logo-mark">
+            <ShieldCheck size={20} color="#C8A24A" strokeWidth={2.2} />
+          </div>
+          <span className="asl-logo-name">ImmigLens</span>
+        </Link>
+        <div className="asl-body">
+          <h2 className="asl-headline">
+            Automate your LMIA<br />
+            <span className="asl-headline-gold">documentation.</span>
+          </h2>
+          <p className="asl-sub">
+            Join immigration professionals who trust ImmigLens to capture,
+            monitor, and report on job postings automatically.
+          </p>
+          <ul className="asl-features">
+            <li className="asl-feature">
+              <div className="asl-feature-icon"><CheckCircle2 size={14} color="#C8A24A" strokeWidth={2} /></div>
+              <div><div className="asl-feature-title">Screenshot proof</div><div className="asl-feature-desc">Auto-capture all job boards on your schedule</div></div>
+            </li>
+            <li className="asl-feature">
+              <div className="asl-feature-icon"><Clock size={14} color="#C8A24A" strokeWidth={2} /></div>
+              <div><div className="asl-feature-title">Set up in minutes</div><div className="asl-feature-desc">Add your postings and captures start automatically</div></div>
+            </li>
+            <li className="asl-feature">
+              <div className="asl-feature-icon"><Shield size={14} color="#C8A24A" strokeWidth={2} /></div>
+              <div><div className="asl-feature-title">IRCC-compliant exports</div><div className="asl-feature-desc">Generate audit-ready PDFs for every LMIA file</div></div>
+            </li>
+          </ul>
+        </div>
+        <div className="asl-trust">
+          <span className="asl-trust-dot" />
+          <span className="asl-trust-text">14-day free trial · No credit card required to start</span>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function Register() {
-  const navigate = useNavigate()
-  const [fullName, setFullName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [acceptTerms, setAcceptTerms] = useState(false)
-  const [acceptPrivacy, setAcceptPrivacy] = useState(false)
-  const [acceptableUse, setAcceptableUse] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [registered, setRegistered] = useState(false)
-  const [registeredEmail, setRegisteredEmail] = useState('')
+  const navigate     = useNavigate()
+  const [searchParams] = useSearchParams()
+  const planIdParam  = searchParams.get('planId')
+  const periodParam  = searchParams.get('period') ?? 'monthly'
 
-  const strength = pwStrengthLevel(password)
-  const allAccepted = acceptTerms && acceptPrivacy && acceptableUse
+  const [fullName, setFullName]     = useState('')
+  const [email, setEmail]           = useState('')
+  const [password, setPassword]     = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword]       = useState(false)
+  const [showConfirm, setShowConfirm]         = useState(false)
+  const [acceptAll, setAcceptAll]             = useState(false)
+  const [error, setError]   = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const strength   = pwStrengthLevel(password)
+  const allAccepted = acceptAll
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.')
-      return
-    }
-    if (!allAccepted) {
-      setError('Please accept all policies to continue.')
-      return
-    }
-    const normalized = email.trim().toLowerCase()
+    if (password !== confirmPassword) { setError('Passwords do not match.'); return }
+    if (!allAccepted) { setError('Please accept all policies to continue.'); return }
+    const normalized  = email.trim().toLowerCase()
     const trimmedName = fullName.trim()
     setLoading(true)
     try {
       await auth.register(normalized, password, trimmedName, {
-        accept_terms: acceptTerms,
-        accept_privacy: acceptPrivacy,
-        accept_acceptable_use: acceptableUse,
+        accept_terms: true,
+        accept_privacy: true,
+        accept_acceptable_use: true,
       })
-      setRegisteredEmail(normalized)
-      setRegistered(true)
+      await auth.requestOtp(normalized, password)
+      const params = new URLSearchParams({ step: 'verify', email: normalized })
+      if (planIdParam) params.set('planId', planIdParam)
+      if (periodParam && periodParam !== 'monthly') params.set('period', periodParam)
+      navigate(`/onboarding?${params.toString()}`, {
+        state: { email: normalized, password },
+        replace: true,
+      })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Registration failed.')
     } finally {
@@ -66,202 +113,108 @@ export default function Register() {
     }
   }
 
-  /* ── Success screen ──────────────────────────────────────── */
-  if (registered) {
-    return (
-      <div className="auth-page">
-        <div className="auth-card" style={{ textAlign: 'center' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-            <div style={{
-              width: 64, height: 64, borderRadius: 16,
-              background: 'linear-gradient(135deg,#0b1f3b,#1a3a6b)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 4px 20px rgba(11,31,59,0.25)',
-            }}>
-              <MailCheck size={30} color="#C8A24A" strokeWidth={2} />
-            </div>
-          </div>
-          <h1 className="auth-title" style={{ marginBottom: '0.4rem' }}>Account created!</h1>
-          <p className="auth-sub" style={{ marginBottom: '1.5rem' }}>
-            Welcome aboard. Here's what happens next:
-          </p>
-          <div style={{
-            background: 'rgba(200,162,74,0.08)', border: '1px solid rgba(200,162,74,0.25)',
-            borderRadius: 10, padding: '1rem 1.25rem', marginBottom: '1.75rem', textAlign: 'left',
-          }}>
-            <ol style={{ margin: 0, paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.9rem', color: 'var(--text-secondary, #64748b)' }}>
-              <li>Click <strong>Sign in</strong> below and enter your password.</li>
-              <li>A <strong>6-digit verification code</strong> will be sent to <strong>{registeredEmail}</strong>.</li>
-              <li>Enter the code to complete sign-in and verify your email.</li>
-            </ol>
-          </div>
-          <button
-            className="btn-primary btn-block auth-submit"
-            onClick={() => navigate('/login', { state: { email: registeredEmail } })}
-          >
-            Sign in now →
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  /* ── Registration form ───────────────────────────────────── */
   return (
-    <div className="auth-page">
-      <div className="auth-card">
+    <div className="auth-split-layout">
+      <LeftPanel />
 
-        {/* Brand */}
-        <div className="auth-logo" style={{ justifyContent: 'center', marginBottom: '1.5rem' }}>
-          <Link to="/" style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', textDecoration: 'none' }}>
-            <div className="auth-logo-mark" style={{ width: 52, height: 52, borderRadius: 14, fontSize: 'unset', boxShadow: '0 4px 20px rgba(11,31,59,0.25)' }}>
-              <ShieldCheck size={26} color="#C8A24A" strokeWidth={2.5} />
-            </div>
-            <span className="auth-logo-text" style={{ fontSize: '1.1rem' }}>ImmigLens</span>
+      <div className="auth-split-right">
+        <div className="auth-split-form auth-split-form--wide anim-fade-up">
+
+          <Link to="/" className="asf-mobile-brand">
+            <div className="asf-mobile-logo"><ShieldCheck size={18} color="#C8A24A" strokeWidth={2.5} /></div>
+            <span>ImmigLens</span>
           </Link>
-        </div>
 
-        <div className="auth-header" style={{ textAlign: 'center', marginBottom: '1rem' }}>
-          <h1 className="auth-title">Create account</h1>
-          <p className="auth-sub">Start tracking LMIA recruitment proof</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="auth-form" noValidate style={{ gap: '0.65rem' }}>
-
-          {/* Full Name + Email — side by side */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
-            <div className="auth-field">
-              <label className="auth-label">Full Name</label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={e => setFullName(e.target.value)}
-                required
-                autoFocus
-                autoComplete="name"
-                placeholder="Jane Smith"
-              />
-            </div>
-            <div className="auth-field">
-              <label className="auth-label">Work Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-                placeholder="you@company.com"
-              />
-            </div>
+          <div className="asf-header">
+            <p className="asf-eyebrow">Get started free</p>
+            <h1 className="asf-title">Create your account</h1>
+            <p className="asf-sub">Start tracking LMIA recruitment proof today.</p>
           </div>
 
-          {/* Password + Confirm — side by side */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
-            <div className="auth-field">
-              <label className="auth-label">Password</label>
-              <div className="auth-pw-wrap">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required
-                  minLength={8}
-                  autoComplete="new-password"
-                  placeholder="Min. 8 chars"
-                  className="auth-pw-input"
-                />
-                <button type="button" className="auth-pw-toggle" onClick={() => setShowPassword(p => !p)} tabIndex={-1} aria-label={showPassword ? 'Hide' : 'Show'}>
-                  {showPassword ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
-                </button>
-              </div>
-              {password.length > 0 && (
-                <div className="pw-strength" style={{ marginTop: '0.3rem' }}>
-                  <div className="pw-strength-bars">
-                    {([1, 2, 3] as const).map(n => (
-                      <div key={n} className="pw-strength-bar" style={{ background: strength >= n ? PW_STRENGTH_COLORS[strength] : undefined, opacity: strength >= n ? 1 : undefined }} />
-                    ))}
-                  </div>
-                  <span className="pw-strength-label" style={{ color: PW_STRENGTH_COLORS[strength] }}>{PW_STRENGTH_LABELS[strength]}</span>
+          <form onSubmit={handleSubmit} noValidate>
+
+            {/* Row 1: Name + Email */}
+            <div className="asf-row">
+              <div className="asf-field">
+                <label className="asf-label">Full Name</label>
+                <div className="asf-input-wrap">
+                  <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} required autoFocus autoComplete="name" placeholder="Jane Smith" />
                 </div>
-              )}
-            </div>
-            <div className="auth-field">
-              <label className="auth-label">Confirm Password</label>
-              <div className="auth-pw-wrap">
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  required
-                  autoComplete="new-password"
-                  placeholder="Re-enter"
-                  className="auth-pw-input"
-                />
-                <button type="button" className="auth-pw-toggle" onClick={() => setShowConfirmPassword(p => !p)} tabIndex={-1} aria-label={showConfirmPassword ? 'Hide' : 'Show'}>
-                  {showConfirmPassword ? <EyeOff size={14} strokeWidth={2} /> : <Eye size={14} strokeWidth={2} />}
-                </button>
               </div>
-              {confirmPassword.length > 0 && (
-                <p style={{ fontSize: '0.75rem', marginTop: '0.3rem', color: password === confirmPassword ? '#22c55e' : '#ef4444' }}>
-                  {password === confirmPassword ? '✓ Matches' : '✗ No match'}
-                </p>
-              )}
+              <div className="asf-field">
+                <label className="asf-label">Work Email</label>
+                <div className="asf-input-wrap">
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" placeholder="you@company.com" />
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Error */}
-          {error && (
-            <div className="auth-error-box">
-              <span className="auth-error-icon">⚠</span>
-              {error}
+            {/* Row 2: Password + Confirm */}
+            <div className="asf-row">
+              <div className="asf-field">
+                <label className="asf-label">Password</label>
+                <div className="asf-input-wrap">
+                  <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required minLength={8} autoComplete="new-password" placeholder="Min. 8 characters" className="asf-pw-input" />
+                  <button type="button" className="asf-pw-toggle" onClick={() => setShowPassword(p => !p)} tabIndex={-1} aria-label={showPassword ? 'Hide' : 'Show'}>
+                    {showPassword ? <EyeOff size={16} strokeWidth={2} /> : <Eye size={16} strokeWidth={2} />}
+                  </button>
+                </div>
+                {password.length > 0 && (
+                  <div className="asf-strength">
+                    <div className="asf-strength-bars">
+                      {([1, 2, 3] as const).map(n => (
+                        <div key={n} className="asf-strength-bar" style={{ background: strength >= n ? PW_COLORS[strength] : undefined, opacity: strength >= n ? 1 : undefined }} />
+                      ))}
+                    </div>
+                    <span className="asf-strength-label" style={{ color: PW_COLORS[strength] }}>{PW_LABELS[strength]}</span>
+                  </div>
+                )}
+              </div>
+              <div className="asf-field">
+                <label className="asf-label">Confirm Password</label>
+                <div className="asf-input-wrap">
+                  <input type={showConfirm ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required autoComplete="new-password" placeholder="Re-enter password" className="asf-pw-input" />
+                  <button type="button" className="asf-pw-toggle" onClick={() => setShowConfirm(p => !p)} tabIndex={-1} aria-label={showConfirm ? 'Hide' : 'Show'}>
+                    {showConfirm ? <EyeOff size={16} strokeWidth={2} /> : <Eye size={16} strokeWidth={2} />}
+                  </button>
+                </div>
+                {confirmPassword.length > 0 && (
+                  <p style={{ fontSize: '0.75rem', marginTop: '0.3rem', color: password === confirmPassword ? '#22c55e' : '#ef4444' }}>
+                    {password === confirmPassword ? '✓ Passwords match' : '✗ No match'}
+                  </p>
+                )}
+              </div>
             </div>
-          )}
 
-          {/* Policy acceptance — simple checkbox rows */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            {([
-              { key: 'terms',   checked: acceptTerms,   setter: setAcceptTerms,   label: 'Terms of Service' },
-              { key: 'privacy', checked: acceptPrivacy, setter: setAcceptPrivacy, label: 'Privacy Policy' },
-              { key: 'use',     checked: acceptableUse, setter: setAcceptableUse, label: 'Acceptable Use Policy' },
-            ] as const).map(({ key, checked, setter, label }) => (
-              <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }}>
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={e => setter(e.target.checked)}
-                  style={{ width: 15, height: 15, accentColor: '#1a3a6b', cursor: 'pointer', flexShrink: 0 }}
-                />
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary, #64748b)' }}>
-                  I agree to the{' '}
-                  <Link
-                    to="/legal"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={e => e.stopPropagation()}
-                    style={{ color: '#1a3a6b', fontWeight: 600, textDecoration: 'none' }}
-                  >
-                    {label}
-                  </Link>
-                </span>
-              </label>
-            ))}
-          </div>
+            {error && <div className="asf-error"><span>⚠</span>{error}</div>}
 
-          <button
-            className="btn-primary btn-block auth-submit"
-            disabled={loading || !allAccepted}
-          >
-            {loading
-              ? <><span className="auth-spinner" /> Creating account…</>
-              : 'Create Account →'}
-          </button>
-        </form>
+            {/* Policy checkbox */}
+            <label className="asf-check-label asf-checks">
+              <input type="checkbox" checked={acceptAll} onChange={e => setAcceptAll(e.target.checked)} />
+              <span>
+                I accept the{' '}
+                <Link to="/legal" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>Terms of Service</Link>
+                {', '}
+                <Link to="/legal" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>Privacy Policy</Link>
+                {' & '}
+                <Link to="/legal" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>Acceptable Use Policy</Link>
+              </span>
+            </label>
 
-        <p className="auth-alt" style={{ textAlign: 'center' }}>
-          Already have an account?{' '}
-          <Link to="/login">Sign in</Link>
-        </p>
+            <button className="asf-btn" disabled={loading || !allAccepted}>
+              {loading
+                ? <><span className="auth-spinner" /> Creating account…</>
+                : <>Create Account &amp; Continue <ArrowRight size={16} strokeWidth={2.5} /></>}
+            </button>
 
+          </form>
+
+          <p className="asf-switch">
+            Already have an account?{' '}
+            <Link to="/login">Sign in</Link>
+          </p>
+
+        </div>
       </div>
     </div>
   )

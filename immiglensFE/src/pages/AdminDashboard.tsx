@@ -8,24 +8,122 @@ import { admin as adminApi } from '../api'
 import { useAuth } from '../context/AuthContext'
 import { useConfirm } from '../components/ConfirmModal'
 import { StatCard } from '../components/StatCard'
-import type { AdminGlobalStats, AdminUserRecord } from '../types'
+import type { AdminGlobalStats, AdminUserRecord, AssignTierRequest, SubscriptionTier } from '../types'
 
 const PIE_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#22d3ee', '#a78bfa']
+
+// ── Assign Plan Modal ─────────────────────────────────────────────────────────
+
+interface AssignPlanModalProps {
+  user: AdminUserRecord
+  tiers: SubscriptionTier[]
+  onClose: () => void
+  onSaved: (updated: AdminUserRecord) => void
+}
+
+function AssignPlanModal({ user, tiers, onClose, onSaved }: AssignPlanModalProps) {
+  const [tierId, setTierId] = useState<string>(user.tier_id != null ? String(user.tier_id) : '')
+  const [expiresAt, setExpiresAt] = useState<string>(
+    user.tier_expires_at ? new Date(user.tier_expires_at).toISOString().slice(0, 10) : ''
+  )
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function handleSave() {
+    setSaving(true)
+    setErr(null)
+    try {
+      const body: AssignTierRequest = {
+        tier_id: tierId === '' ? null : Number(tierId),
+        tier_expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+      }
+      await adminApi.assignTier(user.id, body)
+      const tierName = tiers.find(t => t.id === body.tier_id)?.display_name ?? null
+      onSaved({ ...user, tier_id: body.tier_id, tier_name: tierName, tier_expires_at: body.tier_expires_at ?? null })
+      // onSaved closes the modal via setAssignTarget(null) in the parent
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Failed to update plan.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }} onClick={onClose}>
+      <div style={{
+        background: '#1a1a2e', border: '1px solid #2e2e44', borderRadius: 14,
+        padding: '1.75rem 2rem', minWidth: 340, maxWidth: 420, width: '100%',
+      }} onClick={e => e.stopPropagation()}>
+        <h3 style={{ margin: '0 0 0.25rem', color: '#e8e8f0', fontSize: '1rem', fontWeight: 700 }}>
+          Assign Plan
+        </h3>
+        <p style={{ margin: '0 0 1.25rem', fontSize: '0.82rem', color: '#888' }}>
+          {user.full_name} &bull; {user.email}
+        </p>
+
+        <label style={{ display: 'block', marginBottom: '1rem' }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#aaa', display: 'block', marginBottom: '0.35rem' }}>Plan</span>
+          <select
+            className="form-input"
+            style={{ width: '100%', background: '#111', color: '#e8e8f0', padding: '0.5rem 0.75rem' }}
+            value={tierId}
+            onChange={e => setTierId(e.target.value)}
+          >
+            <option value="">Free (no paid plan)</option>
+            {tiers.map(t => (
+              <option key={t.id} value={String(t.id)}>{t.display_name}{t.price_per_month ? ` — $${t.price_per_month}/mo` : ''}</option>
+            ))}
+          </select>
+        </label>
+
+        <label style={{ display: 'block', marginBottom: '1.25rem' }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#aaa', display: 'block', marginBottom: '0.35rem' }}>Expires (optional)</span>
+          <input
+            type="date"
+            className="form-input"
+            style={{ width: '100%', background: '#111', color: '#e8e8f0', padding: '0.5rem 0.75rem' }}
+            value={expiresAt}
+            onChange={e => setExpiresAt(e.target.value)}
+          />
+        </label>
+
+        {err && <p style={{ color: '#ef4444', fontSize: '0.82rem', marginBottom: '0.75rem' }}>{err}</p>}
+
+        <div style={{ display: 'flex', gap: '0.65rem', justifyContent: 'flex-end' }}>
+          <button className="btn-ghost btn-sm" onClick={onClose} disabled={saving}>Cancel</button>
+          <button
+            className="btn-primary btn-sm"
+            onClick={handleSave}
+            disabled={saving}
+            style={{ minWidth: 80 }}
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function AdminDashboard() {
   const { user } = useAuth()
   const [stats, setStats]           = useState<AdminGlobalStats | null>(null)
   const [users, setUsers]           = useState<AdminUserRecord[]>([])
+  const [tiers, setTiers]           = useState<SubscriptionTier[]>([])
   const [loading, setLoading]       = useState(true)
   const [togglingId, setTogglingId] = useState<number | null>(null)
   const [error, setError]           = useState<string | null>(null)
   const [search, setSearch]         = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user'>('all')
+  const [assignTarget, setAssignTarget] = useState<AdminUserRecord | null>(null)
   const { confirmModal, askConfirm }  = useConfirm()
 
   useEffect(() => {
-    Promise.all([adminApi.stats(), adminApi.users()])
-      .then(([s, u]) => { setStats(s); setUsers(u) })
+    Promise.all([adminApi.stats(), adminApi.users(), adminApi.allTiers()])
+      .then(([s, u, t]) => { setStats(s); setUsers(u); setTiers(t) })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [])
@@ -247,13 +345,14 @@ export default function AdminDashboard() {
               <th style={{ textAlign: 'center' }}>Screenshots</th>
               <th>Registered</th>
               <th style={{ textAlign: 'center' }}>Role</th>
+              <th>Plan</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {filteredUsers.length === 0 && (
               <tr>
-                <td colSpan={8} className="empty-hint" style={{ textAlign: 'center', padding: '2rem' }}>
+                <td colSpan={9} className="empty-hint" style={{ textAlign: 'center', padding: '2rem' }}>
                   No users match the current filters.
                 </td>
               </tr>
@@ -273,8 +372,34 @@ export default function AdminDashboard() {
                     ? <span className="role-badge role-badge--admin">Admin</span>
                     : <span className="role-badge role-badge--user">User</span>}
                 </td>
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  <span style={{
+                    display: 'inline-block',
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: 20,
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    background: u.tier_id ? 'rgba(200,162,74,0.15)' : 'rgba(255,255,255,0.06)',
+                    color: u.tier_id ? '#C8A24A' : '#666',
+                    border: u.tier_id ? '1px solid rgba(200,162,74,0.35)' : '1px solid rgba(255,255,255,0.08)',
+                  }}>
+                    {u.tier_name ?? 'Free'}
+                  </span>
+                  {u.tier_expires_at && (
+                    <span style={{ display: 'block', fontSize: '0.73rem', color: '#666', marginTop: '0.15rem' }}>
+                      exp&nbsp;{new Date(u.tier_expires_at).toLocaleDateString()}
+                    </span>
+                  )}
+                </td>
                 <td>
                   <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                    <button
+                      className="btn-ghost btn-sm"
+                      style={{ fontSize: '0.78rem', padding: '0.25rem 0.65rem' }}
+                      onClick={() => setAssignTarget(u)}
+                    >
+                      Assign Plan
+                    </button>
                     {u.id !== user?.id ? (
                       <>
                         <button
@@ -298,6 +423,19 @@ export default function AdminDashboard() {
           </tbody>
         </table>
       </div>
+
+      {assignTarget && (
+        <AssignPlanModal
+          user={assignTarget}
+          tiers={tiers}
+          onClose={() => setAssignTarget(null)}
+          onSaved={updated => {
+            setUsers(prev => prev.map(u => u.id === updated.id ? updated : u))
+            setAssignTarget(null)
+          }}
+        />
+      )}
+
     </div>
   )
 }

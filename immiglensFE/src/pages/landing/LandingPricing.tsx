@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, Loader2 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
 import { subscriptions } from '../../api/subscriptions'
 import { billing } from '../../api/billing'
 import { promotions } from '../../api/promotions'
@@ -32,26 +33,34 @@ const tableRows: { label: string; key: keyof SubscriptionTier }[] = [
 
 // ── Plan Card ─────────────────────────────────────────────────────────────────
 
-function TierCard({ tier, isHighlighted, isAnnual, isLoggedIn, bestPromo }: {
+function TierCard({ tier, isHighlighted, isAnnual, isLoggedIn, hasActiveTier, bestPromo }: {
   tier: SubscriptionTier
   isHighlighted: boolean
   isAnnual: boolean
   isLoggedIn: boolean
+  hasActiveTier: boolean
   bestPromo: ActivePromotion | null
 }) {
   const [loading, setLoading] = useState(false)
+  const navigate = useNavigate()
   const hasDiscount = !!(bestPromo && bestPromo.remaining !== 0 && tier.stripe_price_id)
 
   async function handleGetStarted() {
     if (!isLoggedIn || !tier.stripe_price_id) return
-    setLoading(true)
-    try {
-      const { url } = await billing.createCheckout(tier.id, 14)
-      window.location.href = url
-    } catch (e) {
-      alert((e as Error).message)
-    } finally {
-      setLoading(false)
+    if (!hasActiveTier) {
+      // New subscriber — go through onboarding checkout
+      setLoading(true)
+      try {
+        const { url } = await billing.createCheckout(tier.id, 14, true)
+        window.location.href = url
+      } catch (e) {
+        alert((e as Error).message)
+      } finally {
+        setLoading(false)
+      }
+    } else {
+      // Already subscribed — go to plan management page
+      navigate('/plan')
     }
   }
   const features = tierFeatureList(tier)
@@ -144,11 +153,11 @@ function TierCard({ tier, isHighlighted, isAnnual, isLoggedIn, bestPromo }: {
               : 'bg-white hover:bg-gray-50 text-brand-navy border-gray-200'
           }`}
         >
-          {loading ? 'Redirecting…' : 'Start Free Trial'}
+          {loading ? 'Redirecting…' : hasActiveTier ? 'Manage Plan' : 'Start Free Trial'}
         </button>
       ) : (
         <Link
-          to="/register"
+          to={tier.stripe_price_id ? `/register?planId=${tier.id}&period=${isAnnual ? 'annual' : 'monthly'}` : '/register'}
           className={`w-full block text-center py-3.5 rounded-xl font-semibold mb-8 transition-colors border ${
             isHighlighted
               ? 'bg-brand-navy hover:bg-brand-charcoal text-white border-transparent shadow-md'
@@ -214,8 +223,9 @@ export function LandingPricing() {
   const [isAnnual, setIsAnnual]   = useState(true)
   const [activePromos, setActivePromos] = useState<ActivePromotion[]>([])
 
-  // Detect if user is logged in (token in localStorage)
-  const isLoggedIn = !!localStorage.getItem('token')
+  const { user } = useAuth()
+  const isLoggedIn = !!user
+  const hasActiveTier = !!(user?.tier_id)
 
   useEffect(() => {
     Promise.all([
@@ -317,6 +327,7 @@ export function LandingPricing() {
                   isHighlighted={idx === popularIdx && tiers.length > 1}
                   isAnnual={isAnnual}
                   isLoggedIn={isLoggedIn}
+                  hasActiveTier={hasActiveTier}
                   bestPromo={bestPromo}
                 />
               ))}
