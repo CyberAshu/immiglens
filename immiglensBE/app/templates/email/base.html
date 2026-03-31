@@ -1,0 +1,156 @@
+{# ──────────────────────────────────────────────────────────────────────────
+   ImmigLens Email Base Template
+   Child templates: {% extends "email/base.html" %}
+
+   Required variables (passed by render_email or child templates):
+     frontend_url   — injected automatically by email_service.render_email()
+     casl_marketing — (optional, default False) show unsubscribe link in footer
+     unsubscribe_url — required when casl_marketing is True
+
+   Override blocks:
+     {% block title %}           — <title> tag
+     {% block preheader %}       — hidden inbox preview text
+     {% block badge_bg %}        — badge background colour (hex)
+     {% block badge_label %}     — badge text
+     {% block content %}         — main email body (required)
+     {% block sign_off %}        — closing (defaults to "Warm regards, The ImmigLens Team")
+     {% block footer_casl %}     — CASL disclaimer line
+
+   Macros (import from email/macros.html):
+     info_table, cta_button, ul_items, section_header
+   ────────────────────────────────────────────────────────────────────────── #}
+<!DOCTYPE html>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <!--[if mso]>
+  <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+  <![endif]-->
+  <title>{% block title %}ImmigLens{% endblock %}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f1f3f5;-webkit-font-smoothing:antialiased;mso-line-height-rule:exactly;">
+
+{# Hidden preheader — shown in inbox snippet #}
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">{% block preheader %}ImmigLens notification{% endblock %}</div>
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">&#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847; &#847;</div>
+
+{# ── Outer wrapper ─────────────────────────────────────────────────────────── #}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="background-color:#f1f3f5;min-width:320px;">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+
+      {# ── Email card ──────────────────────────────────────────────────────── #}
+      <table width="600" cellpadding="0" cellspacing="0" border="0" role="presentation"
+             style="max-width:600px;width:100%;background-color:#ffffff;
+                    border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,0.07);">
+
+        {# ── Header ─────────────────────────────────────────────────────────── #}
+        <tr>
+          <td style="background-color:#0f1f3d;padding:22px 32px;border-radius:8px 8px 0 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
+              <tr>
+                <td style="vertical-align:middle;">
+                  <span style="font-size:20px;font-weight:700;color:#ffffff;
+                               font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                               letter-spacing:-0.3px;mso-line-height-rule:exactly;">ImmigLens</span>
+                  <br>
+                  <span style="font-size:10px;color:#7a94bc;letter-spacing:0.8px;
+                               text-transform:uppercase;
+                               font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+                    Recruitment Evidence Management Platform
+                  </span>
+                </td>
+                <td align="right" style="vertical-align:middle;padding-left:16px;">
+                  <span style="display:inline-block;padding:5px 11px;border-radius:4px;
+                               font-size:10px;font-weight:600;letter-spacing:0.7px;
+                               text-transform:uppercase;white-space:nowrap;
+                               font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                               background-color:{% block badge_bg %}#1d4ed8{% endblock %};color:#ffffff;">
+                    {% block badge_label %}TRANSACTIONAL{% endblock %}
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        {# ── Body ────────────────────────────────────────────────────────────── #}
+        <tr>
+          <td style="padding:32px 32px 8px;
+                     font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+                     font-size:14px;color:#374151;line-height:1.65;">
+            {% block content %}{% endblock %}
+          </td>
+        </tr>
+
+        {# ── Sign-off ─────────────────────────────────────────────────────────── #}
+        <tr>
+          <td style="padding:16px 32px 28px;
+                     font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+            {% block sign_off %}
+            <p style="margin:0;font-size:14px;color:#374151;line-height:1.65;">
+              Warm regards,<br>
+              <strong>The ImmigLens Team</strong>
+            </p>
+            {% endblock %}
+          </td>
+        </tr>
+
+        {# ── Divider ─────────────────────────────────────────────────────────── #}
+        <tr>
+          <td style="padding:0 32px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
+              <tr>
+                <td style="border-top:1px solid #e5e7eb;font-size:0;line-height:0;">&nbsp;</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        {# ── Footer ──────────────────────────────────────────────────────────── #}
+        <tr>
+          <td style="padding:18px 32px 22px;background-color:#f9fafb;border-radius:0 0 8px 8px;">
+            <p style="margin:0 0 6px;font-size:12px;color:#6b7280;line-height:1.6;
+                      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+              <strong style="color:#374151;">ImmigLens.</strong>&nbsp;&nbsp;
+              <a href="mailto:support@immiglens.ca" style="color:#6b7280;text-decoration:none;">support@immiglens.ca</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;
+              <a href="mailto:info@immiglens.ca" style="color:#6b7280;text-decoration:none;">info@immiglens.ca</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;
+              <a href="https://immiglens.ca" style="color:#6b7280;text-decoration:none;">immiglens.ca</a>
+            </p>
+            <p style="margin:0 0 6px;font-size:11px;color:#9ca3af;line-height:1.6;
+                      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+              {% block footer_casl %}
+              {% if casl_marketing is defined and casl_marketing %}
+              You received this email because you have an active ImmigLens account.
+              <a href="{{ unsubscribe_url }}" style="color:#9ca3af;text-decoration:underline;">Unsubscribe from non-essential emails</a>&nbsp;&nbsp;|&nbsp;&nbsp;
+              <a href="{{ frontend_url }}/settings/notifications" style="color:#9ca3af;text-decoration:underline;">Manage email preferences</a>
+              {% else %}
+              This is a transactional email related to your ImmigLens account and cannot be unsubscribed from while your account is active.
+              {% endif %}
+              {% endblock %}
+            </p>
+            <p style="margin:0;font-size:11px;color:#9ca3af;line-height:1.6;
+                      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+              &copy; 2026 Medhansh Immigration Inc. All rights reserved.&nbsp;&nbsp;
+              <a href="{{ frontend_url }}/privacy" style="color:#9ca3af;text-decoration:underline;">Privacy Policy</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;
+              <a href="{{ frontend_url }}/terms" style="color:#9ca3af;text-decoration:underline;">Terms of Service</a>&nbsp;&nbsp;&middot;&nbsp;&nbsp;
+              <a href="{{ frontend_url }}/security" style="color:#9ca3af;text-decoration:underline;">Security</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+      {# /card #}
+
+    </td>
+  </tr>
+</table>
+{# /outer wrapper #}
+
+</body>
+</html>

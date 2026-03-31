@@ -51,7 +51,7 @@ function TierCard({ tier, isHighlighted, isAnnual, isLoggedIn, hasActiveTier, be
       // New subscriber — go through onboarding checkout
       setLoading(true)
       try {
-        const { url } = await billing.createCheckout(tier.id, 14, true)
+        const { url } = await billing.createCheckout(tier.id, true)
         window.location.href = url
       } catch (e) {
         alert((e as Error).message)

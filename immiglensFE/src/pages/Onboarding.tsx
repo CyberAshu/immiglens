@@ -421,9 +421,7 @@ function PlanStep({ preselectedTierId, preselectedPeriod, hasBillingAccount, onS
     setError(null)
     setCheckoutLoading(true)
     try {
-      // New users get a 14-day trial unless they explicitly opt out
-      const trialDays = (hasBillingAccount || skipTrial) ? 0 : 14
-      const { url } = await billing.createCheckout(selectedId, trialDays, true, isAnnual)
+      const { url } = await billing.createCheckout(selectedId, true, isAnnual)
       window.location.href = url
     } catch (e) {
       setError((e as Error).message)

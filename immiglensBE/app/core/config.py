@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     JOB_MAX_AGE_S: int = 3_600
 
     RECRUITMENT_PERIOD_DAYS: int = 28
-    ADMIN_ALERT_EMAIL: str = "immigera@gmail.com"
+    ADMIN_ALERT_EMAIL: str = "info@immiglens.ca"
     STUCK_ROUND_TIMEOUT_MINUTES: int = 60
 
     # ── Email / SMTP ─────────────────────────────────────────────────────────
@@ -40,8 +40,12 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
-    SMTP_FROM: str = "noreply@immiglens.com"
+    SMTP_FROM: str = "ImmigLens <info@immiglens.ca>"
+    SMTP_REPLY_TO: str = "support@immiglens.ca"
     SMTP_USE_TLS: bool = True
+
+    # ── Trial ─────────────────────────────────────────────────────────────────
+    TRIAL_DAYS: int = 14
 
     # ── Invitation token expiry ───────────────────────────────────────────────
     INVITATION_EXPIRE_HOURS: int = 72

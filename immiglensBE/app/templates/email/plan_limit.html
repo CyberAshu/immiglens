@@ -1,0 +1,75 @@
+{% extends "email/base.html" %}
+
+{% block title %}You've reached your active position limit &mdash; ImmigLens{% endblock %}
+{% block preheader %}You've reached the {{ position_limit }}-position limit on your {{ plan_name }} plan. Archive a position or upgrade to continue.{% endblock %}
+{% block badge_bg %}#d97706{% endblock %}
+{% block badge_label %}ALERT &middot; ACCOUNT LIMIT REACHED{% endblock %}
+
+{% block content %}
+<p style="margin:0 0 20px;font-size:16px;font-weight:600;color:#111827;">Hi {{ first_name }},</p>
+
+<p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.7;">
+  You have reached the active Job Position limit on your current ImmigLens plan. You will not be
+  able to create new Job Positions until you either archive an existing position or upgrade to a
+  higher plan.
+</p>
+
+{# Plan limit summary #}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="background-color:#fffbeb;border:1px solid #fde68a;border-radius:6px;margin:0 0 24px;">
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fde68a;">Current plan</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #fde68a;">{{ plan_name }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fde68a;">Active position limit</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #fde68a;">{{ position_limit }} positions</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;">Active positions in use</td>
+    <td style="padding:10px 16px;font-size:14px;color:#b45309;font-weight:700;">{{ active_count }} of {{ position_limit }} &mdash; limit reached</td>
+  </tr>
+</table>
+
+<p style="margin:0 0 12px;font-size:13px;font-weight:600;color:#374151;">Option 1 &mdash; Archive a completed position</p>
+<p style="margin:0 0 16px;font-size:13px;color:#374151;line-height:1.7;">
+  If any of your active positions are for roles that have already been filled or are no longer
+  actively being recruited for, archiving them will free up a slot immediately. Archiving does not
+  delete any evidence or reports &mdash; everything is preserved and remains accessible.
+</p>
+
+<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+  <tr>
+    <td style="background-color:#1746c2;border-radius:6px;">
+      <a href="{{ manage_url }}"
+         style="display:inline-block;padding:11px 22px;color:#ffffff;font-size:14px;font-weight:600;
+                text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+        Manage My Positions &rarr;
+      </a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0 0 12px;font-size:13px;font-weight:600;color:#374151;">Option 2 &mdash; Upgrade your plan</p>
+<p style="margin:0 0 16px;font-size:13px;color:#374151;line-height:1.7;">
+  Upgrading unlocks more active position slots immediately. New limits take effect as soon as
+  your upgrade is confirmed.
+</p>
+
+<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+  <tr>
+    <td style="background-color:#d97706;border-radius:6px;">
+      <a href="{{ upgrade_url }}"
+         style="display:inline-block;padding:11px 22px;color:#ffffff;font-size:14px;font-weight:600;
+                text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+        Upgrade My Plan &rarr;
+      </a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.7;">
+  Reaching the limit does not affect your existing active positions. All active capture
+  schedules continue to run and evidence continues to be collected for all existing positions.
+</p>
+{% endblock %}

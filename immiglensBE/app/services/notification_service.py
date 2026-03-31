@@ -17,10 +17,7 @@ Usage (from scheduler or router):
 import asyncio
 import json
 import logging
-import smtplib
-import ssl
 from datetime import datetime, timezone
-from email.mime.text import MIMEText
 from typing import Any, Optional
 
 import httpx
@@ -35,6 +32,7 @@ from app.models.notification import (
     NotificationPreference,
     NotifStatus,
 )
+from app.services.email_service import send_admin_alert, send_email
 
 
 # ── Email ─────────────────────────────────────────────────────────────────────
@@ -71,60 +69,13 @@ def _build_email_body(event: NotificationEvent, context: dict[str, Any]) -> str:
     return f"ImmigLens event: {event.value}\n\n{json.dumps(context, indent=2)}"
 
 
-async def send_admin_alert(subject: str, body: str) -> None:
-    """Send a plain-text alert email to the configured ADMIN_ALERT_EMAIL.
-
-    Silently does nothing when ADMIN_ALERT_EMAIL or SMTP_HOST is not set.
-    Should never raise — all errors are logged and swallowed.
-    """
-    if not settings.ADMIN_ALERT_EMAIL or not settings.SMTP_HOST:
-        return
-    try:
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(
-            None,
-            _send_email_sync,
-            settings.ADMIN_ALERT_EMAIL,
-            f"[ImmigLens Admin] {subject}",
-            body,
-        )
-        logger.info("Admin alert sent: %s", subject)
-    except Exception:
-        logger.exception("Failed to send admin alert: %s", subject)
-
-
 logger = logging.getLogger(__name__)
-
-
-def _send_email_sync(to: str, subject: str, body: str) -> None:
-    """Blocking SMTP send — called via run_in_executor."""
-    if not settings.SMTP_HOST:
-        raise RuntimeError("SMTP_HOST is not configured")
-
-    msg = MIMEText(body, "plain", "utf-8")
-    msg["Subject"] = subject
-    msg["From"] = settings.SMTP_FROM
-    msg["To"] = to
-
-    if settings.SMTP_USE_TLS:
-        ctx = ssl.create_default_context()
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15) as s:
-            s.starttls(context=ctx)
-            if settings.SMTP_USER:
-                s.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            s.sendmail(settings.SMTP_FROM, [to], msg.as_string())
-    else:
-        with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15) as s:
-            if settings.SMTP_USER:
-                s.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            s.sendmail(settings.SMTP_FROM, [to], msg.as_string())
 
 
 async def _deliver_email(to: str, event: NotificationEvent, context: dict[str, Any]) -> None:
     subject = f"ImmigLens — {event.value.replace('_', ' ').title()}"
     body = _build_email_body(event, context)
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, _send_email_sync, to, subject, body)
+    await send_email(to, subject, body)
 
 
 # ── Webhook ───────────────────────────────────────────────────────────────────

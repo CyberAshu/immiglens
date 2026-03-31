@@ -64,6 +64,20 @@ async def check_active_position_limit(db: AsyncSession, user: User) -> None:
         )
     ).scalar_one()
     if count >= tier.max_active_positions:
+        try:
+            from app.core.config import settings as _s
+            from app.services.email_service import send_plan_limit_email
+            await send_plan_limit_email(
+                user.email,
+                user.full_name or "there",
+                tier.name,
+                tier.max_active_positions,
+                count,
+                f"{_s.FRONTEND_URL}/dashboard",
+                f"{_s.FRONTEND_URL}/plans",
+            )
+        except Exception:
+            pass  # never block the 402
         raise HTTPException(
             status_code=_PAYMENT_REQUIRED,
             detail=f"Your plan allows a maximum of {tier.max_active_positions} active position(s) total. "
@@ -92,6 +106,20 @@ async def check_position_reactivate_limit(db: AsyncSession, user: User, exclude_
         )
     ).scalar_one()
     if count >= tier.max_active_positions:
+        try:
+            from app.core.config import settings as _s
+            from app.services.email_service import send_plan_limit_email
+            await send_plan_limit_email(
+                user.email,
+                user.full_name or "there",
+                tier.name,
+                tier.max_active_positions,
+                count,
+                f"{_s.FRONTEND_URL}/dashboard",
+                f"{_s.FRONTEND_URL}/plans",
+            )
+        except Exception:
+            pass  # never block the 402
         raise HTTPException(
             status_code=_PAYMENT_REQUIRED,
             detail=f"Your plan allows a maximum of {tier.max_active_positions} active position(s) total. "

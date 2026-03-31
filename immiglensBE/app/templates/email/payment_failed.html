@@ -1,0 +1,70 @@
+{% extends "email/base.html" %}
+
+{% block title %}&#9888; Action required: payment failed &mdash; ImmigLens{% endblock %}
+{% block preheader %}We were unable to process your payment. Update your payment method to avoid service interruption.{% endblock %}
+{% block badge_bg %}#dc2626{% endblock %}
+{% block badge_label %}ACTION REQUIRED &middot; CRITICAL{% endblock %}
+
+{% block content %}
+<p style="margin:0 0 20px;font-size:16px;font-weight:600;color:#111827;">Hi {{ first_name }},</p>
+
+<p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.7;">
+  We were unable to process your scheduled payment. This may be due to an expired card,
+  insufficient funds, a card decline, or a billing address mismatch.
+  <strong>Your subscription is currently in a grace period.</strong>
+</p>
+
+{# Payment failure details #}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:6px;margin:0 0 24px;">
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fecaca;">Amount attempted</td>
+    <td style="padding:10px 16px;font-size:14px;color:#b91c1c;font-weight:700;border-bottom:1px solid #fecaca;">{{ amount }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fecaca;">Attempted on</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #fecaca;">{{ attempted_at }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fecaca;">Failure reason</td>
+    <td style="padding:10px 16px;font-size:13px;color:#b91c1c;font-weight:600;border-bottom:1px solid #fecaca;">{{ failure_reason }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fecaca;">Grace period ends</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #fecaca;">{{ grace_period_end }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fecaca;">Next automatic retry</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #fecaca;">{{ retry_date }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;">Retries remaining</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;">{{ retries_remaining }} automatic retries remaining</td>
+  </tr>
+</table>
+
+<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+  <tr>
+    <td style="background-color:#dc2626;border-radius:6px;">
+      <a href="{{ billing_url }}"
+         style="display:inline-block;padding:11px 22px;color:#ffffff;font-size:14px;font-weight:600;
+                text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+        Update Payment Method Now &rarr;
+      </a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">What happens during the grace period</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 16px;">
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; All existing Job Positions remain active and capture schedules continue to run</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; Evidence Timeline, screenshots, and all existing reports remain accessible</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#b91c1c;font-weight:500;line-height:1.6;">&bull;&nbsp; New Job Positions cannot be created until payment is resolved</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#b91c1c;font-weight:500;line-height:1.6;">&bull;&nbsp; If all retries fail by {{ grace_period_end }}, your account will be suspended</td></tr>
+</table>
+
+<p style="margin:0;font-size:13px;color:#6b7280;line-height:1.7;">
+  Questions? Reply to this email or contact
+  <a href="mailto:info@immiglens.ca" style="color:#1746c2;text-decoration:none;">info@immiglens.ca</a>.
+</p>
+{% endblock %}

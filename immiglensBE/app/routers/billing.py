@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import stripe
@@ -18,6 +18,13 @@ from app.models.subscription import SubscriptionTier
 from app.models.user import User
 from app.routers.promotions import _is_eligible
 from app.services import stripe_service
+from app.services.email_service import (
+    send_payment_failed_email,
+    send_payment_successful_email,
+    send_renewal_failed_email,
+    send_subscription_confirmed_email,
+    send_trial_ending_email,
+)
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +35,6 @@ router = APIRouter(prefix="/api/billing", tags=["billing"])
 
 class CheckoutRequest(BaseModel):
     tier_id: int
-    trial_days: int = 0
     onboarding: bool = False  # when True, success/cancel URL targets /onboarding instead of /plan
     is_annual: bool = False   # when True, use annual price if available; stored in subscription metadata
 
@@ -90,10 +96,14 @@ async def create_checkout(
     promo = await _best_promotion(db)
     coupon_id = promo.stripe_coupon_id if promo else None
 
+    # Trial eligibility is a backend decision: only for first-time subscribers.
+    # settings.TRIAL_DAYS is the single source of truth — never sent by the client.
+    trial_days = settings.TRIAL_DAYS if not current_user.stripe_customer_id else 0
+
     try:
         url = await stripe_service.create_checkout_session(
             current_user, tier, db,
-            trial_days=body.trial_days,
+            trial_days=trial_days,
             coupon_id=coupon_id,
             onboarding=body.onboarding,
             is_annual=body.is_annual,
@@ -248,14 +258,15 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 
     # ── customer.subscription.trial_will_end (3 days before trial ends) ──────
     elif event_type == "customer.subscription.trial_will_end":
-        customer_id: str = data.get("customer", "")
-        log.info("Trial ending soon for customer %s — consider sending reminder email", customer_id)
+        await _handle_trial_will_end(data, db)
 
-    # ── invoice.payment_failed ────────────────────────────────────────────────
+    # ── invoice.payment_failed ────────────────────────────────────────────────────
     elif event_type == "invoice.payment_failed":
-        log.warning(
-            "Stripe payment failed for customer %s", data.get("customer")
-        )
+        await _handle_invoice_payment_failed(data, db)
+
+    # ── invoice.paid ────────────────────────────────────────────────────────────
+    elif event_type == "invoice.paid":
+        await _handle_invoice_paid(data, db)
 
     return {"received": True}
 
@@ -330,6 +341,26 @@ async def _handle_checkout_completed(data: dict, db: AsyncSession) -> None:
     await db.commit()
     log.info("checkout.session.completed: user %s assigned tier %s", user.id, tier_id)
 
+    # 6.1 Subscription confirmed email
+    try:
+        tier_obj = await db.get(SubscriptionTier, user.tier_id) if user.tier_id else None
+        plan_name = tier_obj.name if tier_obj else "ImmigLens"
+        start_date = datetime.now(timezone.utc).strftime("%B %d, %Y")
+        next_date = (
+            user.tier_expires_at.strftime("%B %d, %Y")
+            if user.tier_expires_at else "N/A"
+        )
+        await send_subscription_confirmed_email(
+            user.email,
+            user.full_name or "there",
+            plan_name,
+            start_date,
+            next_date,
+            f"{settings.FRONTEND_URL}/dashboard",
+        )
+    except Exception:
+        log.exception("Failed to send subscription_confirmed email to user %s", user.id)
+
 
 async def _handle_subscription_updated(data: dict, db: AsyncSession) -> None:
     customer_id: str = data.get("customer", "")
@@ -362,3 +393,142 @@ async def _handle_subscription_deleted(data: dict, db: AsyncSession) -> None:
     user.tier_expires_at = None
     await db.commit()
     log.info("subscription.deleted: reverted user %s to free tier", user.id)
+
+
+async def _handle_trial_will_end(data: dict, db: AsyncSession) -> None:
+    """2.7 Trial Ending Reminder — fired 3 days before trial expiry."""
+    customer_id: str = data.get("customer", "")
+    user = await _find_user_by_customer(customer_id, db)
+    if user is None:
+        log.warning("trial_will_end: no user found for customer %s", customer_id)
+        return
+
+    trial_end_ts = data.get("trial_end")
+    if trial_end_ts:
+        trial_end_dt = datetime.fromtimestamp(trial_end_ts, tz=timezone.utc)
+        days_remaining = max(0, (trial_end_dt - datetime.now(timezone.utc)).days)
+        trial_end_date = trial_end_dt.strftime("%B %d, %Y")
+    else:
+        days_remaining = 3
+        trial_end_date = "soon"
+
+    try:
+        await send_trial_ending_email(
+            user.email,
+            user.full_name or "there",
+            trial_end_date,
+            days_remaining,
+            f"{settings.FRONTEND_URL}/plans",
+        )
+        log.info("trial_will_end email sent to user %s", user.id)
+    except Exception:
+        log.exception("Failed to send trial_ending email to user %s", user.id)
+
+
+async def _handle_invoice_payment_failed(data: dict, db: AsyncSession) -> None:
+    """5.2 Payment Failed / 6.5 Renewal Failed — distinguish by billing_reason."""
+    customer_id: str = data.get("customer", "")
+    user = await _find_user_by_customer(customer_id, db)
+    if user is None:
+        log.warning("invoice.payment_failed: no user found for customer %s", customer_id)
+        return
+
+    amount_cents: int = data.get("amount_due", 0)
+    amount = f"${amount_cents / 100:.2f} CAD"
+    billing_reason: str = data.get("billing_reason", "")
+    attempt_count: int = data.get("attempt_count", 1)
+    retries_remaining = max(0, 3 - attempt_count)
+    failure_reason = "Charge declined"
+
+    next_attempt_ts = data.get("next_payment_attempt")
+    retry_date = (
+        datetime.fromtimestamp(next_attempt_ts, tz=timezone.utc).strftime("%B %d, %Y")
+        if next_attempt_ts
+        else "N/A"
+    )
+    # Grace period: 14 days from now as a reasonable default
+    grace_period_end = (
+        datetime.now(timezone.utc) + timedelta(days=14)
+    ).strftime("%B %d, %Y")
+
+    billing_url = f"{settings.FRONTEND_URL}/billing"
+
+    try:
+        if billing_reason == "subscription_cycle":
+            # Renewal-specific email (6.5)
+            tier = await db.get(SubscriptionTier, user.tier_id) if user.tier_id else None
+            plan_name = tier.name if tier else "ImmigLens"
+            renewal_date = datetime.now(timezone.utc).strftime("%B %d, %Y")
+            await send_renewal_failed_email(
+                user.email,
+                user.full_name or "there",
+                plan_name,
+                renewal_date,
+                amount,
+                failure_reason,
+                grace_period_end,
+                retry_date,
+                retries_remaining,
+                billing_url,
+            )
+        else:
+            # First-payment failure email (5.2)
+            attempted_at = datetime.now(timezone.utc).strftime("%B %d, %Y at %H:%M UTC")
+            await send_payment_failed_email(
+                user.email,
+                user.full_name or "there",
+                amount,
+                attempted_at,
+                failure_reason,
+                grace_period_end,
+                retry_date,
+                retries_remaining,
+                billing_url,
+            )
+        log.info("invoice.payment_failed email sent to user %s (reason=%s)", user.id, billing_reason)
+    except Exception:
+        log.exception("Failed to send payment_failed email to user %s", user.id)
+
+
+async def _handle_invoice_paid(data: dict, db: AsyncSession) -> None:
+    """5.1 Payment Successful — fired on invoice.paid for any successful charge."""
+    customer_id: str = data.get("customer", "")
+    user = await _find_user_by_customer(customer_id, db)
+    if user is None:
+        return
+
+    amount_cents: int = data.get("amount_paid", 0)
+    amount = f"${amount_cents / 100:.2f} CAD"
+    invoice_number: str = data.get("number") or data.get("id", "N/A")
+
+    # Billing period from line items
+    lines = data.get("lines", {}).get("data", [])
+    period = lines[0].get("period", {}) if lines else {}
+    billing_start = (
+        datetime.fromtimestamp(period["start"], tz=timezone.utc).strftime("%B %d, %Y")
+        if period.get("start") else "N/A"
+    )
+    billing_end = (
+        datetime.fromtimestamp(period["end"], tz=timezone.utc).strftime("%B %d, %Y")
+        if period.get("end") else "N/A"
+    )
+
+    next_billing_date = (
+        user.tier_expires_at.strftime("%B %d, %Y") if user.tier_expires_at else "N/A"
+    )
+
+    try:
+        await send_payment_successful_email(
+            user.email,
+            user.full_name or "there",
+            amount,
+            invoice_number,
+            (await db.get(SubscriptionTier, user.tier_id)).name if user.tier_id else "ImmigLens",
+            billing_start,
+            billing_end,
+            next_billing_date,
+            f"{settings.FRONTEND_URL}/billing",
+        )
+        log.info("invoice.paid email sent to user %s", user.id)
+    except Exception:
+        log.exception("Failed to send payment_successful email to user %s", user.id)

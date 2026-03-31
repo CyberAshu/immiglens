@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -16,12 +17,15 @@ from app.models.report_config import DEFAULT_CONFIG, ReportConfig
 from app.models.user import User
 from app.schemas.report import ReportDocumentOut
 from app.services import storage
+from app.services.email_service import send_report_ready_email
 from app.services.pdf import build_pdf_bytes
 
 router = APIRouter(
     prefix="/api/employers/{employer_id}/positions/{position_id}/reports",
     tags=["reports"],
 )
+
+logger = logging.getLogger(__name__)
 
 
 async def _load_position(
@@ -128,6 +132,25 @@ async def generate_report(
         report_documents=position.report_documents,
         config=report_config,
     )
+
+    try:
+        from app.core.config import settings
+        from datetime import datetime, timezone
+        generated_at = datetime.now(timezone.utc).strftime("%B %d, %Y at %H:%M UTC")
+        dashboard_url = (
+            f"{settings.FRONTEND_URL}/employers/{employer_id}/positions/{position_id}"
+        )
+        await send_report_ready_email(
+            current_user.email,
+            current_user.full_name or "there",
+            position.job_title,
+            position.noc_code or "N/A",
+            employer.company_name,
+            generated_at,
+            dashboard_url,
+        )
+    except Exception:
+        logger.warning("report_ready email failed for user_id=%s", current_user.id)
 
     return Response(
         content=pdf_bytes,

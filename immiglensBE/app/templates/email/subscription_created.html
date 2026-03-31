@@ -1,0 +1,57 @@
+{% extends "email/base.html" %}
+
+{% block title %}Your ImmigLens {{ plan_name }} subscription is active{% endblock %}
+{% block preheader %}Your {{ plan_name }} subscription is now active. Here are your plan details.{% endblock %}
+{% block badge_label %}TRANSACTIONAL &middot; SUBSCRIPTION{% endblock %}
+
+{% block content %}
+<p style="margin:0 0 20px;font-size:16px;font-weight:600;color:#111827;">Hi {{ first_name }},</p>
+
+<p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.7;">
+  Your ImmigLens subscription is now active. Thank you for choosing ImmigLens &mdash; here is
+  everything you need to know about your plan.
+</p>
+
+{# Plan details #}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="background-color:#f0f4ff;border:1px solid #c7d7ff;border-radius:6px;margin:0 0 24px;">
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #c7d7ff;">Plan</td>
+    <td style="padding:10px 16px;font-size:14px;color:#1e40af;font-weight:700;border-bottom:1px solid #c7d7ff;">{{ plan_name }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #c7d7ff;">Started</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #c7d7ff;">{{ start_date }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;">Next billing date</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;">{{ next_billing_date }}</td>
+  </tr>
+</table>
+
+<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 24px;">
+  <tr>
+    <td style="background-color:#1746c2;border-radius:6px;">
+      <a href="{{ dashboard_url }}"
+         style="display:inline-block;padding:11px 22px;color:#ffffff;font-size:14px;font-weight:600;
+                text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+        Go to My Dashboard &rarr;
+      </a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">Managing your subscription</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 16px;">
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; Upgrade at any time from Billing Settings &mdash; new limits take effect immediately</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; Download invoices and receipts from the Billing Dashboard</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; Update your payment method or billing address from Billing Settings</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; Add or remove team members from Account Settings &rarr; Team</td></tr>
+</table>
+
+<p style="margin:0;font-size:13px;color:#6b7280;line-height:1.7;">
+  Questions? Contact us at
+  <a href="mailto:support@immiglens.ca" style="color:#1746c2;text-decoration:none;">support@immiglens.ca</a>.
+  We typically respond within one business day.
+</p>
+{% endblock %}

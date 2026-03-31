@@ -2,10 +2,7 @@ import hashlib
 import logging
 import re
 import secrets
-import smtplib
-import ssl
 from datetime import datetime, timedelta, timezone
-from email.mime.text import MIMEText
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import delete, select
@@ -36,6 +33,11 @@ from app.schemas.auth import (
     TrustedDeviceOut,
     UpdateProfileRequest,
     UserOut,
+)
+from app.services.email_service import (
+    send_otp_email,
+    send_password_reset_email,
+    send_welcome_email,
 )
 
 logger = logging.getLogger(__name__)
@@ -126,47 +128,7 @@ def _verify_token(value: str, stored_hash: str) -> bool:
     return secrets.compare_digest(_hash_token(value), stored_hash)
 
 
-def _send_otp_email(to_email: str, otp: str) -> None:
-    if not settings.SMTP_HOST:
-        print(f"[DEV OTP] {to_email} → {otp}")
-        return
-    msg = MIMEText(
-        f"Your ImmigLens verification code is: {otp}\n\n"
-        f"This code expires in {settings.OTP_EXPIRE_MINUTES} minutes.\n"
-        f"Do not share this code with anyone."
-    )
-    msg["Subject"] = "ImmigLens – Your login verification code"
-    msg["From"] = settings.SMTP_FROM
-    msg["To"] = to_email
-    ctx = ssl.create_default_context()
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as smtp:
-        if settings.SMTP_USE_TLS:
-            smtp.starttls(context=ctx)
-        if settings.SMTP_USER:
-            smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-        smtp.send_message(msg)
 
-
-def _send_reset_email(to_email: str, reset_url: str) -> None:
-    if not settings.SMTP_HOST:
-        print(f"[DEV RESET] {to_email} → {reset_url}")
-        return
-    msg = MIMEText(
-        f"You requested a password reset for your ImmigLens account.\n\n"
-        f"Click the link below to set a new password:\n{reset_url}\n\n"
-        f"This link expires in {settings.PASSWORD_RESET_EXPIRE_HOURS} hour(s).\n"
-        f"If you did not request this, you can safely ignore this email."
-    )
-    msg["Subject"] = "ImmigLens – Reset your password"
-    msg["From"] = settings.SMTP_FROM
-    msg["To"] = to_email
-    ctx = ssl.create_default_context()
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as smtp:
-        if settings.SMTP_USE_TLS:
-            smtp.starttls(context=ctx)
-        if settings.SMTP_USER:
-            smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-        smtp.send_message(msg)
 
 
 @router.post("/register", response_model=UserOut, status_code=201)
@@ -183,6 +145,14 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
         privacy_accepted=payload.accept_privacy,
         acceptable_use_accepted=payload.accept_acceptable_use,
     )
+    try:
+        await send_welcome_email(
+            user.email,
+            user.full_name or "there",
+            settings.TRIAL_DAYS,
+        )
+    except Exception:
+        logger.warning("Welcome email failed for user_id=%s", user.id)
     return user
 
 
@@ -238,7 +208,7 @@ async def login(payload: LoginRequest, request: Request, db: AsyncSession = Depe
 
     logger.debug("OTP generated for %s", payload.email)
     try:
-        _send_otp_email(payload.email, otp)
+        await send_otp_email(payload.email, user.full_name or "there", otp)
         logger.info("OTP email dispatched to %s", payload.email)
     except Exception as exc:
         logger.warning("OTP email send failed for %s: %s", payload.email, exc)
@@ -453,7 +423,7 @@ async def forgot_password(
     reset_url = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
     logger.debug("Password reset token generated for %s", payload.email)
     try:
-        _send_reset_email(payload.email, reset_url)
+        await send_password_reset_email(payload.email, user.full_name or "there", reset_url)
         logger.info("Password reset email dispatched to %s", payload.email)
     except Exception as exc:
         logger.warning("Password reset email failed for %s: %s", payload.email, exc)

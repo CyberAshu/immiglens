@@ -14,6 +14,7 @@ Endpoints:
   GET    /api/organizations/{id}/invitations   pending invitations
   POST   /api/organizations/invitations/{token}/accept   accept invite
 """
+import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -27,6 +28,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_client_ip, get_current_user
 from app.models.organization import OrgInvitation, OrgMembership, OrgRole, Organization
 from app.models.user import User
+from app.services.email_service import send_invitation_email
 from app.schemas.organization import (
     InviteRequest,
     OrganizationCreate,
@@ -35,6 +37,7 @@ from app.schemas.organization import (
     OrgMembershipOut,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/organizations", tags=["organizations"])
 
 
@@ -228,7 +231,7 @@ async def invite_member(
     current_user: User = Depends(get_current_user),
 ):
     await _require_admin(db, org_id, current_user.id)
-    await _require_org(db, org_id)
+    org = await _require_org(db, org_id)
 
     # Prevent duplicate pending invitations
     existing = (
@@ -259,6 +262,20 @@ async def invite_member(
                      new_data={"email": body.email, "role": body.role, "org_id": org_id},
                      ip_address=get_client_ip(request))
     await db.commit()
+
+    accept_url = f"{settings.FRONTEND_URL}/accept-invite?token={invitation.token}"
+    try:
+        await send_invitation_email(
+            body.email,
+            org.name,
+            current_user.full_name or "A team member",
+            invitation.role,
+            invitation.expires_at.strftime("%B %d, %Y"),
+            accept_url,
+        )
+    except Exception:
+        logger.warning("Invitation email failed for %s (org=%s)", body.email, org_id)
+
     return invitation
 
 

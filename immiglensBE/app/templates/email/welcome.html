@@ -1,0 +1,116 @@
+{% extends "email/base.html" %}
+
+{% block title %}Welcome to ImmigLens{% endblock %}
+{% block preheader %}Your ImmigLens account is ready. Here&rsquo;s how to get started.{% endblock %}
+{% block badge_label %}TRANSACTIONAL{% endblock %}
+
+{% block content %}
+<p style="margin:0 0 20px;font-size:16px;font-weight:600;color:#111827;">Hi {{ first_name }},</p>
+
+<p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.7;">
+  Welcome to ImmigLens. Your account has been created &mdash; you now have full access to the platform.
+</p>
+
+<p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.7;">
+  ImmigLens automates the evidence capture and reporting process for Canadian LMIA (Labour Market
+  Impact Assessment) recruitment. Instead of manually taking screenshots, organizing them, and
+  assembling PDF packages for your ESDC submissions, ImmigLens does this for you automatically,
+  on a schedule, with timestamps and source verification built in.
+</p>
+
+<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">Here is what your account gives you access to today:</p>
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 24px;">
+  <tr>
+    <td style="padding:6px 0 6px 12px;font-size:13px;color:#374151;line-height:1.6;border-left:3px solid #1d4ed8;">
+      <strong>Job Position management</strong> &mdash; create and track positions you are actively recruiting for
+    </td>
+  </tr>
+  <tr><td style="height:6px;"></td></tr>
+  <tr>
+    <td style="padding:6px 0 6px 12px;font-size:13px;color:#374151;line-height:1.6;border-left:3px solid #1d4ed8;">
+      <strong>Automated screenshot capture</strong> &mdash; captures job posting evidence on your schedule, with full timestamps
+    </td>
+  </tr>
+  <tr><td style="height:6px;"></td></tr>
+  <tr>
+    <td style="padding:6px 0 6px 12px;font-size:13px;color:#374151;line-height:1.6;border-left:3px solid #1d4ed8;">
+      <strong>Evidence Timeline</strong> &mdash; a structured, searchable record of all captured screenshots
+    </td>
+  </tr>
+  <tr><td style="height:6px;"></td></tr>
+  <tr>
+    <td style="padding:6px 0 6px 12px;font-size:13px;color:#374151;line-height:1.6;border-left:3px solid #1d4ed8;">
+      <strong>LMIA-Ready PDF Reports</strong> &mdash; export a complete, formatted evidence package with one click
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">Getting started &mdash; your first three steps</p>
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="background-color:#f0f4ff;border-radius:6px;margin:0 0 24px;">
+  <tr>
+    <td style="padding:14px 16px;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
+        <tr>
+          <td style="width:28px;vertical-align:top;padding-right:10px;">
+            <span style="display:inline-block;width:22px;height:22px;background:#1d4ed8;border-radius:50%;
+                         text-align:center;line-height:22px;font-size:12px;font-weight:700;
+                         color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">1</span>
+          </td>
+          <td style="font-size:13px;color:#374151;line-height:1.6;padding-top:2px;">
+            <strong>Create your first Job Position</strong> &mdash; give it a title, set the NOC code, and add the platforms you are advertising on
+          </td>
+        </tr>
+        <tr><td colspan="2" style="height:10px;"></td></tr>
+        <tr>
+          <td style="width:28px;vertical-align:top;padding-right:10px;">
+            <span style="display:inline-block;width:22px;height:22px;background:#1d4ed8;border-radius:50%;
+                         text-align:center;line-height:22px;font-size:12px;font-weight:700;
+                         color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">2</span>
+          </td>
+          <td style="font-size:13px;color:#374151;line-height:1.6;padding-top:2px;">
+            <strong>Add a Capture Job</strong> &mdash; paste the URL of your active job posting and choose a capture frequency
+          </td>
+        </tr>
+        <tr><td colspan="2" style="height:10px;"></td></tr>
+        <tr>
+          <td style="width:28px;vertical-align:top;padding-right:10px;">
+            <span style="display:inline-block;width:22px;height:22px;background:#1d4ed8;border-radius:50%;
+                         text-align:center;line-height:22px;font-size:12px;font-weight:700;
+                         color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">3</span>
+          </td>
+          <td style="font-size:13px;color:#374151;line-height:1.6;padding-top:2px;">
+            <strong>ImmigLens handles the rest</strong> &mdash; your evidence timeline builds automatically from that point forward
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.7;">
+  Your trial period is <strong>{{ trial_days }} days</strong>, beginning today. All features are fully
+  available during the trial. Exports generated during the trial are watermarked; upgrade at any time
+  to remove watermarks and lock in your plan.
+</p>
+
+<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 24px;">
+  <tr>
+    <td style="background-color:#1746c2;border-radius:6px;">
+      <a href="{{ dashboard_url }}"
+         style="display:inline-block;padding:12px 24px;color:#ffffff;font-size:14px;font-weight:600;
+                text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+        Go to My Dashboard &rarr;
+      </a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0 0 0;font-size:13px;color:#6b7280;line-height:1.7;">
+  <strong>Need help getting started?</strong> Reply to this email or contact
+  <a href="mailto:support@immiglens.ca" style="color:#1746c2;text-decoration:none;">support@immiglens.ca</a>.
+  We typically respond within one business day.
+</p>
+{% endblock %}

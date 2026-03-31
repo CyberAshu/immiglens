@@ -4,10 +4,10 @@ export const billing = {
   publishableKey: () =>
     request<{ key: string }>('/api/billing/publishable-key'),
 
-  createCheckout: (tierId: number, trialDays = 0, onboarding = false, isAnnual = false) =>
+  createCheckout: (tierId: number, onboarding = false, isAnnual = false) =>
     request<{ url: string }>('/api/billing/checkout', {
       method: 'POST',
-      body: JSON.stringify({ tier_id: tierId, trial_days: trialDays, onboarding, is_annual: isAnnual }),
+      body: JSON.stringify({ tier_id: tierId, onboarding, is_annual: isAnnual }),
     }),
 
   createPortal: () =>

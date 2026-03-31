@@ -79,10 +79,8 @@ export default function Subscriptions() {
 
   async function handleUpgrade(tierId: number) {
     setCheckoutLoading(tierId)
-    // Only offer 14-day trial if user has never subscribed before
-    const trialDays = !data?.has_billing_account ? 14 : 0
     try {
-      const { url } = await billing.createCheckout(tierId, trialDays)
+      const { url } = await billing.createCheckout(tierId)
       window.location.href = url
     } catch (e) {
       alert((e as Error).message)

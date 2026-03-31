@@ -1,0 +1,91 @@
+{% extends "email/base.html" %}
+
+{% block title %}Your ImmigLens trial ends in {{ days_remaining }} days{% endblock %}
+{% block preheader %}Your free trial ends on {{ trial_end_date }}. Subscribe to keep your captures running uninterrupted.{% endblock %}
+{% block badge_bg %}#7c3aed{% endblock %}
+{% block badge_label %}MARKETING &middot; TRIAL{% endblock %}
+
+{% block content %}
+<p style="margin:0 0 20px;font-size:16px;font-weight:600;color:#111827;">Hi {{ first_name }},</p>
+
+<p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.7;">
+  Your ImmigLens free trial ends in <strong>{{ days_remaining }} day(s)</strong>, on
+  <strong>{{ trial_end_date }}</strong>. After that date, your account will revert to read-only &mdash;
+  captures will stop, and new reports cannot be generated without an active subscription.
+</p>
+
+{# What happens note #}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="background-color:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;margin:0 0 24px;">
+  <tr>
+    <td style="padding:14px 16px;">
+      <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#5b21b6;">Here is what happens to your data when the trial ends:</p>
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
+        <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; All positions, evidence, and reports are retained for 30 days &mdash; nothing is deleted immediately</td></tr>
+        <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; Capture schedules will pause at trial expiry and resume automatically when you subscribe</td></tr>
+        <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; If you subscribe before {{ trial_end_date }}, captures continue uninterrupted and watermarks are removed from new exports</td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0 0 14px;font-size:13px;font-weight:600;color:#374151;">Choose the plan that fits your practice</p>
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;margin:0 0 24px;">
+  <tr>
+    <td style="padding:10px 16px;font-size:13px;color:#374151;border-bottom:1px solid #e5e7eb;line-height:1.5;">
+      <strong>Starter &mdash; $19/mo</strong><br>
+      <span style="color:#6b7280;">Up to 5 active positions &middot; ideal for small practices</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;font-size:13px;color:#374151;border-bottom:1px solid #e5e7eb;background-color:#f0f4ff;line-height:1.5;">
+      <strong>Professional &mdash; $29/mo</strong>
+      &nbsp;<span style="display:inline-block;padding:1px 7px;background:#1d4ed8;color:#fff;border-radius:10px;font-size:10px;font-weight:600;">MOST POPULAR</span><br>
+      <span style="color:#6b7280;">Up to 10 active positions &middot; most popular for growing RCIC firms</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;font-size:13px;color:#374151;border-bottom:1px solid #e5e7eb;line-height:1.5;">
+      <strong>Business &mdash; $79/mo</strong><br>
+      <span style="color:#6b7280;">Up to 25 active positions &middot; designed for multi-consultant firms</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;font-size:13px;color:#374151;border-bottom:1px solid #e5e7eb;line-height:1.5;">
+      <strong>Agency &mdash; $119/mo</strong><br>
+      <span style="color:#6b7280;">Up to 50 active positions &middot; for agencies and corporate HR teams</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;font-size:13px;color:#374151;line-height:1.5;">
+      <strong>Enterprise &mdash; $179/mo</strong><br>
+      <span style="color:#6b7280;">Up to 100 positions + custom features and priority support</span>
+    </td>
+  </tr>
+</table>
+
+<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+  <tr>
+    <td style="background-color:#7c3aed;border-radius:6px;">
+      <a href="{{ subscribe_url }}"
+         style="display:inline-block;padding:11px 22px;color:#ffffff;font-size:14px;font-weight:600;
+                text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+        Choose My Plan &amp; Subscribe &rarr;
+      </a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.7;">
+  No action is needed if you decide not to subscribe &mdash; your account will simply become
+  read-only and your data will be held for 30 days. There are no cancellation fees.
+</p>
+{% endblock %}
+
+{% block footer_casl %}
+You received this email because you have an active ImmigLens account.
+<a href="{{ unsubscribe_url }}" style="color:#9ca3af;text-decoration:underline;">Unsubscribe from non-essential emails</a>&nbsp;&nbsp;|&nbsp;&nbsp;
+<a href="{{ frontend_url }}/settings/notifications" style="color:#9ca3af;text-decoration:underline;">Manage email preferences</a>
+{% endblock %}
