@@ -97,6 +97,24 @@ export default function AdminTiers() {
     }
   }
 
+  async function handleDelete(tier: SubscriptionTier) {
+    const stripeNote = tier.stripe_product_id
+      ? ' The Stripe product and price will be archived immediately.'
+      : ''
+    if (!await askConfirm({
+      title: 'Delete Tier',
+      message: `Delete "${tier.display_name}"? It will be removed from the list and no longer assignable to users. Existing subscribers keep their access until their period ends.${stripeNote}`,
+      confirmLabel: 'Delete',
+      variant: 'danger',
+    })) return
+    try {
+      await admin.deactivateTier(tier.id)
+      setTiers(prev => prev.filter(t => t.id !== tier.id))
+    } catch {
+      setError('Failed to delete tier.')
+    }
+  }
+
   async function handleAssignTier(userId: number, tierId: number | null) {
     setAssigning(userId)
     const expiryStr = expiryMap[userId] || null
@@ -213,6 +231,13 @@ export default function AdminTiers() {
                       {tier.is_active ? 'Visible' : 'Hidden'}
                     </span>
                   </div>
+                  <button
+                    className="admin-btn admin-btn-danger"
+                    onClick={() => handleDelete(tier)}
+                    title={tier.stripe_product_id ? 'Delete tier and archive in Stripe' : 'Delete tier'}
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             ))}
