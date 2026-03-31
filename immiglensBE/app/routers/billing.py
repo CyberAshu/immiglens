@@ -158,10 +158,11 @@ async def sync_checkout(
         raise HTTPException(status_code=503, detail=f"Stripe error: {exc}") from exc
 
     # Only trust a completed, paid (or trial) session
-    if session.get("payment_status") not in ("paid", "no_payment_required"):
+    if session.payment_status not in ("paid", "no_payment_required"):
         return SyncCheckoutResponse(tier_id=current_user.tier_id, tier_expires_at=current_user.tier_expires_at)
 
-    metadata: dict = session.get("metadata") or {}
+    metadata_obj = getattr(session, "metadata", None)
+    metadata: dict = dict(metadata_obj) if metadata_obj else {}
     tier_id_str = metadata.get("tier_id")
     if not tier_id_str:
         return SyncCheckoutResponse(tier_id=current_user.tier_id, tier_expires_at=current_user.tier_expires_at)
@@ -170,7 +171,7 @@ async def sync_checkout(
 
     # Resolve expiry from the subscription
     new_expires_at: datetime | None = None
-    subscription_id = session.get("subscription")
+    subscription_id = getattr(session, "subscription", None)
     if subscription_id:
         try:
             sub = client.subscriptions.retrieve(subscription_id)
@@ -181,7 +182,7 @@ async def sync_checkout(
             log.warning("sync-checkout: could not retrieve subscription %s", subscription_id)
 
     # Persist customer_id if not yet stored
-    customer_id = session.get("customer")
+    customer_id = getattr(session, "customer", None)
     if not current_user.stripe_customer_id and customer_id:
         current_user.stripe_customer_id = customer_id
 
@@ -301,8 +302,9 @@ def _get_period_end(sub: dict) -> int | None:
     return None
 
 async def _handle_checkout_completed(data: dict, db: AsyncSession) -> None:
-    customer_id: str = data.get("customer", "")
-    metadata: dict = data.get("metadata", {})
+    customer_id: str = getattr(data, "customer", "") or ""
+    metadata_obj = getattr(data, "metadata", None)
+    metadata: dict = dict(metadata_obj) if metadata_obj else {}
 
     user_id = metadata.get("user_id")
     tier_id = metadata.get("tier_id")
@@ -327,7 +329,7 @@ async def _handle_checkout_completed(data: dict, db: AsyncSession) -> None:
             user.tier_id = tier.id
 
     # Use subscription current_period_end as the expiry
-    subscription_id: str | None = data.get("subscription")
+    subscription_id: str | None = getattr(data, "subscription", None)
     if subscription_id:
         try:
             client = stripe.StripeClient(settings.STRIPE_SECRET_KEY)
@@ -363,7 +365,7 @@ async def _handle_checkout_completed(data: dict, db: AsyncSession) -> None:
 
 
 async def _handle_subscription_updated(data: dict, db: AsyncSession) -> None:
-    customer_id: str = data.get("customer", "")
+    customer_id: str = getattr(data, "customer", "") or ""
     user = await _find_user_by_customer(customer_id, db)
     if user is None:
         return
@@ -373,7 +375,8 @@ async def _handle_subscription_updated(data: dict, db: AsyncSession) -> None:
         user.tier_expires_at = datetime.fromtimestamp(end_ts, tz=timezone.utc)
 
     # Reflect plan change if metadata carries tier_id
-    metadata: dict = data.get("metadata", {})
+    metadata_obj = getattr(data, "metadata", None)
+    metadata: dict = dict(metadata_obj) if metadata_obj else {}
     tier_id = metadata.get("tier_id")
     if tier_id:
         tier = await db.get(SubscriptionTier, int(tier_id))
@@ -384,7 +387,7 @@ async def _handle_subscription_updated(data: dict, db: AsyncSession) -> None:
 
 
 async def _handle_subscription_deleted(data: dict, db: AsyncSession) -> None:
-    customer_id: str = data.get("customer", "")
+    customer_id: str = getattr(data, "customer", "") or ""
     user = await _find_user_by_customer(customer_id, db)
     if user is None:
         return
@@ -397,13 +400,13 @@ async def _handle_subscription_deleted(data: dict, db: AsyncSession) -> None:
 
 async def _handle_trial_will_end(data: dict, db: AsyncSession) -> None:
     """2.7 Trial Ending Reminder — fired 3 days before trial expiry."""
-    customer_id: str = data.get("customer", "")
+    customer_id: str = getattr(data, "customer", "") or ""
     user = await _find_user_by_customer(customer_id, db)
     if user is None:
         log.warning("trial_will_end: no user found for customer %s", customer_id)
         return
 
-    trial_end_ts = data.get("trial_end")
+    trial_end_ts = getattr(data, "trial_end", None)
     if trial_end_ts:
         trial_end_dt = datetime.fromtimestamp(trial_end_ts, tz=timezone.utc)
         days_remaining = max(0, (trial_end_dt - datetime.now(timezone.utc)).days)
@@ -427,20 +430,20 @@ async def _handle_trial_will_end(data: dict, db: AsyncSession) -> None:
 
 async def _handle_invoice_payment_failed(data: dict, db: AsyncSession) -> None:
     """5.2 Payment Failed / 6.5 Renewal Failed — distinguish by billing_reason."""
-    customer_id: str = data.get("customer", "")
+    customer_id: str = getattr(data, "customer", "") or ""
     user = await _find_user_by_customer(customer_id, db)
     if user is None:
         log.warning("invoice.payment_failed: no user found for customer %s", customer_id)
         return
 
-    amount_cents: int = data.get("amount_due", 0)
+    amount_cents: int = getattr(data, "amount_due", 0) or 0
     amount = f"${amount_cents / 100:.2f} CAD"
-    billing_reason: str = data.get("billing_reason", "")
-    attempt_count: int = data.get("attempt_count", 1)
+    billing_reason: str = getattr(data, "billing_reason", "") or ""
+    attempt_count: int = getattr(data, "attempt_count", 1) or 1
     retries_remaining = max(0, 3 - attempt_count)
     failure_reason = "Charge declined"
 
-    next_attempt_ts = data.get("next_payment_attempt")
+    next_attempt_ts = getattr(data, "next_payment_attempt", None)
     retry_date = (
         datetime.fromtimestamp(next_attempt_ts, tz=timezone.utc).strftime("%B %d, %Y")
         if next_attempt_ts
@@ -492,25 +495,26 @@ async def _handle_invoice_payment_failed(data: dict, db: AsyncSession) -> None:
 
 async def _handle_invoice_paid(data: dict, db: AsyncSession) -> None:
     """5.1 Payment Successful — fired on invoice.paid for any successful charge."""
-    customer_id: str = data.get("customer", "")
+    customer_id: str = getattr(data, "customer", "") or ""
     user = await _find_user_by_customer(customer_id, db)
     if user is None:
         return
 
-    amount_cents: int = data.get("amount_paid", 0)
+    amount_cents: int = getattr(data, "amount_paid", 0) or 0
     amount = f"${amount_cents / 100:.2f} CAD"
-    invoice_number: str = data.get("number") or data.get("id", "N/A")
+    invoice_number: str = getattr(data, "number", None) or getattr(data, "id", "N/A")
 
     # Billing period from line items
-    lines = data.get("lines", {}).get("data", [])
-    period = lines[0].get("period", {}) if lines else {}
+    lines_obj = getattr(data, "lines", None)
+    lines = getattr(lines_obj, "data", []) if lines_obj else []
+    period_obj = getattr(lines[0], "period", None) if lines else None
     billing_start = (
-        datetime.fromtimestamp(period["start"], tz=timezone.utc).strftime("%B %d, %Y")
-        if period.get("start") else "N/A"
+        datetime.fromtimestamp(period_obj.start, tz=timezone.utc).strftime("%B %d, %Y")
+        if period_obj and getattr(period_obj, "start", None) else "N/A"
     )
     billing_end = (
-        datetime.fromtimestamp(period["end"], tz=timezone.utc).strftime("%B %d, %Y")
-        if period.get("end") else "N/A"
+        datetime.fromtimestamp(period_obj.end, tz=timezone.utc).strftime("%B %d, %Y")
+        if period_obj and getattr(period_obj, "end", None) else "N/A"
     )
 
     next_billing_date = (
