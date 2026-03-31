@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { Tag, X, CheckCircle2, AlertCircle } from 'lucide-react'
 import { subscriptions as subApi, billing } from '../api'
 import { promotions } from '../api/promotions'
-import type { ActivePromotion } from '../api/promotions'
+import type { ActivePromotion, PromoCodeValidation } from '../api/promotions'
 import type { UsageSummary, SubscriptionTier } from '../types'
 
 function tierColor(name: string) {
@@ -37,17 +38,27 @@ export default function Subscriptions() {
   const [error, setError]         = useState<string | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState<number | null>(null)
   const [portalLoading, setPortalLoading]     = useState(false)
-  const [activePromos, setActivePromos]       = useState<ActivePromotion[]>([])
+
+  // Pricing-page banner promotion (show_on_pricing_page = true)
+  const [bannerPromo, setBannerPromo] = useState<ActivePromotion | null>(null)
+
+  // Promo code input
+  const [promoCode, setPromoCode]         = useState('')
+  const [validatedPromo, setValidatedPromo] = useState<PromoCodeValidation | null>(null)
+  const [promoError, setPromoError]       = useState('')
+  const [promoChecking, setPromoChecking] = useState(false)
+  const codeInputRef = useRef<HTMLInputElement>(null)
+
   const [searchParams, setSearchParams] = useSearchParams()
   const checkoutStatus = searchParams.get('checkout')
   const sessionId      = searchParams.get('session_id')
 
   function loadData() {
     setLoading(true)
-    Promise.all([subApi.usage(), subApi.tiers(), promotions.active().catch(() => [])])
-      .then(([usage, tiers, promos]) => {
+    Promise.all([subApi.usage(), subApi.tiers(), promotions.pricingBanner().catch(() => null)])
+      .then(([usage, tiers, banner]) => {
         setData(usage)
-        setActivePromos(promos)
+        setBannerPromo(banner)
         setOtherTiers(tiers.filter(t => t.id !== usage.tier.id && t.is_active && t.stripe_price_id))
       })
       .catch((e: Error) => setError(e.message))
@@ -77,10 +88,31 @@ export default function Subscriptions() {
     return () => clearTimeout(t)
   }, [checkoutStatus])
 
+  async function handleApplyCode() {
+    const code = promoCode.trim().toUpperCase()
+    if (!code) return
+    setPromoChecking(true)
+    setPromoError('')
+    setValidatedPromo(null)
+    try {
+      const result = await promotions.validateCode(code)
+      setValidatedPromo(result)
+    } catch {
+      setPromoError('This promo code is invalid or has expired.')
+    } finally {
+      setPromoChecking(false)
+    }
+  }
+
   async function handleUpgrade(tierId: number) {
     setCheckoutLoading(tierId)
     try {
-      const { url } = await billing.createCheckout(tierId)
+      const { url } = await billing.createCheckout(
+        tierId,
+        false,
+        false,
+        validatedPromo?.code ?? undefined,
+      )
       window.location.href = url
     } catch (e) {
       alert((e as Error).message)
@@ -170,91 +202,163 @@ export default function Subscriptions() {
             </button>
           </div>
         )}
-
-        {/* Applied discount badge */}
-        {data.applied_promotion_name && data.applied_discount_value != null && data.applied_discount_type && (
-          <div className="sub-discount-badge">
-            <span className="sub-discount-icon">🏷️</span>
-            <div className="sub-discount-text">
-              <strong>
-                {data.applied_discount_type === 'percent'
-                  ? `${data.applied_discount_value}% off`
-                  : `$${data.applied_discount_value} off`}
-                {data.applied_discount_duration === 'forever' ? ' forever'
-                  : data.applied_discount_duration === 'once' ? ' — first billing cycle'
-                  : ''}
-              </strong>
-              &nbsp;· {data.applied_promotion_name} discount applied to your subscription
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ── Upgrade options ───────────────────── */}
       {otherTiers.length > 0 && (
         <div className="card section-top">
-          <div className="card-title">Available Plans</div>
+          <div className="card-title">Upgrade Your Plan</div>
 
-          {/* Active promotion banner */}
-          {activePromos[0] && activePromos[0].remaining !== 0 && (
-            <div className="banner banner-success" style={{ marginBottom: '1rem' }}>
-              🌟 <strong>{activePromos[0].name}</strong>
-              {activePromos[0].remaining != null && ` — ${activePromos[0].remaining} of ${activePromos[0].max_redemptions} spots left.`}
-              {' '}Get {activePromos[0].discount_type === 'percent'
-                ? `${activePromos[0].discount_value}% off`
-                : `$${activePromos[0].discount_value} off`} when you subscribe now.
-            </div>
-          )}
-
-          <div className="sub-upgrade-grid">
-            {otherTiers.map(t => {
-              const bestPromo = activePromos[0] ?? null
-              const hasDiscount = !!(bestPromo && bestPromo.remaining !== 0)
-              const discountedPrice = hasDiscount && bestPromo && t.price_per_month != null
-                ? bestPromo.discount_type === 'percent'
-                  ? Math.floor(t.price_per_month * (1 - bestPromo.discount_value / 100))
-                  : Math.max(0, t.price_per_month - bestPromo.discount_value)
-                : null
-              return (
-              <div key={t.id} className="sub-upgrade-card">
-                <div className="sub-upgrade-name">{t.display_name}</div>
-                {t.price_per_month != null && (
-                  <div className="sub-upgrade-price">
-                    {hasDiscount && discountedPrice != null ? (
-                      <>
-                        <span style={{ textDecoration: 'line-through', color: '#9ca3af', fontSize: '1rem', fontWeight: 500 }}>${t.price_per_month}</span>
-                        {' '}${discountedPrice}
-                      </>
-                    ) : (
-                      <>${t.price_per_month}</>
-                    )}
-                    <span>/mo</span>
-                    {hasDiscount && bestPromo && (
-                      <div style={{ fontSize: '0.72rem', color: '#15803d', fontWeight: 700, marginTop: '0.1rem' }}>
-                        {bestPromo.discount_type === 'percent' ? `${bestPromo.discount_value}% off` : `$${bestPromo.discount_value} off`}
-                        {bestPromo.duration === 'forever' ? ' forever' : bestPromo.duration === 'once' ? ' first month' : ` for ${bestPromo.duration_in_months} months`}
-                      </div>
+          {/* ── Promo code section ── */}
+          <div className="promo-apply-box">
+            {!validatedPromo ? (
+              <>
+                <div className="promo-apply-header">
+                  <Tag size={15} strokeWidth={2.5} style={{ color: '#6b7280' }} />
+                  <span className="promo-apply-label">Have a promo code?</span>
+                  {bannerPromo && (
+                    <button
+                      className="promo-apply-hint"
+                      onClick={() => {
+                        setPromoCode(bannerPromo.code)
+                        setPromoError('')
+                        setTimeout(() => codeInputRef.current?.focus(), 0)
+                      }}
+                    >
+                      Use <strong>{bannerPromo.code}</strong> for {bannerPromo.discount_type === 'percent'
+                        ? `${bannerPromo.discount_value}% off`
+                        : `$${bannerPromo.discount_value} off`}
+                    </button>
+                  )}
+                </div>
+                <div className="promo-apply-input-row">
+                  <div className={`promo-apply-input-wrap ${promoError ? 'promo-apply-input-wrap--error' : ''}`}>
+                    <input
+                      ref={codeInputRef}
+                      className="promo-apply-input"
+                      placeholder="e.g. LAUNCH30"
+                      value={promoCode}
+                      onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoError('') }}
+                      onKeyDown={e => e.key === 'Enter' && handleApplyCode()}
+                      maxLength={30}
+                      spellCheck={false}
+                      autoComplete="off"
+                    />
+                    {promoCode && (
+                      <button className="promo-apply-clear" onClick={() => { setPromoCode(''); setPromoError('') }}>
+                        <X size={13} strokeWidth={2.5} />
+                      </button>
                     )}
                   </div>
+                  <button
+                    className="promo-apply-btn"
+                    onClick={handleApplyCode}
+                    disabled={promoChecking || !promoCode.trim()}
+                  >
+                    {promoChecking ? (
+                      <span className="promo-apply-spinner" />
+                    ) : 'Apply'}
+                  </button>
+                </div>
+                {promoError && (
+                  <div className="promo-apply-error">
+                    <AlertCircle size={13} strokeWidth={2.5} />
+                    {promoError}
+                  </div>
                 )}
-                <ul className="sub-upgrade-limits">
-                  <li>{t.max_active_positions === -1 ? '∞' : t.max_active_positions} active positions</li>
-                  <li>{t.max_urls_per_position === -1 ? '∞' : t.max_urls_per_position} URLs / position</li>
-                  <li>{t.max_captures_per_month === -1 ? '∞' : t.max_captures_per_month} captures / month</li>
-                </ul>
+              </>
+            ) : (
+              /* ── Applied state ── */
+              <div className="promo-applied">
+                <div className="promo-applied-left">
+                  <CheckCircle2 size={18} strokeWidth={2.5} style={{ color: '#16a34a', flexShrink: 0 }} />
+                  <div>
+                    <div className="promo-applied-title">
+                      {validatedPromo.discount_type === 'percent'
+                        ? `${validatedPromo.discount_value}% off`
+                        : `$${validatedPromo.discount_value} off`}
+                      {validatedPromo.duration === 'forever' ? ' forever'
+                        : validatedPromo.duration === 'once' ? ' — first month'
+                        : ` for ${validatedPromo.duration_in_months} months`}
+                    </div>
+                    <div className="promo-applied-sub">
+                      Code <strong>{validatedPromo.code}</strong> · {validatedPromo.name}
+                      {validatedPromo.remaining != null && ` · ${validatedPromo.remaining} uses left`}
+                    </div>
+                  </div>
+                </div>
                 <button
-                  className="sub-upgrade-btn"
-                  onClick={() => handleUpgrade(t.id)}
-                  disabled={checkoutLoading === t.id}
+                  className="promo-applied-remove"
+                  onClick={() => { setValidatedPromo(null); setPromoCode(''); setPromoError('') }}
+                  title="Remove promo code"
                 >
-                  {checkoutLoading === t.id
-                    ? 'Redirecting…'
-                    : !data.has_billing_account
-                      ? 'Start 14-Day Free Trial'
-                      : 'Upgrade'
-                  }
+                  <X size={14} strokeWidth={2.5} />
+                  Remove
                 </button>
               </div>
+            )}
+          </div>
+
+          {/* ── Plan cards ── */}
+          <div className="sub-upgrade-grid">
+            {otherTiers.map(t => {
+              const activeDiscount = validatedPromo ?? bannerPromo
+              const hasDiscount = !!(activeDiscount && (validatedPromo || bannerPromo))
+              const showDiscount = hasDiscount && activeDiscount && t.price_per_month != null
+              const discountedPrice = showDiscount && activeDiscount && t.price_per_month != null
+                ? activeDiscount.discount_type === 'percent'
+                  ? +(t.price_per_month * (1 - activeDiscount.discount_value / 100)).toFixed(2)
+                  : +Math.max(0, t.price_per_month - activeDiscount.discount_value).toFixed(2)
+                : null
+
+              return (
+                <div key={t.id} className={`sub-upgrade-card ${showDiscount ? 'sub-upgrade-card--discounted' : ''}`}>
+                  {showDiscount && activeDiscount && (
+                    <div className="sub-upgrade-discount-ribbon">
+                      {activeDiscount.discount_type === 'percent'
+                        ? `${activeDiscount.discount_value}% OFF`
+                        : `$${activeDiscount.discount_value} OFF`}
+                    </div>
+                  )}
+                  <div className="sub-upgrade-name">{t.display_name}</div>
+                  {t.price_per_month != null && (
+                    <div className="sub-upgrade-price">
+                      {showDiscount && discountedPrice != null ? (
+                        <>
+                          <span className="sub-upgrade-price-orig">${t.price_per_month}</span>
+                          <span className="sub-upgrade-price-new">${discountedPrice}</span>
+                        </>
+                      ) : (
+                        <span className="sub-upgrade-price-new">${t.price_per_month}</span>
+                      )}
+                      <span className="sub-upgrade-price-period">/mo</span>
+                    </div>
+                  )}
+                  {showDiscount && activeDiscount && (
+                    <div className="sub-upgrade-saving">
+                      {activeDiscount.duration === 'forever' ? 'Discount applied forever'
+                        : activeDiscount.duration === 'once' ? 'Applied to first month only'
+                        : `Applied for ${activeDiscount.duration_in_months} months`}
+                    </div>
+                  )}
+                  <ul className="sub-upgrade-limits">
+                    <li>{t.max_active_positions === -1 ? '∞' : t.max_active_positions} active positions</li>
+                    <li>{t.max_urls_per_position === -1 ? '∞' : t.max_urls_per_position} URLs / position</li>
+                    <li>{t.max_captures_per_month === -1 ? '∞' : t.max_captures_per_month} captures / month</li>
+                  </ul>
+                  <button
+                    className={`sub-upgrade-btn ${showDiscount ? 'sub-upgrade-btn--promo' : ''}`}
+                    onClick={() => handleUpgrade(t.id)}
+                    disabled={checkoutLoading === t.id}
+                  >
+                    {checkoutLoading === t.id
+                      ? 'Redirecting…'
+                      : !data.has_billing_account
+                        ? 'Start 14-Day Free Trial'
+                        : 'Upgrade Now'
+                    }
+                  </button>
+                </div>
               )
             })}
           </div>

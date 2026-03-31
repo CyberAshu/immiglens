@@ -1,10 +1,12 @@
-"""Promotions router — admin CRUD + public active promotions endpoint."""
+"""Promotions router — admin CRUD + public endpoints for code validation and pricing-page banner."""
 from __future__ import annotations
 
 import logging
+import random
+import string
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +15,13 @@ from app.core.database import get_db
 from app.core.dependencies import get_client_ip, get_current_user
 from app.models.promotion import Promotion
 from app.models.user import User
-from app.schemas.promotion import ActivePromotionPublic, PromotionCreate, PromotionOut, PromotionUpdate
+from app.schemas.promotion import (
+    ActivePromotionPublic,
+    PromoCodeValidation,
+    PromotionCreate,
+    PromotionOut,
+    PromotionUpdate,
+)
 from app.services import stripe_service
 
 log = logging.getLogger(__name__)
@@ -33,6 +41,8 @@ def _is_eligible(promo: Promotion) -> bool:
     """Return True if the promotion can still be redeemed right now."""
     now = datetime.now(timezone.utc)
     if not promo.is_active:
+        return False
+    if not promo.stripe_coupon_id:
         return False
     if promo.valid_from and now < promo.valid_from:
         return False
@@ -55,31 +65,86 @@ def _to_out(promo: Promotion) -> PromotionOut:
     return out
 
 
-# ── Public endpoint ───────────────────────────────────────────────────────────
+def _generate_code(name: str) -> str:
+    """Generate a promo code from the promotion name + 4 random chars.
 
-@router.get("/active", response_model=list[ActivePromotionPublic])
-async def list_active_promotions(db: AsyncSession = Depends(get_db)):
-    """Return all currently eligible promotions (public, no auth required)."""
-    promos = (
-        await db.execute(select(Promotion).where(Promotion.is_active.is_(True)).order_by(Promotion.id))
-    ).scalars().all()
-    result = []
-    for p in promos:
-        if _is_eligible(p):
-            result.append(ActivePromotionPublic(
-                id=p.id,
-                name=p.name,
-                description=p.description,
-                discount_type=p.discount_type,
-                discount_value=p.discount_value,
-                duration=p.duration,
-                duration_in_months=p.duration_in_months,
-                max_redemptions=p.max_redemptions,
-                redemptions_count=p.redemptions_count,
-                remaining=_remaining(p),
-                valid_until=p.valid_until,
-            ))
-    return result
+    e.g. "Founding Member Discount" → "FOUNDING-X4K2"
+    """
+    prefix = "".join(c for c in name.upper() if c.isalnum())[:8]
+    suffix = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
+    return f"{prefix}-{suffix}" if prefix else suffix
+
+
+# ── Public endpoints ──────────────────────────────────────────────────────────
+
+@router.get("/pricing-banner", response_model=ActivePromotionPublic | None)
+async def pricing_banner(db: AsyncSession = Depends(get_db)):
+    """Return the single promotion flagged show_on_pricing_page, if eligible.
+
+    Used by the public pricing/plan page to show a promotional banner.
+    Returns null when no eligible promotion is set to show publicly.
+    """
+    promo = (
+        await db.execute(
+            select(Promotion)
+            .where(
+                Promotion.is_active.is_(True),
+                Promotion.show_on_pricing_page.is_(True),
+            )
+            .order_by(Promotion.id)
+            .limit(1)
+        )
+    ).scalars().first()
+
+    if promo and _is_eligible(promo):
+        return ActivePromotionPublic(
+            id=promo.id,
+            name=promo.name,
+            description=promo.description,
+            code=promo.code,
+            discount_type=promo.discount_type,
+            discount_value=promo.discount_value,
+            duration=promo.duration,
+            duration_in_months=promo.duration_in_months,
+            max_redemptions=promo.max_redemptions,
+            redemptions_count=promo.redemptions_count,
+            remaining=_remaining(promo),
+            valid_until=promo.valid_until,
+        )
+    return None
+
+
+@router.get("/validate", response_model=PromoCodeValidation)
+async def validate_promo_code(
+    code: str = Query(..., description="Promo code to validate"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Validate a promo code and return its discount details.
+
+    Called from the frontend when a user enters a code before checkout.
+    Returns 404 if the code does not exist or is no longer eligible.
+    """
+    promo = (
+        await db.execute(
+            select(Promotion).where(Promotion.code == code.strip().upper())
+        )
+    ).scalars().first()
+
+    if not promo or not _is_eligible(promo):
+        raise HTTPException(status_code=404, detail="Promo code is invalid or has expired.")
+
+    return PromoCodeValidation(
+        id=promo.id,
+        name=promo.name,
+        description=promo.description,
+        code=promo.code,
+        discount_type=promo.discount_type,
+        discount_value=promo.discount_value,
+        duration=promo.duration,
+        duration_in_months=promo.duration_in_months,
+        remaining=_remaining(promo),
+        valid_until=promo.valid_until,
+    )
 
 
 # ── Admin endpoints ───────────────────────────────────────────────────────────
@@ -103,8 +168,21 @@ async def admin_create_promotion(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """Create a promotion and auto-sync a Stripe coupon."""
-    promo = Promotion(**body.model_dump())
+    """Create a promotion with a promo code and auto-sync a Stripe coupon."""
+    data = body.model_dump()
+
+    # Auto-generate code if not provided
+    if not data.get("code"):
+        data["code"] = _generate_code(body.name)
+
+    # Ensure code uniqueness
+    existing = (
+        await db.execute(select(Promotion).where(Promotion.code == data["code"]))
+    ).scalars().first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Promo code '{data['code']}' is already in use.")
+
+    promo = Promotion(**data)
     db.add(promo)
     await db.commit()
     await db.refresh(promo)
@@ -127,7 +205,8 @@ async def admin_create_promotion(
 
     await log_action(db, user_id=current_user.id, action="CREATE",
                      resource_type="promotion", resource_id=promo.id,
-                     new_data={"name": promo.name}, ip_address=get_client_ip(request))
+                     new_data={"name": promo.name, "code": promo.code},
+                     ip_address=get_client_ip(request))
     await db.commit()
     return _to_out(promo)
 
@@ -140,7 +219,7 @@ async def admin_update_promotion(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """Update promotion metadata. Discount value/type cannot change (immutable in Stripe)."""
+    """Update promotion metadata. Discount value/type/duration cannot change (immutable in Stripe)."""
     promo = await db.get(Promotion, promotion_id)
     if not promo:
         raise HTTPException(status_code=404, detail="Promotion not found.")
@@ -149,7 +228,7 @@ async def admin_update_promotion(
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(promo, field, value)
 
-    # Auto-create Stripe coupon if it doesn't exist yet (e.g. seeded rows)
+    # Auto-create Stripe coupon if it doesn't exist yet
     if not promo.stripe_coupon_id and promo.is_active:
         try:
             coupon_id = stripe_service.create_coupon(
@@ -175,7 +254,8 @@ async def admin_update_promotion(
     await db.refresh(promo)
     await log_action(db, user_id=current_user.id, action="UPDATE",
                      resource_type="promotion", resource_id=promo.id,
-                     new_data=body.model_dump(exclude_none=True), ip_address=get_client_ip(request))
+                     new_data=body.model_dump(exclude_none=True),
+                     ip_address=get_client_ip(request))
     await db.commit()
     return _to_out(promo)
 
@@ -192,6 +272,7 @@ async def admin_delete_promotion(
     if not promo:
         raise HTTPException(status_code=404, detail="Promotion not found.")
     promo.is_active = False
+    promo.show_on_pricing_page = False
     if promo.stripe_coupon_id:
         try:
             stripe_service.archive_coupon(promo.stripe_coupon_id)

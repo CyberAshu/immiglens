@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Tag } from 'lucide-react'
+import { Copy, Tag, Globe, ToggleLeft, ToggleRight, Pencil, Trash2 } from 'lucide-react'
 import { promotions as promoApi } from '../../api/promotions'
 import type { PromotionOut, PromotionCreate, PromotionUpdate } from '../../api/promotions'
 import { useConfirm } from '../../components/ConfirmModal'
@@ -7,6 +7,7 @@ import { useConfirm } from '../../components/ConfirmModal'
 const EMPTY_FORM: PromotionCreate = {
   name: '',
   description: '',
+  code: '',
   discount_type: 'percent',
   discount_value: 20,
   duration: 'forever',
@@ -14,6 +15,7 @@ const EMPTY_FORM: PromotionCreate = {
   max_redemptions: null,
   valid_from: null,
   valid_until: null,
+  show_on_pricing_page: false,
 }
 
 function fmtDate(iso: string | null): string {
@@ -21,23 +23,27 @@ function fmtDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('en-CA')
 }
 
-function DiscountBadge({ type, value }: { type: string; value: number }) {
-  const isPercent = type === 'percent'
+function CopyableCode({ code, iconOnly }: { code: string; iconOnly?: boolean }) {
+  const [copied, setCopied] = useState(false)
+  function handleCopy() {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+  if (iconOnly) {
+    return (
+      <button className="promo-card2-copy-icon" onClick={handleCopy} title="Copy code">
+        {copied ? <span style={{ fontSize: '0.7rem', color: '#16a34a', fontWeight: 700 }}>✓</span> : <Copy size={13} strokeWidth={2} />}
+      </button>
+    )
+  }
   return (
-    <span className={isPercent ? 'promo-badge promo-badge--green' : 'promo-badge promo-badge--blue'}>
-      {isPercent ? `${value}% off` : `$${value} off`}
-    </span>
-  )
-}
-
-function DurationBadge({ duration, months }: { duration: string; months: number | null }) {
-  const label = duration === 'forever'
-    ? '∞ Forever'
-    : duration === 'once'
-    ? 'Once'
-    : `${months ?? '?'} months`
-  return (
-    <span className="promo-badge promo-badge--slate">{label}</span>
+    <button className="promo-code-copy-btn" onClick={handleCopy} title="Copy code">
+      <span className="promo-code-text">{code}</span>
+      <Copy size={13} strokeWidth={2} />
+      {copied && <span className="promo-code-copied">Copied!</span>}
+    </button>
   )
 }
 
@@ -53,6 +59,9 @@ export default function AdminPromotions() {
   const [formError, setFormError] = useState('')
 
   const { confirmModal, askConfirm } = useConfirm()
+
+  // Warn when multiple promos have show_on_pricing_page = true
+  const multipleOnPage = list.filter(p => p.is_active && p.show_on_pricing_page).length > 1
 
   useEffect(() => {
     promoApi.all()
@@ -73,6 +82,7 @@ export default function AdminPromotions() {
     setForm({
       name: p.name,
       description: p.description ?? '',
+      code: p.code,
       discount_type: p.discount_type,
       discount_value: p.discount_value,
       duration: p.duration as PromotionCreate['duration'],
@@ -80,6 +90,7 @@ export default function AdminPromotions() {
       max_redemptions: p.max_redemptions,
       valid_from: p.valid_from ? p.valid_from.slice(0, 10) : null,
       valid_until: p.valid_until ? p.valid_until.slice(0, 10) : null,
+      show_on_pricing_page: p.show_on_pricing_page,
     })
     setFormError('')
     setShowForm(true)
@@ -101,6 +112,7 @@ export default function AdminPromotions() {
     try {
       const payload = {
         ...form,
+        code: form.code?.trim().toUpperCase() || null,
         description: form.description || null,
         valid_from: form.valid_from || null,
         valid_until: form.valid_until || null,
@@ -112,6 +124,7 @@ export default function AdminPromotions() {
           max_redemptions: payload.max_redemptions,
           valid_from: payload.valid_from,
           valid_until: payload.valid_until,
+          show_on_pricing_page: payload.show_on_pricing_page,
         }
         const updated = await promoApi.update(editing.id, update)
         setList(prev => prev.map(p => p.id === editing.id ? updated : p))
@@ -132,13 +145,22 @@ export default function AdminPromotions() {
     if (turningOff) {
       if (!await askConfirm({
         title: 'Deactivate Promotion',
-        message: `Deactivate "${promo.name}"? It will no longer be offered at checkout and its Stripe coupon will be archived.`,
+        message: `Deactivate "${promo.name}"? Users will no longer be able to redeem this code and its Stripe coupon will be archived.`,
         confirmLabel: 'Deactivate',
         variant: 'danger',
       })) return
     }
     try {
       const updated = await promoApi.update(promo.id, { is_active: !promo.is_active })
+      setList(prev => prev.map(p => p.id === promo.id ? updated : p))
+    } catch {
+      setError('Failed to update promotion.')
+    }
+  }
+
+  async function handleTogglePricingPage(promo: PromotionOut) {
+    try {
+      const updated = await promoApi.update(promo.id, { show_on_pricing_page: !promo.show_on_pricing_page })
       setList(prev => prev.map(p => p.id === promo.id ? updated : p))
     } catch {
       setError('Failed to update promotion.')
@@ -170,7 +192,7 @@ export default function AdminPromotions() {
       <div className="page-header">
         <div>
           <h1>Promotions</h1>
-          <p className="sub-text">Manage discount promotions — auto-applied at Stripe checkout for eligible users.</p>
+          <p className="sub-text">Create promo codes to share with users or show on the pricing page.</p>
         </div>
         <button className="admin-btn admin-btn-primary" onClick={openCreate}>
           <Tag size={14} strokeWidth={2.5} /> New Promotion
@@ -178,6 +200,12 @@ export default function AdminPromotions() {
       </div>
 
       {error && <div className="error-msg" style={{ marginBottom: '1.25rem' }}>{error}</div>}
+
+      {multipleOnPage && (
+        <div className="banner banner-warn" style={{ marginBottom: '1.25rem' }}>
+          ⚠️ Multiple active promotions are set to <strong>Show on Pricing Page</strong>. Only the first one (by ID) will be shown. Disable the others to avoid confusion.
+        </div>
+      )}
 
       {/* ── Cards grid ───────────────────────── */}
       {list.length === 0 ? (
@@ -188,75 +216,146 @@ export default function AdminPromotions() {
         <div className="tier-grid">
           {list.map(p => {
             const synced = !!p.stripe_coupon_id
-            return (
-            <div key={p.id} className={`promo-card ${!p.is_active ? 'promo-card--inactive' : ''}`}>
+            const isPercent = p.discount_type === 'percent'
+            const heroGradient = !p.is_active
+              ? 'linear-gradient(135deg, #374151 0%, #6b7280 100%)'
+              : isPercent
+              ? 'linear-gradient(135deg, #064e3b 0%, #059669 100%)'
+              : 'linear-gradient(135deg, #0B1F3B 0%, #1d4ed8 100%)'
 
-              {/* ── Header ── */}
-              <div className="promo-card-header">
-                <div className="promo-card-title-block">
-                  <div className="promo-card-name">{p.name}</div>
-                  {p.description && (
-                    <div className="promo-card-desc">{p.description}</div>
-                  )}
+            const redemptionPct = p.max_redemptions
+              ? Math.min(100, Math.round((p.redemptions_count / p.max_redemptions) * 100))
+              : 0
+
+            return (
+            <div key={p.id} className={`promo-card2 ${!p.is_active ? 'promo-card2--inactive' : ''}`}>
+
+              {/* ── Hero discount band ── */}
+              <div className="promo-card2-hero" style={{ background: heroGradient }}>
+                <div className="promo-card2-hero-value">
+                  {isPercent ? `${p.discount_value}%` : `$${p.discount_value}`}
+                  <span className="promo-card2-hero-off">OFF</span>
                 </div>
-                {/* Active / Inactive pill */}
-                <span className={p.is_active ? 'promo-status promo-status--active' : 'promo-status promo-status--inactive'}>
+                <div className="promo-card2-hero-sub">
+                  {p.duration === 'forever' ? 'forever'
+                    : p.duration === 'once' ? 'first month only'
+                    : `for ${p.duration_in_months ?? '?'} months`}
+                </div>
+                {/* Status pill overlaid top-right */}
+                <span className={`promo-card2-status ${p.is_active ? 'promo-card2-status--on' : 'promo-card2-status--off'}`}>
                   {p.is_active ? '● Active' : '○ Inactive'}
                 </span>
               </div>
 
-              {/* ── Discount highlight ── */}
-              <div className="promo-discount-row">
-                <DiscountBadge type={p.discount_type} value={p.discount_value} />
-                <DurationBadge duration={p.duration} months={p.duration_in_months} />
+              {/* ── Body ── */}
+              <div className="promo-card2-body">
+
+                {/* Name + description */}
+                <div className="promo-card2-name">{p.name}</div>
+                {p.description && <div className="promo-card2-desc">{p.description}</div>}
+
+                {/* Promo code block */}
+                <div className="promo-card2-code-block">
+                  <span className="promo-card2-code-label">PROMO CODE</span>
+                  <div className="promo-card2-code-row">
+                    <span className="promo-card2-code">{p.code}</span>
+                    <CopyableCode code={p.code} iconOnly />
+                  </div>
+                </div>
+
+                {/* Pricing page badge */}
+                {p.show_on_pricing_page && (
+                  <div className="promo-card2-page-badge">
+                    <Globe size={11} strokeWidth={2.5} />
+                    Shown on pricing page
+                  </div>
+                )}
+
+                {/* Stats row */}
+                <div className="promo-card2-stats">
+                  <div className="promo-card2-stat">
+                    <span className="promo-card2-stat-label">Redeemed</span>
+                    <span className="promo-card2-stat-value">
+                      {p.redemptions_count}
+                      <span className="promo-card2-stat-max"> / {p.max_redemptions ?? '∞'}</span>
+                    </span>
+                    {p.max_redemptions && (
+                      <div className="promo-card2-progress-track">
+                        <div
+                          className="promo-card2-progress-fill"
+                          style={{
+                            width: `${redemptionPct}%`,
+                            background: redemptionPct >= 100 ? '#ef4444' : redemptionPct >= 80 ? '#f59e0b' : '#16a34a'
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div className="promo-card2-stat">
+                    <span className="promo-card2-stat-label">Valid From</span>
+                    <span className="promo-card2-stat-value">{fmtDate(p.valid_from)}</span>
+                  </div>
+                  <div className="promo-card2-stat">
+                    <span className="promo-card2-stat-label">Expires</span>
+                    <span className="promo-card2-stat-value">{fmtDate(p.valid_until)}</span>
+                  </div>
+                </div>
+
+                {/* Remaining warning */}
+                {p.remaining === 0 && (
+                  <div className="promo-card2-alert promo-card2-alert--red">Redemption limit reached — no spots left</div>
+                )}
+                {p.remaining !== null && p.remaining > 0 && p.remaining <= 5 && (
+                  <div className="promo-card2-alert promo-card2-alert--amber">Only {p.remaining} redemption{p.remaining > 1 ? 's' : ''} remaining</div>
+                )}
               </div>
 
-              {/* ── Stats ── */}
-              <div className="tier-limits">
-                <div className="tier-limit-row">
-                  <span>Redeemed</span>
-                  <strong>
-                    {p.redemptions_count} / {p.max_redemptions ?? '∞'}
-                    {p.remaining === 0 && (
-                      <span className="promo-tag promo-tag--red">Full</span>
-                    )}
-                    {p.remaining !== null && p.remaining > 0 && p.remaining <= 5 && (
-                      <span className="promo-tag promo-tag--amber">{p.remaining} left</span>
-                    )}
-                  </strong>
+              {/* ── Footer ── */}
+              <div className="promo-card2-footer">
+                {/* Stripe sync indicator */}
+                <div className={`promo-card2-stripe ${synced ? 'promo-card2-stripe--synced' : 'promo-card2-stripe--unsynced'}`}>
+                  <span className="promo-card2-stripe-dot" />
+                  {synced ? 'Stripe synced' : 'Not synced'}
                 </div>
-                <div className="tier-limit-row">
-                  <span>Valid From</span>
-                  <strong>{fmtDate(p.valid_from)}</strong>
-                </div>
-                <div className="tier-limit-row">
-                  <span>Valid Until</span>
-                  <strong>{fmtDate(p.valid_until)}</strong>
-                </div>
-              </div>
 
-              {/* ── Stripe sync footer ── */}
-              <div className={`promo-stripe-row ${synced ? 'promo-stripe-row--synced' : 'promo-stripe-row--unsynced'}`}>
-                <span className="promo-stripe-dot" />
-                {synced
-                  ? <span>Stripe coupon synced</span>
-                  : <span>Not synced — save to connect Stripe</span>
-                }
+                {/* Toggles */}
+                <div className="promo-card2-toggles">
+                  <button
+                    className="promo-card2-toggle-btn"
+                    onClick={() => handleTogglePricingPage(p)}
+                    disabled={!p.is_active}
+                    title={p.show_on_pricing_page ? 'Hide from pricing page' : 'Show on pricing page'}
+                  >
+                    <Globe size={13} strokeWidth={2} />
+                    {p.show_on_pricing_page
+                      ? <ToggleRight size={18} strokeWidth={2} style={{ color: '#6d28d9' }} />
+                      : <ToggleLeft size={18} strokeWidth={2} style={{ color: '#9ca3af' }} />
+                    }
+                  </button>
+                  <button
+                    className="promo-card2-toggle-btn"
+                    onClick={() => handleToggleActive(p)}
+                    title={p.is_active ? 'Deactivate' : 'Activate'}
+                  >
+                    {p.is_active
+                      ? <ToggleRight size={18} strokeWidth={2} style={{ color: '#16a34a' }} />
+                      : <ToggleLeft size={18} strokeWidth={2} style={{ color: '#9ca3af' }} />
+                    }
+                    <span style={{ fontSize: '0.72rem', color: '#6b7280' }}>
+                      {p.is_active ? 'On' : 'Off'}
+                    </span>
+                  </button>
+                </div>
               </div>
 
               {/* ── Actions ── */}
-              <div className="tier-card-actions">
-                <button className="admin-btn admin-btn-secondary" onClick={() => openEdit(p)}>Edit</button>
-                <button className="admin-btn admin-btn-danger" onClick={() => handleDelete(p)}>Delete</button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginLeft: 'auto' }}>
-                  <button
-                    className={`toggle-switch ${p.is_active ? 'toggle-switch--on' : 'toggle-switch--off'}`}
-                    onClick={() => handleToggleActive(p)}
-                    title={p.is_active ? 'Active — click to deactivate' : 'Inactive — click to activate'}
-                  >
-                    <span className="toggle-switch-thumb" />
-                  </button>
-                </div>
+              <div className="promo-card2-actions">
+                <button className="promo-card2-action-btn promo-card2-action-btn--edit" onClick={() => openEdit(p)}>
+                  <Pencil size={13} strokeWidth={2.5} /> Edit
+                </button>
+                <button className="promo-card2-action-btn promo-card2-action-btn--delete" onClick={() => handleDelete(p)}>
+                  <Trash2 size={13} strokeWidth={2.5} /> Delete
+                </button>
               </div>
             </div>
             )
@@ -271,7 +370,7 @@ export default function AdminPromotions() {
             <h2 className="admin-modal-title">{editing ? 'Edit Promotion' : 'New Promotion'}</h2>
 
             <div className="admin-form-grid">
-              {/* Name — spans full width */}
+              {/* Name */}
               <label className="admin-form-label" style={{ gridColumn: 'span 2' }}>
                 Name *
                 <input
@@ -282,7 +381,7 @@ export default function AdminPromotions() {
                 />
               </label>
 
-              {/* Description — spans full width */}
+              {/* Description */}
               <label className="admin-form-label" style={{ gridColumn: 'span 2' }}>
                 Description
                 <input
@@ -290,6 +389,18 @@ export default function AdminPromotions() {
                   value={form.description ?? ''}
                   onChange={e => setField('description', e.target.value)}
                   placeholder="Optional short description"
+                />
+              </label>
+
+              {/* Promo code */}
+              <label className="admin-form-label" style={{ gridColumn: 'span 2' }}>
+                Promo Code{editing && <span style={{ color: '#9ca3af', fontWeight: 400 }}> (locked)</span>}
+                <input
+                  className="admin-input"
+                  value={form.code ?? ''}
+                  onChange={e => setField('code', e.target.value.toUpperCase())}
+                  placeholder="e.g. LAUNCH30 (auto-generated if blank)"
+                  disabled={!!editing}
                 />
               </label>
 
@@ -354,7 +465,6 @@ export default function AdminPromotions() {
                   />
                 </label>
               ) : (
-                /* Max redemptions in this slot when not repeating */
                 <label className="admin-form-label">
                   Max Redemptions
                   <input
@@ -368,7 +478,6 @@ export default function AdminPromotions() {
                 </label>
               )}
 
-              {/* Show max redemptions on its own row when duration=repeating */}
               {form.duration === 'repeating' && (
                 <label className="admin-form-label">
                   Max Redemptions
@@ -405,6 +514,17 @@ export default function AdminPromotions() {
                 />
               </label>
 
+              {/* Show on pricing page */}
+              <label className="admin-form-label" style={{ gridColumn: 'span 2', flexDirection: 'row', alignItems: 'center', gap: '0.75rem' }}>
+                <input
+                  type="checkbox"
+                  checked={form.show_on_pricing_page ?? false}
+                  onChange={e => setField('show_on_pricing_page', e.target.checked)}
+                  style={{ width: 'auto', accentColor: '#0B1F3B' }}
+                />
+                Show this promo as a banner on the public pricing page
+              </label>
+
               {/* Lock notice for edits */}
               {editing && (
                 <p style={{
@@ -417,7 +537,7 @@ export default function AdminPromotions() {
                   borderRadius: 8,
                   border: '1px solid #e5e7eb',
                 }}>
-                  ⚠️ Discount type, value, and duration are locked after creation (Stripe coupon is immutable).
+                  ⚠️ Promo code, discount type, value, and duration are locked after creation (Stripe coupon is immutable).
                   Delete and re-create to change these fields.
                 </p>
               )}
@@ -439,3 +559,4 @@ export default function AdminPromotions() {
     </div>
   )
 }
+

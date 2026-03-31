@@ -18,6 +18,7 @@ from app.models.subscription import SubscriptionTier
 from app.models.user import User
 from app.routers.promotions import _is_eligible
 from app.services import stripe_service
+from sqlalchemy import select
 from app.services.email_service import (
     send_payment_failed_email,
     send_payment_successful_email,
@@ -37,6 +38,7 @@ class CheckoutRequest(BaseModel):
     tier_id: int
     onboarding: bool = False  # when True, success/cancel URL targets /onboarding instead of /plan
     is_annual: bool = False   # when True, use annual price if available; stored in subscription metadata
+    promo_code: str | None = None  # optional promo code entered by the user
 
 
 class UrlResponse(BaseModel):
@@ -47,20 +49,17 @@ class PublishableKeyResponse(BaseModel):
     key: str
 
 
-# ── Helper: pick the best eligible promotion ─────────────────────────────────
+# ── Helper: resolve promotion by code ───────────────────────────────────────
 
-async def _best_promotion(db: AsyncSession) -> Promotion | None:
-    """Return the highest-value eligible promotion, or None."""
-    promos = (
+async def _promotion_by_code(code: str, db: AsyncSession) -> Promotion | None:
+    """Return eligible promotion for the given code, or None."""
+    promo = (
         await db.execute(
-            select(Promotion)
-            .where(Promotion.is_active.is_(True), Promotion.stripe_coupon_id.isnot(None))
-            .order_by(Promotion.discount_value.desc())
+            select(Promotion).where(Promotion.code == code.strip().upper())
         )
-    ).scalars().all()
-    for p in promos:
-        if _is_eligible(p):
-            return p
+    ).scalars().first()
+    if promo and _is_eligible(promo):
+        return promo
     return None
 
 
@@ -82,7 +81,8 @@ async def create_checkout(
 ):
     """Create a Stripe Checkout session and return the hosted URL.
 
-    Automatically applies the best eligible active promotion coupon.
+    If promo_code is provided, validates it and applies the discount.
+    Redemption is recorded only after Stripe confirms payment via webhook.
     """
     tier = await db.get(SubscriptionTier, body.tier_id)
     if not tier or not tier.is_active:
@@ -93,12 +93,24 @@ async def create_checkout(
             detail="This tier is not yet synced with Stripe. Please contact support.",
         )
 
-    promo = await _best_promotion(db)
-    coupon_id = promo.stripe_coupon_id if promo else None
+    # Resolve promo code if provided
+    promo: Promotion | None = None
+    coupon_id: str | None = None
+    if body.promo_code:
+        promo = await _promotion_by_code(body.promo_code, db)
+        if not promo:
+            raise HTTPException(status_code=400, detail="Promo code is invalid or has expired.")
+        coupon_id = promo.stripe_coupon_id
 
     # Trial eligibility is a backend decision: only for first-time subscribers.
     # settings.TRIAL_DAYS is the single source of truth — never sent by the client.
     trial_days = settings.TRIAL_DAYS if not current_user.stripe_customer_id else 0
+
+    # Embed promotion_id in metadata so the webhook can record the redemption
+    # when Stripe confirms payment — not before.
+    extra_metadata: dict = {}
+    if promo:
+        extra_metadata["promotion_id"] = str(promo.id)
 
     try:
         url = await stripe_service.create_checkout_session(
@@ -107,17 +119,12 @@ async def create_checkout(
             coupon_id=coupon_id,
             onboarding=body.onboarding,
             is_annual=body.is_annual,
+            extra_metadata=extra_metadata,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    # Record the redemption so the count stays accurate
-    if promo:
-        db.add(PromotionRedemption(promotion_id=promo.id, user_id=current_user.id))
-        promo.redemptions_count += 1
-        await db.commit()
 
     return {"url": url}
 
@@ -305,6 +312,7 @@ async def _handle_checkout_completed(data: dict, db: AsyncSession) -> None:
     metadata_obj = getattr(data, "metadata", None)
     user_id = getattr(metadata_obj, "user_id", None) if metadata_obj else None
     tier_id = getattr(metadata_obj, "tier_id", None) if metadata_obj else None
+    promotion_id_str = getattr(metadata_obj, "promotion_id", None) if metadata_obj else None
 
     user: User | None = None
     if user_id:
@@ -324,6 +332,17 @@ async def _handle_checkout_completed(data: dict, db: AsyncSession) -> None:
         tier = await db.get(SubscriptionTier, int(tier_id))
         if tier:
             user.tier_id = tier.id
+
+    # Record promotion redemption now that payment is confirmed
+    if promotion_id_str:
+        try:
+            promo = await db.get(Promotion, int(promotion_id_str))
+            if promo:
+                db.add(PromotionRedemption(promotion_id=promo.id, user_id=user.id))
+                promo.redemptions_count += 1
+                log.info("checkout.session.completed: redemption recorded for promo %s user %s", promo.id, user.id)
+        except Exception:
+            log.exception("Failed to record promotion redemption for promo_id=%s", promotion_id_str)
 
     # Use subscription current_period_end as the expiry
     subscription_id: str | None = getattr(data, "subscription", None)

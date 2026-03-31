@@ -26,7 +26,3 @@ class UsageSummary(BaseModel):
     active_positions_used: int
     captures_this_month: int
     has_billing_account: bool = False  # True when user has a stripe_customer_id
-    applied_promotion_name: Optional[str] = None
-    applied_discount_type: Optional[str] = None   # "percent" | "fixed"
-    applied_discount_value: Optional[float] = None
-    applied_discount_duration: Optional[str] = None  # "forever" | "once" | "repeating"

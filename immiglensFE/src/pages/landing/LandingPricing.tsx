@@ -221,7 +221,7 @@ export function LandingPricing() {
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState(false)
   const [isAnnual, setIsAnnual]   = useState(true)
-  const [activePromos, setActivePromos] = useState<ActivePromotion[]>([])
+  const [bannerPromo, setBannerPromo] = useState<ActivePromotion | null>(null)
 
   const { user } = useAuth()
   const isLoggedIn = !!user
@@ -230,14 +230,14 @@ export function LandingPricing() {
   useEffect(() => {
     Promise.all([
       subscriptions.tiers(),
-      promotions.active().catch(() => []),
+      promotions.pricingBanner().catch(() => null),
     ])
-      .then(([data, promos]) => { setTiers(data); setActivePromos(promos) })
+      .then(([data, banner]) => { setTiers(data); setBannerPromo(banner) })
       .catch(() => setError(true))
       .finally(() => setLoading(false))
   }, [])
 
-  const bestPromo = activePromos[0] ?? null
+  const bestPromo = bannerPromo
 
   // Highlight the middle tier as "most popular"
   const popularIdx = Math.floor((tiers.length - 1) / 2)
@@ -263,6 +263,7 @@ export function LandingPricing() {
             {' '}·{' '}
             {bestPromo.discount_type === 'percent' ? `${bestPromo.discount_value}% off` : `$${bestPromo.discount_value} off`}
             {bestPromo.duration === 'forever' ? ' forever' : bestPromo.duration === 'once' ? ' first month' : ''}
+            {' '}— use code <strong style={{ fontFamily: 'monospace', letterSpacing: '0.04em' }}>{bestPromo.code}</strong>
           </div>
         )}
         {bestPromo && bestPromo.remaining === 0 && (

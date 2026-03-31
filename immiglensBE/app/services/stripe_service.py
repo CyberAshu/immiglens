@@ -154,14 +154,17 @@ async def create_checkout_session(
     coupon_id: str | None = None,
     onboarding: bool = False,
     is_annual: bool = False,
+    extra_metadata: dict | None = None,
 ) -> str:
     """Create a Stripe Checkout Session and return the hosted URL.
 
     Pass trial_days > 0 to start a free trial period before the first charge.
-    Pass coupon_id to apply a discount (e.g. founding member 20% forever).
+    Pass coupon_id to apply a discount coupon.
     Pass onboarding=True to redirect back to onboarding wizard after checkout.
     Pass is_annual=True to use the tier's annual price (stripe_annual_price_id)
     if configured, otherwise falls back to the monthly price.
+    Pass extra_metadata to add arbitrary key/value pairs to session metadata
+    (e.g. promotion_id for redemption recording in the webhook).
     """
     # Resolve correct Stripe price — prefer annual when requested and available
     annual_price_id: str | None = getattr(tier, "stripe_annual_price_id", None)
@@ -195,6 +198,14 @@ async def create_checkout_session(
     if trial_days > 0:
         subscription_data["trial_period_days"] = trial_days
 
+    base_metadata: dict = {
+            "user_id": str(user.id),
+            "tier_id": str(tier.id),
+            "billing_period": "annual" if is_annual else "monthly",
+        }
+    if extra_metadata:
+        base_metadata.update(extra_metadata)
+
     params: dict = {
         "customer": customer_id,
         "payment_method_types": ["card"],
@@ -202,11 +213,7 @@ async def create_checkout_session(
         "mode": "subscription",
         "success_url": success_url,
         "cancel_url": cancel_url,
-        "metadata": {
-            "user_id": str(user.id),
-            "tier_id": str(tier.id),
-            "billing_period": "annual" if is_annual else "monthly",
-        },
+        "metadata": base_metadata,
         "subscription_data": subscription_data,
     }
     if coupon_id:

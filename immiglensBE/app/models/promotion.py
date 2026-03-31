@@ -3,24 +3,33 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text, ForeignKey
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
 
 class Promotion(Base):
-    """A configurable discount promotion that auto-applies at Stripe checkout.
+    """A promo-code based discount.
 
-    Supports percent or fixed discounts, optional user limits, and date ranges.
-    When created, a matching Stripe coupon is created and its ID stored here.
+    Admin creates a promotion with a unique code (e.g. LAUNCH30).
+    The code can be shared privately with users or shown publicly on the
+    pricing page via show_on_pricing_page.  Users enter the code at checkout;
+    the backend validates it and applies the matching Stripe coupon.
     """
 
     __tablename__ = "promotions"
+    __table_args__ = (UniqueConstraint("code", name="uq_promotions_code"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))          # "Founding Member Discount"
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Promo code users enter at checkout (e.g. "LAUNCH30")
+    code: Mapped[str] = mapped_column(String(50), nullable=False)
+
+    # When True, this promo is shown as a banner on the public pricing page
+    show_on_pricing_page: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     # Stripe
     stripe_coupon_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
