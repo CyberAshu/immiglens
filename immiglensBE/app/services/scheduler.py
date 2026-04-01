@@ -255,12 +255,60 @@ async def schedule_rounds_for_position(
     existing_result = await db.execute(
         select(CaptureRound.scheduled_at).where(
             CaptureRound.job_position_id == position.id,
-            CaptureRound.status.in_([CaptureStatus.RUNNING, CaptureStatus.COMPLETED]),
+            CaptureRound.status.in_([
+                CaptureStatus.PENDING,
+                CaptureStatus.RUNNING,
+                CaptureStatus.COMPLETED,
+            ]),
         )
     )
     existing_dates: set[str] = {
         row[0].date().isoformat() for row in existing_result.fetchall()
     }
+
+    # ── Posting-date capture ──────────────────────────────────────────────────
+    # On initial creation (not_before is None): always create one scheduled
+    # capture for today so the user gets a same-day snapshot regardless of
+    # whether start_date is today or a future date.
+    # - 1-hour gap rule preserved: run_at = now + 1h
+    # - today_str is added to existing_dates so the main loop skips today,
+    #   preventing a duplicate when start_date == today.
+    now_utc = datetime.now(timezone.utc)
+    if not_before is None:
+        today_str = now_utc.date().isoformat()
+        # Fresh DB query covering ALL statuses — safer than the pre-populated
+        # existing_dates which is blind to rounds flushed-but-not-committed by
+        # a concurrent call and does not include rounds created mid-transaction.
+        today_start = datetime.combine(now_utc.date(), datetime.min.time()).replace(tzinfo=timezone.utc)
+        today_end   = today_start + timedelta(days=1)
+        same_day_exists = (
+            await db.execute(
+                select(CaptureRound.id).where(
+                    CaptureRound.job_position_id == position.id,
+                    CaptureRound.scheduled_at >= today_start,
+                    CaptureRound.scheduled_at <  today_end,
+                ).limit(1)
+            )
+        ).scalar_one_or_none()
+        if same_day_exists is None:
+            run_at = now_utc + timedelta(hours=1)
+            posting_round = CaptureRound(
+                job_position_id=position.id,
+                scheduled_at=run_at,
+                status=CaptureStatus.PENDING,
+            )
+            db.add(posting_round)
+            await db.flush()
+            scheduler.add_job(
+                _run_capture_round,
+                trigger=DateTrigger(run_date=run_at),
+                args=[posting_round.id],
+                id=f"capture_round_{posting_round.id}",
+                replace_existing=True,
+            )
+            # Mark today covered so the main loop skips start_date = today
+            existing_dates.add(today_str)
+    # ─────────────────────────────────────────────────────────────────────────
 
     scheduled_at = start
     while scheduled_at <= end:
