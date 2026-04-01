@@ -2,8 +2,6 @@
 
 {% block title %}Payment received &mdash; ImmigLens &middot; {{ invoice_number }}{% endblock %}
 {% block preheader %}Payment of {{ amount }} received. Your ImmigLens subscription is active and in good standing.{% endblock %}
-{% block badge_label %}TRANSACTIONAL &middot; BILLING{% endblock %}
-
 {% block content %}
 <p style="margin:0 0 20px;font-size:16px;font-weight:600;color:#111827;">Hi {{ first_name }},</p>
 
@@ -39,7 +37,7 @@
 
 <table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
   <tr>
-    <td style="background-color:#1746c2;border-radius:6px;">
+    <td style="background-color:#0B1F3B;border-radius:6px;">
       <a href="{{ billing_url }}"
          style="display:inline-block;padding:11px 22px;color:#ffffff;font-size:14px;font-weight:600;
                 text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">

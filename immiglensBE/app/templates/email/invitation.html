@@ -2,8 +2,6 @@
 
 {% block title %}You've been invited to join {{ org_name }} on ImmigLens{% endblock %}
 {% block preheader %}{{ inviter_name }} has invited you to join {{ org_name }} on ImmigLens as {{ role }}.{% endblock %}
-{% block badge_label %}TRANSACTIONAL &middot; INVITATION{% endblock %}
-
 {% block content %}
 <p style="margin:0 0 20px;font-size:16px;font-weight:600;color:#111827;">You&rsquo;ve been invited to ImmigLens</p>
 
@@ -14,28 +12,28 @@
 
 {# Invitation details #}
 <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
-       style="background-color:#f0f4ff;border:1px solid #c7d7ff;border-radius:6px;margin:0 0 24px;">
+       style="background-color:#F6F4EF;border:1px solid #EAE8E3;border-radius:6px;margin:0 0 24px;">
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #c7d7ff;">Organization</td>
-    <td style="padding:10px 16px;font-size:14px;color:#1e40af;font-weight:700;border-bottom:1px solid #c7d7ff;">{{ org_name }}</td>
+    <td style="padding:10px 16px;font-size:14px;color:#0B1F3B;font-weight:700;border-bottom:1px solid #EAE8E3;">{{ org_name }}</td>
   </tr>
   <tr>
-    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #c7d7ff;">Invited by</td>
-    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #c7d7ff;">{{ inviter_name }}</td>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Invited by</td>
+    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ inviter_name }}</td>
   </tr>
   <tr>
-    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #c7d7ff;">Your role</td>
-    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #c7d7ff;">{{ role | title }}</td>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Your role</td>
+    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ role | title }}</td>
   </tr>
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;">Invitation expires</td>
-    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;">{{ expires_at }}</td>
+    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;">{{ expires_at }}</td>
   </tr>
 </table>
 
 <table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 24px;">
   <tr>
-    <td style="background-color:#1746c2;border-radius:6px;">
+    <td style="background-color:#0B1F3B;border-radius:6px;">
       <a href="{{ accept_url }}"
          style="display:inline-block;padding:12px 24px;color:#ffffff;font-size:14px;font-weight:600;
                 text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
@@ -48,17 +46,17 @@
 <p style="margin:0 0 16px;font-size:13px;color:#6b7280;line-height:1.7;">
   If the button above does not work, copy and paste the following link into your browser:
 </p>
-<p style="margin:0 0 20px;font-size:12px;color:#1746c2;word-break:break-all;line-height:1.6;">
-  <a href="{{ accept_url }}" style="color:#1746c2;text-decoration:none;">{{ accept_url }}</a>
+<p style="margin:0 0 20px;font-size:12px;color:#0B1F3B;word-break:break-all;line-height:1.6;">
+  <a href="{{ accept_url }}" style="color:#0B1F3B;text-decoration:none;">{{ accept_url }}</a>
 </p>
 
 <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
-       style="background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;margin:0 0 8px;">
+       style="background-color:#F6F4EF;border:1px solid #EAE8E3;border-radius:6px;margin:0 0 8px;">
   <tr>
     <td style="padding:12px 16px;font-size:13px;color:#6b7280;line-height:1.65;">
       This invitation expires on <strong>{{ expires_at }}</strong> and can only be accepted once.
       If you did not expect this invitation, you can safely ignore this email.
-      Contact <a href="mailto:support@immiglens.ca" style="color:#1746c2;text-decoration:none;">support@immiglens.ca</a>
+      Contact <a href="mailto:support@immiglens.ca" style="color:#0B1F3B;text-decoration:none;">support@immiglens.ca</a>
       if you have concerns.
     </td>
   </tr>

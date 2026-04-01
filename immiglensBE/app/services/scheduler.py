@@ -5,7 +5,7 @@ from pathlib import Path
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -15,7 +15,9 @@ from app.models.capture import CaptureResult, CaptureRound, CaptureStatus, Resul
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
 from app.models.notification import NotificationEvent
+from app.models.user import User
 from app.services.change_detector import record_snapshot
+from app.services.email_service import send_capture_completed_email, send_capture_failed_email
 from app.services.notification_service import dispatch_event, send_admin_alert
 from app.services.screenshot import capture
 
@@ -526,6 +528,32 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                 )
             except Exception:
                 pass
+            # ── Transactional HTML email: capture failed ──────────────────────
+            try:
+                _user = await db.get(User, user_id)
+                if _user:
+                    _sources = [u.url for u in round_.job_position.job_urls if u.is_active]
+                    _ls = (await db.execute(
+                        select(CaptureRound.captured_at).where(
+                            CaptureRound.job_position_id == round_.job_position_id,
+                            CaptureRound.status == CaptureStatus.COMPLETED,
+                        ).order_by(CaptureRound.captured_at.desc()).limit(1)
+                    )).scalar_one_or_none()
+                    await send_capture_failed_email(
+                        to=_user.email,
+                        first_name=_user.full_name.split()[0] if _user.full_name else "there",
+                        position_title=round_.job_position.job_title,
+                        noc_code=round_.job_position.noc_code,
+                        attempted_at=datetime.now(timezone.utc).strftime("%b %d, %Y at %H:%M UTC"),
+                        error=str(exc),
+                        affected_sources=_sources,
+                        capture_id=round_.id,
+                        last_successful=_ls.strftime("%b %d, %Y") if _ls else "\u2014",
+                        retry_at=None,
+                        fix_url=f"{settings.FRONTEND_URL}/positions/{round_.job_position_id}",
+                    )
+            except Exception:
+                pass  # Never block capture flow for email errors
         # Always alert the platform admin regardless of user preference settings
         await send_admin_alert(
             subject=f"Capture round {round_.id} FAILED",
@@ -574,6 +602,39 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                     )
         except Exception:
             pass  # Notification failures must never block the capture flow
+
+    # ── Transactional HTML email: capture completed ────────────────────────────
+    # Sent directly to the account owner regardless of notification preferences.
+    if user_id is not None:
+        try:
+            _user = await db.get(User, user_id)
+            if _user:
+                _sources = [url for _, url in snapshots]
+                _tot = (await db.execute(
+                    select(func.count(CaptureResult.id))
+                    .join(CaptureRound, CaptureResult.capture_round_id == CaptureRound.id)
+                    .where(CaptureRound.job_position_id == round_.job_position_id)
+                )).scalar_one() or 0
+                _next_run = (
+                    round_.scheduled_at
+                    + timedelta(days=round_.job_position.capture_frequency_days)
+                ).strftime("%b %d, %Y")
+                await send_capture_completed_email(
+                    to=_user.email,
+                    first_name=_user.full_name.split()[0] if _user.full_name else "there",
+                    position_title=round_.job_position.job_title,
+                    noc_code=round_.job_position.noc_code,
+                    captured_at=round_.captured_at.strftime("%b %d, %Y at %H:%M UTC"),
+                    screenshot_count=len(_sources),
+                    source_count=len(set(_sources)),
+                    sources=_sources or ["\u2014"],
+                    capture_id=round_.id,
+                    total_evidence=_tot,
+                    next_run=_next_run,
+                    timeline_url=f"{settings.FRONTEND_URL}/positions/{round_.job_position_id}/timeline",
+                )
+        except Exception:
+            pass  # Never block capture flow for email errors
 
 
 async def recover_stuck_rounds() -> None:
