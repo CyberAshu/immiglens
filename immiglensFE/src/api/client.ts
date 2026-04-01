@@ -18,6 +18,11 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
     },
   })
   if (!res.ok) {
+    if (res.status === 401) {
+      localStorage.removeItem('token')
+      window.location.href = '/'
+      return undefined as T
+    }
     const body = await res.json().catch(() => ({}))
     const detail = body?.detail
     const message =
