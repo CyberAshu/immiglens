@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Building2, Mail, Pencil, Phone, Plus, Search, Trash2, User } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpAZ, Building2, Mail, Pencil, Phone, Plus, Search, Trash2, User } from 'lucide-react'
 import { employers as employersApi } from '../api'
 import type { Employer } from '../types'
 import AddressAutocomplete from '../components/AddressAutocomplete'
@@ -13,6 +13,8 @@ export default function Employers() {
   const [showForm, setShowForm] = useState(false)
   const [editingEmployer, setEditingEmployer] = useState<Employer | null>(null)
   const [query, setQuery]     = useState('')
+  const [sortKey, setSortKey] = useState<'business_name' | 'contact_person' | 'created_at'>('created_at')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [form, setForm]       = useState({
     business_name: '', address: '', contact_person: '',
     contact_email: '', contact_phone: '', business_number: '',
@@ -96,11 +98,20 @@ export default function Employers() {
     setList(prev => prev.filter(e => e.id !== id))
   }
 
-  const filtered = list.filter(e =>
-    e.business_name.toLowerCase().includes(query.toLowerCase()) ||
-    e.contact_person.toLowerCase().includes(query.toLowerCase()) ||
-    (e.contact_email ?? '').toLowerCase().includes(query.toLowerCase())
-  )
+  const filtered = useMemo(() => {
+    const matched = list.filter(e =>
+      e.business_name.toLowerCase().includes(query.toLowerCase()) ||
+      e.contact_person.toLowerCase().includes(query.toLowerCase()) ||
+      (e.contact_email ?? '').toLowerCase().includes(query.toLowerCase())
+    )
+    return [...matched].sort((a, b) => {
+      let cmp = 0
+      if (sortKey === 'business_name') cmp = a.business_name.localeCompare(b.business_name)
+      else if (sortKey === 'contact_person') cmp = a.contact_person.localeCompare(b.contact_person)
+      else cmp = a.created_at.localeCompare(b.created_at)
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [list, query, sortKey, sortDir])
 
   return (
     <div className="page">
@@ -115,16 +126,36 @@ export default function Employers() {
         </button>
       </div>
 
-      {/* search bar */}
+      {/* search + sort bar */}
       {list.length > 0 && (
-        <div className="emp-search-wrap">
-          <Search size={15} className="emp-search-icon" />
-          <input
-            className="emp-search-input"
-            placeholder="Search by name, contact or email..."
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-          />
+        <div className="emp-toolbar">
+          <div className="emp-search-wrap">
+            <Search size={15} className="emp-search-icon" />
+            <input
+              className="emp-search-input"
+              placeholder="Search by name, contact or email..."
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+            />
+          </div>
+          <div className="emp-sort-wrap">
+            <select
+              className="emp-sort-select"
+              value={sortKey}
+              onChange={e => setSortKey(e.target.value as typeof sortKey)}
+            >
+              <option value="business_name">Business Name</option>
+              <option value="contact_person">Contact Person</option>
+              <option value="created_at">Date Added</option>
+            </select>
+            <button
+              className="emp-sort-dir"
+              onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+              title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+            >
+              {sortDir === 'asc' ? <ArrowUpAZ size={15} /> : <ArrowDownAZ size={15} />}
+            </button>
+          </div>
         </div>
       )}
 
@@ -262,8 +293,11 @@ export default function Employers() {
       )}
 
       <style>{`
+        .emp-toolbar {
+          display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;
+        }
         .emp-search-wrap {
-          position: relative; margin-bottom: 16px;
+          position: relative; flex: 1; min-width: 180px;
         }
         .emp-search-icon {
           position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
@@ -276,6 +310,20 @@ export default function Employers() {
         }
         .emp-search-input:focus { outline: none; border-color: #0B1F3B; box-shadow: 0 0 0 3px rgba(11,31,59,0.08); }
         .emp-search-input::placeholder { color: #9ca3af; }
+
+        .emp-sort-wrap { display: flex; align-items: center; gap: 6px; }
+        .emp-sort-select {
+          padding: 7px 10px; background: #ffffff; border: 1px solid #d1d5db;
+          border-radius: 7px; color: #1e293b; font-size: 0.875rem; cursor: pointer;
+          transition: border-color .15s;
+        }
+        .emp-sort-select:focus { outline: none; border-color: #0B1F3B; }
+        .emp-sort-dir {
+          display: flex; align-items: center; justify-content: center;
+          padding: 7px 9px; background: #ffffff; border: 1px solid #d1d5db;
+          border-radius: 7px; color: #475569; cursor: pointer; transition: background .15s, border-color .15s;
+        }
+        .emp-sort-dir:hover { background: #f1f5f9; border-color: #94a3b8; }
 
         .emp-name-cell { display: flex; align-items: center; gap: 8px; }
         .emp-avatar {

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Pencil, Trash2 } from 'lucide-react'
+import { ArrowDownAZ, ArrowUpAZ, Pencil, Search, Trash2 } from 'lucide-react'
 import { employers as employersApi, positions as positionsApi, subscriptions as subscriptionsApi } from '../api'
 import { useConfirm } from '../components/ConfirmModal'
 import type { Employer, JobPosition } from '../types'
@@ -25,6 +25,9 @@ export default function EmployerDetail() {
   })
   const [saving, setSaving] = useState(false)
   const [togglingPositionId, setTogglingPositionId] = useState<number | null>(null)
+  const [positionQuery, setPositionQuery] = useState('')
+  const [sortKey, setSortKey] = useState<'job_title' | 'start_date' | 'created_at'>('created_at')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [error, setError] = useState<string | null>(null)
   const { toast, showToast, clearToast } = useToast()
   const { confirmModal, askConfirm }      = useConfirm()
@@ -150,6 +153,20 @@ export default function EmployerDetail() {
       setTogglingPositionId(null)
     }
   }
+
+  const sortedPositions = useMemo(() => {
+    const q = positionQuery.toLowerCase()
+    const filtered = q
+      ? positionList.filter(p => p.job_title.toLowerCase().includes(q) || p.noc_code.includes(q))
+      : positionList
+    return [...filtered].sort((a, b) => {
+      let cmp = 0
+      if (sortKey === 'job_title') cmp = a.job_title.localeCompare(b.job_title)
+      else if (sortKey === 'start_date') cmp = a.start_date.localeCompare(b.start_date)
+      else cmp = a.created_at.localeCompare(b.created_at)
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [positionList, positionQuery, sortKey, sortDir])
 
   if (loading) return <div className="loading">Loading…</div>
   if (!employer) return <div className="page"><p>Employer not found.</p></div>
@@ -329,7 +346,37 @@ export default function EmployerDetail() {
       {positionList.length === 0 ? (
         <div className="empty-state">No job positions yet. Add one above.</div>
       ) : (
-        <div className="table-wrap">
+        <div>
+          <div className="pos-toolbar">
+            <div className="emp-search-wrap" style={{ flex: 1, maxWidth: 320 }}>
+              <Search size={15} className="emp-search-icon" />
+              <input
+                className="emp-search-input"
+                placeholder="Search by title or NOC code…"
+                value={positionQuery}
+                onChange={e => setPositionQuery(e.target.value)}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+              <select
+                className="emp-sort-select"
+                value={sortKey}
+                onChange={e => setSortKey(e.target.value as typeof sortKey)}
+              >
+                <option value="job_title">Job Title</option>
+                <option value="start_date">Start Date</option>
+                <option value="created_at">Date Added</option>
+              </select>
+              <button
+                className="emp-sort-dir"
+                onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+                title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+              >
+                {sortDir === 'asc' ? <ArrowUpAZ size={15} /> : <ArrowDownAZ size={15} />}
+              </button>
+            </div>
+          </div>
+          <div className="table-wrap">
           <table className="data-table">
             <thead>
               <tr>
@@ -344,7 +391,7 @@ export default function EmployerDetail() {
               </tr>
             </thead>
             <tbody>
-              {positionList.map(pos => (
+              {sortedPositions.map(pos => (
                 <tr key={pos.id} style={!pos.is_active ? { opacity: 0.55 } : undefined}>
                   <td>
                     <Link to={`/employers/${id}/positions/${pos.id}`} className="table-link">{pos.job_title}</Link>
@@ -394,7 +441,28 @@ export default function EmployerDetail() {
             </tbody>
           </table>
         </div>
+        </div>
       )}
+      <style>{`
+        .pos-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+        .emp-search-wrap { position: relative; }
+        .emp-search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #64748b; pointer-events: none; }
+        .emp-search-input { width: 100%; padding: 7px 12px 7px 34px; background: #ffffff; border: 1px solid #d1d5db; border-radius: 7px; color: #1e293b; font-size: 0.875rem; transition: border-color .15s; }
+        .emp-search-input:focus { outline: none; border-color: #0B1F3B; box-shadow: 0 0 0 3px rgba(11,31,59,0.08); }
+        .emp-search-input::placeholder { color: #9ca3af; }
+        .emp-sort-select {
+          padding: 7px 10px; background: #ffffff; border: 1px solid #d1d5db;
+          border-radius: 7px; color: #1e293b; font-size: 0.875rem; cursor: pointer;
+          transition: border-color .15s;
+        }
+        .emp-sort-select:focus { outline: none; border-color: #0B1F3B; }
+        .emp-sort-dir {
+          display: flex; align-items: center; justify-content: center;
+          padding: 7px 9px; background: #ffffff; border: 1px solid #d1d5db;
+          border-radius: 7px; color: #475569; cursor: pointer; transition: background .15s, border-color .15s;
+        }
+        .emp-sort-dir:hover { background: #f1f5f9; border-color: #94a3b8; }
+      `}</style>
       <Toast toast={toast} onDismiss={clearToast} />
       {confirmModal}
     </div>
