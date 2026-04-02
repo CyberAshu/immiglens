@@ -9,7 +9,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.core.database import Base, engine
 from app.models import *
 from app.routers.admin import router as admin_router
 from app.routers.audit_logs import router as audit_logs_router
@@ -44,9 +43,8 @@ async def _purge_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
+    # Schema is managed exclusively by Alembic migrations.
+    # Run `alembic upgrade head` before starting the server.
     await browser_manager.start()
     scheduler.start()
     await recover_pending_rounds()

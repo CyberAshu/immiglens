@@ -45,6 +45,10 @@ jobs:
             cd /app/immiglens/immiglensBE
             .venv/bin/pip install -r requirements.txt --quiet
 
+            # Run Alembic migrations BEFORE restarting the service.
+            # alembic upgrade head is idempotent — safe to run on every deploy.
+            PYTHONPATH=/app/immiglens/immiglensBE .venv/bin/alembic upgrade head
+
             # Restart backend
             sudo systemctl restart immiglens
 
