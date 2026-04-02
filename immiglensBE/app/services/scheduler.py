@@ -525,6 +525,7 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                     },
                     trigger_id=round_.id,
                     trigger_type="capture_round",
+                    skip_email=True,  # Rich HTML email sent directly below
                 )
             except Exception:
                 pass
@@ -585,8 +586,10 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                 },
                 trigger_id=round_.id,
                 trigger_type="capture_round",
+                skip_email=True,  # Rich HTML email sent directly below
             )
-            # Notify for each posting that changed
+            # Notify for each posting that changed (log/webhook only — no plain-text
+            # email; the designed capture-complete HTML email already covers this)
             for snap, posting_url in snapshots:
                 if snap.has_changed:
                     await dispatch_event(
@@ -599,6 +602,7 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                         },
                         trigger_id=snap.id,
                         trigger_type="posting_snapshot",
+                        skip_email=True,
                     )
         except Exception:
             pass  # Notification failures must never block the capture flow
