@@ -1,5 +1,6 @@
 from typing import List
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,6 +15,12 @@ class Settings(BaseSettings):
         "http://localhost:4173",
         "http://127.0.0.1:5173",
     ]
+
+    @model_validator(mode="after")
+    def _add_frontend_to_cors(self) -> "Settings":
+        if self.FRONTEND_URL and self.FRONTEND_URL not in self.ALLOWED_ORIGINS:
+            self.ALLOWED_ORIGINS = list(self.ALLOWED_ORIGINS) + [self.FRONTEND_URL]
+        return self
 
     DATABASE_URL: str
 
@@ -56,7 +63,7 @@ class Settings(BaseSettings):
     # ── Trusted device ──────────────────────────────────────────────────────
     TRUSTED_DEVICE_DAYS: int = 30
 
-    FRONTEND_URL: str = "http://35.183.11.44"
+    FRONTEND_URL: str = "https://immiglens.ca"
     PASSWORD_RESET_EXPIRE_HOURS: int = 1
 
     # ── Stripe ───────────────────────────────────────────────────────────────
