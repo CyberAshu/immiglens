@@ -395,8 +395,10 @@ async def _handle_checkout_completed(data: dict, db: AsyncSession) -> None:
 
     if tier_id:
         tier = await db.get(SubscriptionTier, int(tier_id))
-        if tier:
+        if tier and tier.is_active:
             user.tier_id = tier.id
+        elif tier:
+            log.warning("checkout.session.completed: tier %s is inactive, not assigning to user %s", tier_id, user.id)
 
     # Record promotion redemption now that payment is confirmed
     if promotion_id_str:
@@ -460,8 +462,10 @@ async def _handle_subscription_updated(data: dict, db: AsyncSession) -> None:
     tier_id = getattr(metadata_obj, "tier_id", None) if metadata_obj else None
     if tier_id:
         tier = await db.get(SubscriptionTier, int(tier_id))
-        if tier:
+        if tier and tier.is_active:
             user.tier_id = tier.id
+        elif tier:
+            log.warning("subscription.updated: tier %s is inactive, skipping assignment for user %s", tier_id, user.id)
     else:
         # Fallback: map the subscription's current price to a tier.
         # This handles portal-initiated upgrades/downgrades which don't carry
@@ -475,7 +479,8 @@ async def _handle_subscription_updated(data: dict, db: AsyncSession) -> None:
                 tier_row = (
                     await db.execute(
                         select(SubscriptionTier).where(
-                            SubscriptionTier.stripe_price_id == price_id
+                            SubscriptionTier.stripe_price_id == price_id,
+                            SubscriptionTier.is_active.is_(True),
                         )
                     )
                 ).scalar_one_or_none()
