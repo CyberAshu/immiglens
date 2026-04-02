@@ -1,15 +1,14 @@
-name: Deploy to PROD
+name: Deploy to DEV
 
 on:
   push:
     branches:
-      - main
+      - dev
 
 jobs:
-  deploy:
-    name: Build & Deploy → PROD
+  deploy-dev:
+    name: Build & Deploy → DEV
     runs-on: ubuntu-latest
-    environment: production
 
     steps:
       - name: Checkout code
@@ -32,42 +31,38 @@ jobs:
         env:
           VITE_API_BASE: ''
 
-      - name: Deploy to EC2
+      - name: Deploy backend to DEV EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.PROD_EC2_HOST }}
-          username: ${{ secrets.PROD_EC2_USER }}
-          key: ${{ secrets.PROD_EC2_SSH_KEY }}
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USER }}
+          key: ${{ secrets.DEV_EC2_SSH_KEY }}
           script: |
             cd /app/immiglens
-            git pull origin main
+            git pull origin dev
 
-            # Update Python dependencies if requirements changed
             cd /app/immiglens/immiglensBE
             .venv/bin/pip install -r requirements.txt --quiet
 
-            # Run Alembic migrations BEFORE restarting the service.
-            # alembic upgrade head is idempotent — safe to run on every deploy.
             PYTHONPATH=/app/immiglens/immiglensBE .venv/bin/alembic upgrade head
 
-            # Restart backend
             sudo systemctl restart immiglens
 
-      - name: Upload built frontend to EC2
+      - name: Upload frontend to DEV EC2
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.PROD_EC2_HOST }}
-          username: ${{ secrets.PROD_EC2_USER }}
-          key: ${{ secrets.PROD_EC2_SSH_KEY }}
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USER }}
+          key: ${{ secrets.DEV_EC2_SSH_KEY }}
           source: "immiglensFE/dist/*"
           target: "/var/www/immiglens"
           strip_components: 2
           overwrite: true
 
-      - name: Reload Nginx
+      - name: Reload Nginx on DEV
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.PROD_EC2_HOST }}
-          username: ${{ secrets.PROD_EC2_USER }}
-          key: ${{ secrets.PROD_EC2_SSH_KEY }}
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USER }}
+          key: ${{ secrets.DEV_EC2_SSH_KEY }}
           script: sudo systemctl reload nginx

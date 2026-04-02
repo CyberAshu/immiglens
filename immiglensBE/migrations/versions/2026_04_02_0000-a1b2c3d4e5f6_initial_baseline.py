@@ -39,7 +39,7 @@ def _create_capturestatus_enum(bind) -> None:
     """Create the native PostgreSQL ENUM used by capture_rounds.status."""
     op.execute(
         "DO $$ BEGIN "
-        "  CREATE TYPE capturestatus AS ENUM ('pending', 'running', 'completed', 'failed'); "
+        "  CREATE TYPE capturestatus AS ENUM ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED'); "
         "EXCEPTION WHEN duplicate_object THEN NULL; "
         "END $$"
     )
@@ -195,7 +195,7 @@ def upgrade() -> None:
         sa.Column(
             "status",
             postgresql.ENUM(
-                "pending", "running", "completed", "failed",
+                "PENDING", "RUNNING", "COMPLETED", "FAILED",
                 name="capturestatus",
                 create_type=False,  # already created above
             ),
