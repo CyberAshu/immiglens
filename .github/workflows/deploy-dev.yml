@@ -48,6 +48,14 @@ jobs:
 
             sudo systemctl restart immiglens
 
+      - name: Ensure webroot is writable
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ${{ secrets.DEV_EC2_USER }}
+          key: ${{ secrets.DEV_EC2_SSH_KEY }}
+          script: sudo mkdir -p /var/www/immiglens && sudo chown -R ubuntu:ubuntu /var/www/immiglens
+
       - name: Upload frontend to DEV EC2
         uses: appleboy/scp-action@v0.1.7
         with:
