@@ -19,6 +19,7 @@ export default function AdminTiers() {
   const [users, setUsers] = useState<AdminUserRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [activeTab, setActiveTab] = useState<'tiers' | 'assign'>('tiers')
 
   // Tier form state
@@ -108,10 +109,14 @@ export default function AdminTiers() {
       variant: 'danger',
     })) return
     try {
-      await admin.deactivateTier(tier.id)
-      setTiers(prev => prev.map(t => t.id === tier.id ? { ...t, is_active: false } : t))
+      const res = await admin.deactivateTier(tier.id)
+      setTiers(prev => prev.filter(t => t.id !== tier.id))
+      setError('')
+      setSuccess(res?.detail || `Tier "${tier.display_name}" deleted.`)
+      setTimeout(() => setSuccess(''), 5000)
     } catch (err: any) {
       const msg = err?.detail || err?.message || 'Failed to delete tier.'
+      setSuccess('')
       setError(msg)
     }
   }
@@ -142,11 +147,12 @@ export default function AdminTiers() {
   )
 
   if (loading) return <div className="admin-loading">Loading subscription data…</div>
-  if (error)   return <div className="admin-error">{error}</div>
 
   return (
     <div className="admin-page">
       {confirmModal}
+      {error && <div className="admin-error" style={{ margin: '0 0 1rem' }}>{error}</div>}
+      {success && <div className="admin-success" style={{ margin: '0 0 1rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>{success}</div>}
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Subscription Tiers</h1>
