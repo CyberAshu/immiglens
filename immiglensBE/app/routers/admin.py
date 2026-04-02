@@ -416,7 +416,7 @@ async def admin_update_tier(
     return tier
 
 
-@router.delete("/subscriptions/tiers/{tier_id}", status_code=204)
+@router.delete("/subscriptions/tiers/{tier_id}", status_code=200)
 async def admin_delete_tier(
     tier_id: int,
     request: Request,
@@ -426,15 +426,32 @@ async def admin_delete_tier(
     tier = await db.get(SubscriptionTier, tier_id)
     if not tier:
         raise HTTPException(status_code=404, detail="Tier not found.")
-    # Soft-delete: deactivate rather than remove (users may still be on it)
+
+    # Block deletion of the "free" fallback tier
+    if tier.name == "free":
+        raise HTTPException(status_code=400, detail="Cannot delete the free tier.")
+
+    # ── 1. Migrate affected users to the free tier ────────────────────────────
+    affected_users = (await db.execute(
+        select(User).where(User.tier_id == tier_id)
+    )).scalars().all()
+
+    migrated_count = 0
+    for u in affected_users:
+        u.tier_id = None          # revert to free
+        u.tier_expires_at = None
+        migrated_count += 1
+
+    # ── 2. Soft-delete the tier ───────────────────────────────────────────────
     tier.is_active = False
-    await log_action(db, user_id=current_user.id, action="UPDATE",
+    await log_action(db, user_id=current_user.id, action="DELETE",
                      resource_type="subscription_tier", resource_id=tier.id,
-                     old_data={"is_active": True}, new_data={"is_active": False},
+                     old_data={"is_active": True, "name": tier.name},
+                     new_data={"is_active": False, "migrated_users": migrated_count},
                      ip_address=get_client_ip(request))
     await db.commit()
 
-    # Archive in Stripe (best-effort)
+    # ── 3. Archive in Stripe (best-effort) ────────────────────────────────────
     try:
         if tier.stripe_price_id:
             stripe_service.archive_price(tier.stripe_price_id)
@@ -443,6 +460,8 @@ async def admin_delete_tier(
     except Exception as exc:  # noqa: BLE001
         import logging
         logging.getLogger(__name__).warning("Stripe archive failed for tier %s: %s", tier.id, exc)
+
+    return {"detail": f"Tier '{tier.name}' deactivated. {migrated_count} user(s) migrated to free tier."}
 
 
 # ── Capture round management ─────────────────────────────────

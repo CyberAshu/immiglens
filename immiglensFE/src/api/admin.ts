@@ -45,7 +45,7 @@ export const admin = {
       body: JSON.stringify(body),
     }),
   deactivateTier: (tierId: number) =>
-    request<void>(`/api/admin/subscriptions/tiers/${tierId}`, { method: 'DELETE' }),
+    request<{ detail: string }>(`/api/admin/subscriptions/tiers/${tierId}`, { method: 'DELETE' }),
 
   // ── Capture management ────────────────────────────────────
   problematicCaptures: () =>

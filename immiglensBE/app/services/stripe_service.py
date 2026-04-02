@@ -37,8 +37,8 @@ def create_product_and_price(tier: "SubscriptionTier") -> tuple[str, str | None]
     client = _client()
     product = client.products.create(
         params={
-            "name": tier.display_name,
-            "metadata": {"tier_name": tier.name, "tier_id": str(tier.id)},
+            "name": f"{tier.display_name} [{settings.ENVIRONMENT}]",
+            "metadata": {"tier_name": tier.name, "tier_id": str(tier.id), "env": settings.ENVIRONMENT},
         }
     )
     price_id: str | None = None
@@ -49,7 +49,7 @@ def create_product_and_price(tier: "SubscriptionTier") -> tuple[str, str | None]
                 "unit_amount": int(tier.price_per_month * 100),  # cents
                 "currency": "usd",
                 "recurring": {"interval": "month"},
-                "metadata": {"tier_id": str(tier.id)},
+                "metadata": {"tier_id": str(tier.id), "env": settings.ENVIRONMENT},
             }
         )
         price_id = price.id
@@ -71,7 +71,7 @@ def create_new_price(product_id: str, tier_id: int, amount_usd: float) -> str:
             "unit_amount": int(amount_usd * 100),
             "currency": "usd",
             "recurring": {"interval": "month"},
-            "metadata": {"tier_id": str(tier_id)},
+            "metadata": {"tier_id": str(tier_id), "env": settings.ENVIRONMENT},
         }
     )
     return price.id
