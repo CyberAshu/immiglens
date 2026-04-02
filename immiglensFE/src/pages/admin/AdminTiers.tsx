@@ -109,9 +109,10 @@ export default function AdminTiers() {
     })) return
     try {
       await admin.deactivateTier(tier.id)
-      setTiers(prev => prev.filter(t => t.id !== tier.id))
-    } catch {
-      setError('Failed to delete tier.')
+      setTiers(prev => prev.map(t => t.id === tier.id ? { ...t, is_active: false } : t))
+    } catch (err: any) {
+      const msg = err?.detail || err?.message || 'Failed to delete tier.'
+      setError(msg)
     }
   }
 
