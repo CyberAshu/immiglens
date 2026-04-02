@@ -100,8 +100,14 @@ async def dispatch_event(
     context: dict[str, Any],
     trigger_id: Optional[int] = None,
     trigger_type: Optional[str] = None,
+    skip_email: bool = False,
 ) -> None:
-    """Find all active preferences for user+event and attempt delivery for each."""
+    """Find all active preferences for user+event and attempt delivery for each.
+
+    skip_email: set True when the caller already sends a richer transactional
+    HTML email directly (e.g. capture completed/failed).  Webhook preferences
+    still fire normally.
+    """
     prefs_result = await db.execute(
         select(NotificationPreference).where(
             NotificationPreference.user_id == user_id,
@@ -125,6 +131,11 @@ async def dispatch_event(
 
         try:
             if pref.channel == NotificationChannel.EMAIL:
+                if skip_email:
+                    # Transactional HTML email already sent by scheduler — skip plain-text duplicate
+                    log.status = NotifStatus.SENT
+                    log.sent_at = datetime.now(timezone.utc)
+                    continue
                 await _deliver_email(pref.destination, event, context)
             else:
                 await _deliver_webhook(pref.destination, event, context)
