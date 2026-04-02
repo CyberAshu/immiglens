@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
+import {
+  Layers, Eye, EyeOff, Link2, Plus, Pencil, Trash2, X,
+  Briefcase, Globe, Camera, Clock, DollarSign,
+} from 'lucide-react'
 import { admin } from '../../api/admin'
-import type { AdminUserRecord, TierCreate, TierUpdate } from '../../types'
+import type { TierCreate, TierUpdate, SubscriptionTier } from '../../types'
 import { useConfirm } from '../../components/ConfirmModal'
-import type { SubscriptionTier } from '../../types'
 
 const EMPTY_FORM: TierCreate = {
   name: '',
@@ -14,31 +17,245 @@ const EMPTY_FORM: TierCreate = {
   price_per_month: null,
 }
 
+const TIER_COLORS = ['#0B1F3B', '#16a34a', '#2563eb', '#7c3aed', '#ea580c', '#0891b2', '#c026d3', '#dc2626']
+
+/* ── Stat Card ────────────────────────────────────────────── */
+function StatCard({ label, value, icon, accent, iconBg }: {
+  label: string; value: number; icon: React.ReactNode; accent: string; iconBg: string
+}) {
+  return (
+    <div className="ov2-kpi-card" style={{ borderBottomColor: accent }}>
+      <div className="ov2-kpi-top">
+        <div className="ov2-kpi-icon" style={{ background: iconBg, color: accent }}>{icon}</div>
+      </div>
+      <div className="ov2-kpi-value" style={{ color: accent }}>{value}</div>
+      <div className="ov2-kpi-label">{label}</div>
+    </div>
+  )
+}
+
+/* ── Limit Feature Row ────────────────────────────────────── */
+function LimitRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="st-limit-row">
+      <div className="st-limit-icon">{icon}</div>
+      <span className="st-limit-label">{label}</span>
+      <span className="st-limit-value">{value}</span>
+    </div>
+  )
+}
+
+/* ── Tier Card v2 ─────────────────────────────────────────── */
+function TierCardV2({ tier, color, onEdit, onToggle, onDelete }: {
+  tier: SubscriptionTier
+  color: string
+  onEdit: () => void
+  onToggle: () => void
+  onDelete: () => void
+}) {
+  const fmt = (n: number) => n < 0 ? 'Unlimited' : String(n)
+
+  return (
+    <div className={`st-card ${!tier.is_active ? 'st-card--inactive' : ''}`}>
+      {/* Color accent bar */}
+      <div className="st-card-accent" style={{ background: color }} />
+
+      {/* Header */}
+      <div className="st-card-header">
+        <div>
+          <h3 className="st-card-name">{tier.display_name}</h3>
+          <code className="st-card-slug">{tier.name}</code>
+        </div>
+        <div className="st-card-badges">
+          {!tier.is_active && <span className="st-badge st-badge--inactive">Hidden</span>}
+          {tier.stripe_product_id
+            ? <span className="st-badge st-badge--stripe">Stripe ✓</span>
+            : <span className="st-badge st-badge--no-stripe">No Stripe</span>
+          }
+        </div>
+      </div>
+
+      {/* Price hero */}
+      <div className="st-price-hero">
+        {tier.price_per_month != null ? (
+          <>
+            <span className="st-price-currency">$</span>
+            <span className="st-price-amount">{tier.price_per_month}</span>
+            <span className="st-price-period">/mo</span>
+          </>
+        ) : (
+          <span className="st-price-free">Free</span>
+        )}
+      </div>
+
+      {/* Features */}
+      <div className="st-limits">
+        <LimitRow icon={<Briefcase size={13} />} label="Active Positions" value={fmt(tier.max_active_positions)} />
+        <LimitRow icon={<Globe size={13} />} label="URLs / Position" value={fmt(tier.max_urls_per_position)} />
+        <LimitRow icon={<Camera size={13} />} label="Captures / Month" value={fmt(tier.max_captures_per_month)} />
+        <LimitRow icon={<Clock size={13} />} label="Min Interval" value={tier.min_capture_frequency_days < 0 ? 'No limit' : `${tier.min_capture_frequency_days}d`} />
+      </div>
+
+      {/* Actions */}
+      <div className="st-card-actions">
+        <button className="st-action-btn" onClick={onEdit} title="Edit">
+          <Pencil size={14} /> Edit
+        </button>
+        <button
+          className={`st-action-btn st-action-btn--toggle ${tier.is_active ? '' : 'st-action-btn--hidden'}`}
+          onClick={onToggle}
+          title={tier.is_active ? 'Hide from website' : 'Show on website'}
+        >
+          {tier.is_active ? <><EyeOff size={14} /> Hide</> : <><Eye size={14} /> Show</>}
+        </button>
+        <button className="st-action-btn st-action-btn--danger" onClick={onDelete} title="Delete">
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ── Tier Form Drawer ─────────────────────────────────────── */
+function TierFormDrawer({ editing, form, setForm, saving, onSave, onClose }: {
+  editing: SubscriptionTier | null
+  form: TierCreate
+  setForm: React.Dispatch<React.SetStateAction<TierCreate>>
+  saving: boolean
+  onSave: () => void
+  onClose: () => void
+}) {
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') handleClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleClose() {
+    setVisible(false)
+    setTimeout(onClose, 250)
+  }
+
+  return (
+    <>
+      <div className={`drawer-backdrop ${visible ? 'drawer-backdrop--visible' : ''}`} onClick={handleClose} />
+      <div className={`drawer-panel ${visible ? 'drawer-panel--open' : ''}`}>
+        <div className="drawer-header">
+          <div>
+            <h2 className="drawer-title">{editing ? 'Edit Tier' : 'New Tier'}</h2>
+            <p className="drawer-subtitle">{editing ? `Editing "${editing.display_name}"` : 'Create a new subscription plan'}</p>
+          </div>
+          <button className="drawer-close" onClick={handleClose}><X size={18} /></button>
+        </div>
+
+        <div className="drawer-body">
+          <section className="drawer-section">
+            <h3 className="drawer-section-title">Identity</h3>
+            <div className="st-form-group">
+              <label className="st-form-label">Slug (unique ID)</label>
+              <input
+                className="st-form-input"
+                placeholder="e.g. pro"
+                value={form.name}
+                disabled={!!editing}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              />
+            </div>
+            <div className="st-form-group">
+              <label className="st-form-label">Display Name</label>
+              <input
+                className="st-form-input"
+                placeholder="e.g. Pro Plan"
+                value={form.display_name}
+                onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))}
+              />
+            </div>
+          </section>
+
+          <section className="drawer-section">
+            <h3 className="drawer-section-title">Pricing</h3>
+            <div className="st-form-group">
+              <label className="st-form-label">Price per Month (USD)</label>
+              <div className="st-input-with-icon">
+                <DollarSign size={14} className="st-input-icon" />
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  className="st-form-input st-form-input--with-icon"
+                  placeholder="0 = free"
+                  value={form.price_per_month ?? ''}
+                  onChange={e => setForm(f => ({ ...f, price_per_month: e.target.value === '' ? null : Number(e.target.value) }))}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="drawer-section">
+            <h3 className="drawer-section-title">Limits</h3>
+            <div className="st-form-grid">
+              <div className="st-form-group">
+                <label className="st-form-label">Max Positions</label>
+                <input type="number" className="st-form-input" value={form.max_active_positions}
+                  onChange={e => setForm(f => ({ ...f, max_active_positions: Number(e.target.value) }))} />
+                <span className="st-form-hint">-1 = unlimited</span>
+              </div>
+              <div className="st-form-group">
+                <label className="st-form-label">URLs / Position</label>
+                <input type="number" className="st-form-input" value={form.max_urls_per_position}
+                  onChange={e => setForm(f => ({ ...f, max_urls_per_position: Number(e.target.value) }))} />
+                <span className="st-form-hint">-1 = unlimited, max 7</span>
+              </div>
+              <div className="st-form-group">
+                <label className="st-form-label">Captures / Month</label>
+                <input type="number" className="st-form-input" value={form.max_captures_per_month}
+                  onChange={e => setForm(f => ({ ...f, max_captures_per_month: Number(e.target.value) }))} />
+                <span className="st-form-hint">-1 = unlimited</span>
+              </div>
+              <div className="st-form-group">
+                <label className="st-form-label">Min Interval (days)</label>
+                <input type="number" min={1} className="st-form-input" value={form.min_capture_frequency_days}
+                  onChange={e => setForm(f => ({ ...f, min_capture_frequency_days: Number(e.target.value) }))} />
+                <span className="st-form-hint">Lower = more frequent</span>
+              </div>
+            </div>
+          </section>
+
+          <button
+            className="admin-btn admin-btn-primary"
+            style={{ width: '100%', padding: '0.65rem', fontSize: '0.88rem', marginTop: '0.5rem' }}
+            onClick={onSave}
+            disabled={saving || !form.name || !form.display_name}
+          >
+            {saving ? 'Saving…' : editing ? 'Save Changes' : 'Create Tier'}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+/* ── Main Page ────────────────────────────────────────────── */
 export default function AdminTiers() {
   const [tiers, setTiers] = useState<SubscriptionTier[]>([])
-  const [users, setUsers] = useState<AdminUserRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [activeTab, setActiveTab] = useState<'tiers' | 'assign'>('tiers')
 
-  // Tier form state
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<SubscriptionTier | null>(null)
   const [form, setForm] = useState<TierCreate>({ ...EMPTY_FORM })
   const [saving, setSaving] = useState(false)
 
-  // Assign tier
-  const [assignSearch, setAssignSearch] = useState('')
-  const [assigning, setAssigning] = useState<number | null>(null)
-  // per-user expiry date input (keyed by user id)
-  const [expiryMap, setExpiryMap]   = useState<Record<number, string>>({})
   const { confirmModal, askConfirm } = useConfirm()
 
   useEffect(() => {
-    Promise.all([admin.allTiers(), admin.users()])
-      .then(([t, u]) => { setTiers(t); setUsers(u) })
-      .catch(() => setError('Failed to load data.'))
+    admin.allTiers()
+      .then(setTiers)
+      .catch(() => setError('Failed to load tiers.'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -81,11 +298,10 @@ export default function AdminTiers() {
   }
 
   async function handleToggleActive(tier: SubscriptionTier) {
-    const turningOff = tier.is_active
-    if (turningOff) {
+    if (tier.is_active) {
       if (!await askConfirm({
         title: 'Hide Tier from Website',
-        message: `Hide "${tier.display_name}" from the website? Existing users keep access, but it won't be available for new assignments.`,
+        message: `Hide "${tier.display_name}"? Existing users keep access, but it won't be available for new assignments.`,
         confirmLabel: 'Hide',
         variant: 'primary',
       })) return
@@ -99,12 +315,10 @@ export default function AdminTiers() {
   }
 
   async function handleDelete(tier: SubscriptionTier) {
-    const stripeNote = tier.stripe_product_id
-      ? ' The Stripe product and price will be archived immediately.'
-      : ''
+    const stripeNote = tier.stripe_product_id ? ' Stripe product and price will be archived.' : ''
     if (!await askConfirm({
       title: 'Delete Tier',
-      message: `Delete "${tier.display_name}"? It will be removed from the list and no longer assignable to users. Existing subscribers keep their access until their period ends.${stripeNote}`,
+      message: `Delete "${tier.display_name}"? Existing subscribers keep access until their period ends.${stripeNote}`,
       confirmLabel: 'Delete',
       variant: 'danger',
     })) return
@@ -121,305 +335,73 @@ export default function AdminTiers() {
     }
   }
 
-  async function handleAssignTier(userId: number, tierId: number | null) {
-    setAssigning(userId)
-    const expiryStr = expiryMap[userId] || null
-    const tier_expires_at = expiryStr ? new Date(expiryStr).toISOString() : null
-    try {
-      await admin.assignTier(userId, { tier_id: tierId, tier_expires_at })
-      const tierObj = tiers.find(t => t.id === tierId) ?? null
-      setUsers(prev => prev.map(u =>
-        u.id === userId
-          ? { ...u, tier_id: tierId, tier_name: tierObj?.display_name ?? null, tier_expires_at: tier_expires_at ?? null }
-          : u
-      ))
-    } catch {
-      setError('Failed to assign tier.')
-    } finally {
-      setAssigning(null)
-    }
-  }
-
-  const filteredUsers = users.filter(u =>
-    !u.is_admin &&
-    (u.full_name.toLowerCase().includes(assignSearch.toLowerCase()) ||
-     u.email.toLowerCase().includes(assignSearch.toLowerCase()))
-  )
-
   if (loading) return <div className="admin-loading">Loading subscription data…</div>
+
+  const activeCount = tiers.filter(t => t.is_active).length
+  const inactiveCount = tiers.length - activeCount
+  const stripeSynced = tiers.filter(t => t.stripe_product_id).length
 
   return (
     <div className="admin-page">
       {confirmModal}
-      {error && <div className="admin-error" style={{ margin: '0 0 1rem' }}>{error}</div>}
-      {success && <div className="admin-success" style={{ margin: '0 0 1rem', padding: '0.75rem 1rem', borderRadius: '0.5rem', background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>{success}</div>}
+
+      {/* ── Header ────────────────────────────────── */}
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Subscription Tiers</h1>
-          <p className="admin-page-sub">Define pricing plans and assign them to users</p>
+          <p className="admin-page-sub">Define and manage pricing plans</p>
         </div>
-        <div className="admin-tab-group">
-          <button
-            className={`admin-tab ${activeTab === 'tiers' ? 'admin-tab-active' : ''}`}
-            onClick={() => setActiveTab('tiers')}
-          >
-            Manage Tiers
-          </button>
-          <button
-            className={`admin-tab ${activeTab === 'assign' ? 'admin-tab-active' : ''}`}
-            onClick={() => setActiveTab('assign')}
-          >
-            Assign to Users
-          </button>
-        </div>
+        <button className="st-create-btn" onClick={openCreate}>
+          <Plus size={16} /> New Tier
+        </button>
       </div>
 
-      {/* ── TIERS TAB ──────────────────────────────────────── */}
-      {activeTab === 'tiers' && (
-        <>
-          <div className="admin-toolbar">
-            <button className="admin-btn admin-btn-primary" onClick={openCreate}>
-              + New Tier
-            </button>
-          </div>
+      {/* Alerts */}
+      {error && <div className="admin-error" style={{ margin: '0 0 1rem' }}>{error}</div>}
+      {success && <div className="drawer-alert drawer-alert--success" style={{ marginBottom: '1rem' }}>{success}</div>}
 
-          <div className="tier-grid">
-            {tiers.map(tier => (
-              <div key={tier.id} className={`tier-card ${!tier.is_active ? 'tier-card-inactive' : ''}`}>
-                <div className="tier-card-header">
-                  <div>
-                    <div className="tier-card-name">{tier.display_name}</div>
-                    <code className="tier-card-slug">{tier.name}</code>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.3rem' }}>
-                    {!tier.is_active && <span className="tier-badge-inactive">Inactive</span>}
-                    {tier.stripe_product_id
-                      ? <span className="tier-badge-stripe-synced" title={`Product: ${tier.stripe_product_id}`}>Stripe ✓</span>
-                      : <span className="tier-badge-stripe-unsynced">Stripe —</span>
-                    }
-                  </div>
-                </div>
-                <div className="tier-limits">
-                  <div className="tier-limit-row">
-                    <span>Active Positions</span>
-                    <strong>{tier.max_active_positions < 0 ? '∞' : tier.max_active_positions}</strong>
-                  </div>
-                  <div className="tier-limit-row">
-                    <span>URLs / position</span>
-                    <strong>{tier.max_urls_per_position < 0 ? '∞' : tier.max_urls_per_position}</strong>
-                  </div>
-                  <div className="tier-limit-row">
-                    <span>Captures / month</span>
-                    <strong>{tier.max_captures_per_month < 0 ? '∞' : tier.max_captures_per_month}</strong>
-                  </div>                  <div className="tier-limit-row">
-                    <span>Min capture interval</span>
-                    <strong>Every {tier.min_capture_frequency_days} day(s)</strong>
-                  </div>
-                  <div className="tier-limit-row">
-                    <span>Price / month</span>
-                    <strong>{tier.price_per_month != null ? `$${tier.price_per_month}` : '—'}</strong>
-                  </div>                </div>
-                <div className="tier-card-actions">
-                  <button
-                    className="admin-btn admin-btn-secondary"
-                    onClick={() => openEdit(tier)}
-                  >
-                    Edit
-                  </button>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <button
-                      className={`toggle-switch ${tier.is_active ? 'toggle-switch--on' : 'toggle-switch--off'}`}
-                      onClick={() => handleToggleActive(tier)}
-                      title={tier.is_active ? 'Visible on website — click to hide' : 'Hidden from website — click to show'}
-                    >
-                      <span className="toggle-switch-thumb" />
-                    </button>
-                    <span className="status-dot" style={{ color: tier.is_active ? '#16a34a' : '#9ca3af', fontSize: '0.75rem', fontWeight: 600 }}>
-                      {tier.is_active ? 'Visible' : 'Hidden'}
-                    </span>
-                  </div>
-                  <button
-                    className="admin-btn admin-btn-danger"
-                    onClick={() => handleDelete(tier)}
-                    title={tier.stripe_product_id ? 'Delete tier and archive in Stripe' : 'Delete tier'}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+      {/* ── KPI Cards ─────────────────────────────── */}
+      <div className="ov2-kpi-grid" style={{ marginBottom: '1.75rem' }}>
+        <StatCard label="Total Plans" value={tiers.length}
+          icon={<Layers size={18} />} accent="#0B1F3B" iconBg="rgba(11,31,59,0.08)" />
+        <StatCard label="Active" value={activeCount}
+          icon={<Eye size={18} />} accent="#16a34a" iconBg="rgba(22,163,74,0.08)" />
+        <StatCard label="Hidden" value={inactiveCount}
+          icon={<EyeOff size={18} />} accent="#6b7280" iconBg="rgba(107,114,128,0.08)" />
+        <StatCard label="Stripe Synced" value={stripeSynced}
+          icon={<Link2 size={18} />} accent="#7c3aed" iconBg="rgba(124,58,237,0.08)" />
+      </div>
 
-      {/* ── ASSIGN TAB ─────────────────────────────────────── */}
-      {activeTab === 'assign' && (
-        <>
-          <div className="admin-toolbar">
-            <input
-              className="admin-search"
-              placeholder="Search users…"
-              value={assignSearch}
-              onChange={e => setAssignSearch(e.target.value)}
-            />
-          </div>
-
-          <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>User</th>
-                  <th>Email</th>
-                  <th>Current Tier</th>
-                  <th>Expires</th>
-                  <th>Assign Tier</th>
-                  <th>Expiry Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.map(user => (
-                  <tr key={user.id}>
-                    <td className="admin-cell-primary">{user.full_name}</td>
-                    <td className="admin-cell-muted">{user.email}</td>
-                    <td>
-                      {user.tier_name
-                        ? <span className="tier-badge-active">{user.tier_name}</span>
-                        : <span className="admin-cell-muted">None (free)</span>
-                      }
-                    </td>
-                    <td className="admin-cell-muted" style={{ fontSize: '0.8rem' }}>
-                      {user.tier_expires_at
-                        ? new Date(user.tier_expires_at).toLocaleDateString()
-                        : <span style={{ color: '#9ca3af' }}>—</span>}
-                    </td>
-                    <td>
-                      <select
-                        className="admin-select"
-                        value={user.tier_id ?? ''}
-                        disabled={assigning === user.id}
-                        onChange={e => {
-                          const val = e.target.value === '' ? null : Number(e.target.value)
-                          handleAssignTier(user.id, val)
-                        }}
-                      >
-                        <option value="">— Free (no tier) —</option>
-                        {tiers.filter(t => t.is_active).map(t => (
-                          <option key={t.id} value={t.id}>{t.display_name}</option>
-                        ))}
-                      </select>
-                      {assigning === user.id && <span className="admin-spinner"> ⏳</span>}
-                    </td>
-                    <td>
-                      <input
-                        type="date"
-                        className="admin-input"
-                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.82rem', width: '140px' }}
-                        value={expiryMap[user.id] ?? (user.tier_expires_at ? user.tier_expires_at.slice(0, 10) : '')}
-                        onChange={e => setExpiryMap(m => ({ ...m, [user.id]: e.target.value }))}
-                        min={new Date().toISOString().slice(0, 10)}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {/* ── TIER FORM MODAL ────────────────────────────────── */}
-      {showForm && (
-        <div className="admin-modal-overlay" onClick={e => e.target === e.currentTarget && setShowForm(false)}>
-          <div className="admin-modal">
-            <h2 className="admin-modal-title">{editing ? 'Edit Tier' : 'New Subscription Tier'}</h2>
-
-            <div className="admin-form-grid">
-              <label className="admin-form-label">
-                Slug (unique identifier)
-                <input
-                  className="admin-input"
-                  placeholder="e.g. pro"
-                  value={form.name}
-                  disabled={!!editing}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                />
-              </label>
-              <label className="admin-form-label">
-                Display Name
-                <input
-                  className="admin-input"
-                  placeholder="e.g. Pro Plan"
-                  value={form.display_name}
-                  onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))}
-                />
-              </label>
-              <label className="admin-form-label">
-                Max Active Positions (-1 = unlimited)
-                <input
-                  type="number"
-                  className="admin-input"
-                  value={form.max_active_positions}
-                  onChange={e => setForm(f => ({ ...f, max_active_positions: Number(e.target.value) }))}
-                />
-              </label>
-              <label className="admin-form-label">
-                Max URLs per Position (-1 = unlimited, ceiling 7)
-                <input
-                  type="number"
-                  className="admin-input"
-                  value={form.max_urls_per_position}
-                  onChange={e => setForm(f => ({ ...f, max_urls_per_position: Number(e.target.value) }))}
-                />
-              </label>
-              <label className="admin-form-label">
-                Max Captures per Month
-                <input
-                  type="number"
-                  className="admin-input"
-                  value={form.max_captures_per_month}
-                  onChange={e => setForm(f => ({ ...f, max_captures_per_month: Number(e.target.value) }))}
-                />
-              </label>
-              <label className="admin-form-label">
-                Min Capture Interval (days)
-                <span className="admin-form-hint">Minimum days between captures. Lower = more frequent. -1 = no restriction.</span>
-                <input
-                  type="number"
-                  min={1}
-                  className="admin-input"
-                  value={form.min_capture_frequency_days}
-                  onChange={e => setForm(f => ({ ...f, min_capture_frequency_days: Number(e.target.value) }))}
-                />
-              </label>
-              <label className="admin-form-label">
-                Price per Month (USD, optional)
-                <span className="admin-form-hint">Leave blank to hide price on the public pricing page.</span>
-                <input
-                  type="number"
-                  min={0}
-                  step={0.01}
-                  className="admin-input"
-                  placeholder="e.g. 79"
-                  value={form.price_per_month ?? ''}
-                  onChange={e => setForm(f => ({ ...f, price_per_month: e.target.value === '' ? null : Number(e.target.value) }))}
-                />
-              </label>
-            </div>
-
-            <div className="admin-modal-actions">
-              <button className="admin-btn admin-btn-secondary" onClick={() => setShowForm(false)}>
-                Cancel
-              </button>
-              <button
-                className="admin-btn admin-btn-primary"
-                onClick={handleSave}
-                disabled={saving || !form.name || !form.display_name}
-              >
-                {saving ? 'Saving…' : editing ? 'Save Changes' : 'Create Tier'}
-              </button>
-            </div>
-          </div>
+      {/* ── Tier Cards ────────────────────────────── */}
+      {tiers.length === 0 ? (
+        <div className="au-empty">
+          No subscription tiers yet. Create your first plan to get started.
         </div>
+      ) : (
+        <div className="st-grid">
+          {tiers.map((tier, i) => (
+            <TierCardV2
+              key={tier.id}
+              tier={tier}
+              color={TIER_COLORS[i % TIER_COLORS.length]}
+              onEdit={() => openEdit(tier)}
+              onToggle={() => handleToggleActive(tier)}
+              onDelete={() => handleDelete(tier)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ── Form Drawer ───────────────────────────── */}
+      {showForm && (
+        <TierFormDrawer
+          editing={editing}
+          form={form}
+          setForm={setForm}
+          saving={saving}
+          onSave={handleSave}
+          onClose={() => setShowForm(false)}
+        />
       )}
     </div>
   )
