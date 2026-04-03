@@ -37,7 +37,14 @@ async def upload(
                 "x-upsert": "true",
             },
         )
-        r.raise_for_status()
+        if r.status_code >= 400:
+            try:
+                body = r.json()
+            except Exception:
+                body = r.text
+            raise RuntimeError(
+                f"Supabase Storage {r.status_code} uploading {path!r}: {body}"
+            )
     return public_url(bucket, path)
 
 

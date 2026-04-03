@@ -16,8 +16,9 @@ from app.services.browser import browser_manager
 
 def _sanitize_filename(url: str) -> str:
     parsed = urlparse(url)
-    raw = f"{parsed.netloc}{parsed.path}".strip("/")
-    safe = re.sub(r"[^\w\-.]", "_", raw)
+    netloc_safe = parsed.netloc.replace(".", "-")
+    raw = f"{netloc_safe}{parsed.path}".strip("/")
+    safe = re.sub(r"[^\w\-]", "_", raw)
     safe = re.sub(r"_+", "_", safe).strip("_")
     timestamp = int(time.time() * 1000)
     return f"{safe}_{timestamp}"
