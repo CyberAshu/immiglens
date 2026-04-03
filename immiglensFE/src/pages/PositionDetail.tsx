@@ -34,15 +34,20 @@ export default function PositionDetail() {
   const [generatingReport, setGeneratingReport] = useState(false)
   const [reportGenError, setReportGenError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [earlyReportModal, setEarlyReportModal] = useState<{
+    daysActive: number
+    daysRemaining: number
+  } | null>(null)
+  const [earlyAcknowledged, setEarlyAcknowledged] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const jobMatchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    Promise.all([positionsApi.get(eId, pId), capturesApi.list(eId, pId), subApi.usage()])
+    Promise.all([positionsApi.get(eId, pId), capturesApi.list(eId, pId), subApi.usage().catch(() => null)])
       .then(([pos, rds, plan]) => {
         setPosition(pos)
         setRounds(rds)
-        setPlanData(plan)
+        if (plan) setPlanData(plan)
         const allDocs: ReportDocument[] = pos.report_documents ?? []
         setDocuments(allDocs.filter(d => d.doc_type !== 'job_match'))
         setJobMatchDocs(allDocs.filter(d => d.doc_type === 'job_match'))
@@ -169,18 +174,31 @@ export default function PositionDetail() {
     .filter(r => r.status === 'pending' && new Date(r.scheduled_at) <= todayEnd)
     .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())[0]?.id ?? null
 
-  async function handleGenerateReport() {
+  async function handleGenerateReport(acknowledgeEarly = false) {
     setGeneratingReport(true)
     setReportGenError(null)
     try {
-      const blob = await reportsApi.generate(eId, pId)
+      const blob = await reportsApi.generate(eId, pId, acknowledgeEarly)
       const buffer = await blob.arrayBuffer()
       setPendingPdf(buffer)
       navigate(`/employers/${eId}/positions/${pId}/report-preview`)
     } catch (err: unknown) {
+      // Check if backend returned an EARLY_REPORT 422
+      const detail = (err as { detail?: { code?: string; days_active?: number; days_remaining?: number } }).detail
+      if (detail && typeof detail === 'object' && detail.code === 'EARLY_REPORT') {
+        setEarlyReportModal({ daysActive: detail.days_active!, daysRemaining: detail.days_remaining! })
+        setEarlyAcknowledged(false)
+        setGeneratingReport(false)
+        return
+      }
       setReportGenError(err instanceof Error ? err.message : 'Failed to generate report.')
       setGeneratingReport(false)
     }
+  }
+
+  async function handleEarlyReportConfirm() {
+    setEarlyReportModal(null)
+    await handleGenerateReport(true)
   }
 
   return (
@@ -217,7 +235,7 @@ export default function PositionDetail() {
         </div>
         <button
           className="btn-primary"
-          onClick={handleGenerateReport}
+          onClick={() => handleGenerateReport()}
           disabled={completedRounds === 0 || generatingReport}
         >
           {generatingReport ? 'Generating…' : 'Preview & Download Report'}
@@ -425,6 +443,80 @@ export default function PositionDetail() {
         )}
       </section>
       <Toast toast={toast} onDismiss={clearToast} />
+
+      {/* ── Early Report Acknowledgement Modal ───────────────────── */}
+      {earlyReportModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 12, padding: '2rem',
+            maxWidth: 480, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+              <span style={{ fontSize: '1.5rem' }}>⚠️</span>
+              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#92400e' }}>
+                28-Day Minimum Not Met
+              </h2>
+            </div>
+            <p style={{ margin: '0 0 0.75rem', fontSize: '0.9rem', color: '#374151', lineHeight: 1.6 }}>
+              This position has only been active for{' '}
+              <strong>{earlyReportModal.daysActive} day(s)</strong>.{' '}
+              ESDC requires job postings to remain active for a minimum of{' '}
+              <strong>28 days</strong> before a report is submitted.{' '}
+              You are <strong>{earlyReportModal.daysRemaining} day(s)</strong> short of this requirement.
+            </p>
+            <p style={{ margin: '0 0 1.25rem', fontSize: '0.85rem', color: '#6b7280', lineHeight: 1.6 }}>
+              Submitting a report early may result in a <strong>non-compliant LMIA application</strong>.
+              If you proceed, this action will be permanently recorded in the audit log
+              with a timestamp and your account details.
+            </p>
+            <label style={{
+              display: 'flex', alignItems: 'flex-start', gap: '0.6rem',
+              fontSize: '0.85rem', color: '#111827', cursor: 'pointer',
+              background: '#fef3c7', border: '1px solid #fcd34d',
+              borderRadius: 8, padding: '0.75rem', marginBottom: '1.5rem',
+            }}>
+              <input
+                type="checkbox"
+                checked={earlyAcknowledged}
+                onChange={e => setEarlyAcknowledged(e.target.checked)}
+                style={{ marginTop: 2, flexShrink: 0, width: 16, height: 16, cursor: 'pointer' }}
+              />
+              <span>
+                I understand this position does not meet the 28-day ESDC requirement.
+                I acknowledge that generating this report early may result in a non-compliant submission,
+                and I accept full responsibility for this decision.
+              </span>
+            </label>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { setEarlyReportModal(null); setEarlyAcknowledged(false) }}
+                style={{
+                  padding: '0.5rem 1.25rem', borderRadius: 8, border: '1px solid #d1d5db',
+                  background: '#fff', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500,
+                }}
+              >
+                Cancel — Wait Until Day 28
+              </button>
+              <button
+                onClick={handleEarlyReportConfirm}
+                disabled={!earlyAcknowledged || generatingReport}
+                style={{
+                  padding: '0.5rem 1.25rem', borderRadius: 8, border: 'none',
+                  background: earlyAcknowledged ? '#dc2626' : '#fca5a5',
+                  color: '#fff', cursor: earlyAcknowledged ? 'pointer' : 'not-allowed',
+                  fontSize: '0.875rem', fontWeight: 600,
+                }}
+              >
+                {generatingReport ? 'Generating…' : 'Proceed & Generate Report'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -31,14 +31,22 @@ export const reports = {
       { method: 'DELETE' },
     ),
 
-  generate: async (employerId: number, positionId: number): Promise<Blob> => {
+  generate: async (employerId: number, positionId: number, acknowledgeEarly = false): Promise<Blob> => {
     const res = await fetch(
       `${BASE}/api/employers/${employerId}/positions/${positionId}/reports/generate`,
-      { method: 'POST', headers: authHeaders() },
+      {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acknowledge_early: acknowledgeEarly }),
+      },
     )
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
-      throw new Error((body as { detail?: string })?.detail ?? `Server error: ${res.status}`)
+      // 422 with EARLY_REPORT code is handled by the caller — re-throw with structured detail
+      throw Object.assign(new Error((body as { detail?: { message?: string; code?: string } | string })?.detail instanceof Object
+        ? (body.detail as { message: string }).message
+        : (body.detail as string) ?? `Server error: ${res.status}`
+      ), { detail: (body as { detail?: unknown }).detail })
     }
     return res.blob()
   },

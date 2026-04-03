@@ -70,6 +70,18 @@ async def record_snapshot(
             has_changed = True
             change_summary = "Page content has changed since the last capture"
 
+    # Check if a snapshot already exists for this capture_result (happens on recapture)
+    existing_row = await db.execute(
+        select(PostingSnapshot).where(PostingSnapshot.capture_result_id == capture_result.id)
+    )
+    existing: Optional[PostingSnapshot] = existing_row.scalar_one_or_none()
+
+    if existing is not None:
+        existing.page_hash = page_hash
+        existing.has_changed = has_changed
+        existing.change_summary = change_summary
+        return existing
+
     snapshot = PostingSnapshot(
         job_url_id=capture_result.job_url_id,
         capture_result_id=capture_result.id,

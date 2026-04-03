@@ -19,11 +19,16 @@ read at runtime from the .env file via app.core.config.settings.
 
 import asyncio
 import logging
+import sys
+import os
 from logging.config import fileConfig
 
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
+
+# ── Ensure the immiglensBE directory is on sys.path so `app` is importable ─
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # ── Load project settings (reads .env / environment variables) ────────────
 from app.core.config import settings  # noqa: E402  (project root must be on sys.path)

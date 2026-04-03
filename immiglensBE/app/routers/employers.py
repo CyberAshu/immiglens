@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import log_action
+from app.core.audit import audit
+from app.core.audit_events import AuditAction, AuditEntity
 from app.core.database import get_db
-from app.core.dependencies import get_client_ip, get_current_user
+from app.core.dependencies import get_current_user
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
 from app.models.job_url import JobUrl
@@ -44,14 +45,21 @@ async def create_employer(
 ):
     employer = Employer(**payload.model_dump(), user_id=current_user.id)
     db.add(employer)
+    await db.flush()
+    await audit(
+        db,
+        action=AuditAction.EMPLOYER_CREATED,
+        entity_type=AuditEntity.EMPLOYER,
+        actor_id=current_user.id,
+        entity_id=employer.id,
+        entity_label=employer.business_name,
+        employer_id=employer.id,
+        description=f'Created employer "{employer.business_name}"',
+        new_data={"business_name": employer.business_name},
+        request=request,
+    )
     await db.commit()
     await db.refresh(employer)
-    await log_action(db, user_id=current_user.id, action="CREATE",
-                     resource_type="employer", resource_id=employer.id,
-                     employer_id=employer.id,
-                     new_data={"business_name": employer.business_name},
-                     ip_address=get_client_ip(request))
-    await db.commit()
     return employer
 
 
@@ -76,14 +84,21 @@ async def update_employer(
     old = {"business_name": employer.business_name, "address": employer.address}
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(employer, field, value)
+    await audit(
+        db,
+        action=AuditAction.EMPLOYER_UPDATED,
+        entity_type=AuditEntity.EMPLOYER,
+        actor_id=current_user.id,
+        entity_id=employer.id,
+        entity_label=employer.business_name,
+        employer_id=employer.id,
+        description=f'Updated employer "{employer.business_name}"',
+        old_data=old,
+        new_data={"business_name": employer.business_name},
+        request=request,
+    )
     await db.commit()
     await db.refresh(employer)
-    await log_action(db, user_id=current_user.id, action="UPDATE",
-                     resource_type="employer", resource_id=employer.id,
-                     employer_id=employer.id,
-                     old_data=old, new_data={"business_name": employer.business_name},
-                     ip_address=get_client_ip(request))
-    await db.commit()
     return employer
 
 
@@ -101,9 +116,6 @@ async def toggle_employer(
     here — pause only occurs on subscription downgrade or expiry.
     """
     employer = await _get_employer_or_404(employer_id, current_user, db)
-    if not employer.is_active:
-        # About to activate — no employer count limit in new model
-        pass
     employer.is_active = not employer.is_active
     # On deactivation cascade: mark all child positions and postings inactive.
     # Pending capture rounds remain in APScheduler but are skipped by the
@@ -121,14 +133,26 @@ async def toggle_employer(
                 .where(JobUrl.job_position_id.in_(pos_ids))
                 .values(is_active=False)
             )
+    action = AuditAction.EMPLOYER_ACTIVATED if employer.is_active else AuditAction.EMPLOYER_DEACTIVATED
+    desc = (
+        f'Activated employer "{employer.business_name}"'
+        if employer.is_active
+        else f'Deactivated employer "{employer.business_name}"'
+    )
+    await audit(
+        db,
+        action=action,
+        entity_type=AuditEntity.EMPLOYER,
+        actor_id=current_user.id,
+        entity_id=employer.id,
+        entity_label=employer.business_name,
+        employer_id=employer.id,
+        description=desc,
+        new_data={"business_name": employer.business_name, "is_active": employer.is_active},
+        request=request,
+    )
     await db.commit()
     await db.refresh(employer)
-    await log_action(db, user_id=current_user.id, action="UPDATE",
-                     resource_type="employer", resource_id=employer.id,
-                     employer_id=employer.id,
-                     new_data={"business_name": employer.business_name, "is_active": employer.is_active},
-                     ip_address=get_client_ip(request))
-    await db.commit()
     return employer
 
 
@@ -140,10 +164,18 @@ async def delete_employer(
     current_user: User = Depends(get_current_user),
 ):
     employer = await _get_employer_or_404(employer_id, current_user, db)
-    await log_action(db, user_id=current_user.id, action="DELETE",
-                     resource_type="employer", resource_id=employer.id,
-                     employer_id=employer.id,
-                     old_data={"business_name": employer.business_name},
-                     ip_address=get_client_ip(request))
+    await audit(
+        db,
+        action=AuditAction.EMPLOYER_DELETED,
+        entity_type=AuditEntity.EMPLOYER,
+        actor_id=current_user.id,
+        entity_id=employer.id,
+        entity_label=employer.business_name,
+        employer_id=employer.id,
+        description=f'Deleted employer "{employer.business_name}"',
+        old_data={"business_name": employer.business_name},
+        request=request,
+    )
     await db.delete(employer)
     await db.commit()
+

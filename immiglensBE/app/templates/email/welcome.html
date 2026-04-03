@@ -6,10 +6,11 @@
 <p style="margin:0 0 20px;font-size:16px;font-weight:600;color:#111827;">Hi {{ first_name }},</p>
 
 <p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.7;">
-  Welcome to ImmigLens. Your account has been created &mdash; you now have full access to the platform.
+  Welcome to ImmigLens. Your account has been created and verified &mdash; you now have full access
+  to the platform.
 </p>
 
-<p style="margin:0 0 12px;font-size:14px;color:#374151;line-height:1.7;">
+<p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.7;">
   ImmigLens automates the evidence capture and reporting process for Canadian LMIA (Labour Market
   Impact Assessment) recruitment. Instead of manually taking screenshots, organizing them, and
   assembling PDF packages for your ESDC submissions, ImmigLens does this for you automatically,
@@ -27,19 +28,25 @@
   <tr><td style="height:6px;"></td></tr>
   <tr>
     <td style="padding:6px 0 6px 12px;font-size:13px;color:#1E2329;line-height:1.6;border-left:3px solid #C8A24A;">
-      <strong>Automated screenshot capture</strong> &mdash; captures job posting evidence on your schedule, with full timestamps
+      <strong>Automated screenshot capture</strong> &mdash; ImmigLens captures job posting evidence on your schedule, with full timestamps
     </td>
   </tr>
   <tr><td style="height:6px;"></td></tr>
   <tr>
     <td style="padding:6px 0 6px 12px;font-size:13px;color:#1E2329;line-height:1.6;border-left:3px solid #C8A24A;">
-      <strong>Evidence Timeline</strong> &mdash; a structured, searchable record of all captured screenshots
+      <strong>Evidence Timeline</strong> &mdash; a structured, searchable record of all captured screenshots organized by position and date
     </td>
   </tr>
   <tr><td style="height:6px;"></td></tr>
   <tr>
     <td style="padding:6px 0 6px 12px;font-size:13px;color:#1E2329;line-height:1.6;border-left:3px solid #C8A24A;">
-      <strong>LMIA-Ready PDF Reports</strong> &mdash; export a complete, formatted evidence package with one click
+      <strong>LMIA-Ready PDF Reports</strong> &mdash; export a complete, formatted evidence package with one click, suitable for ESDC submission
+    </td>
+  </tr>
+  <tr><td style="height:6px;"></td></tr>
+  <tr>
+    <td style="padding:6px 0 6px 12px;font-size:13px;color:#1E2329;line-height:1.6;border-left:3px solid #C8A24A;">
+      <strong>Audit trail</strong> &mdash; every capture is logged with source URL, timestamp, and capture status for full traceability
     </td>
   </tr>
 </table>
@@ -88,7 +95,7 @@
   </tr>
 </table>
 
-<p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.7;">
+<p style="margin:0 0 24px;font-size:14px;color:#374151;line-height:1.7;">
   Your trial period is <strong>{{ trial_days }} days</strong>, beginning today. All features are fully
   available during the trial. Exports generated during the trial are watermarked; upgrade at any time
   to remove watermarks and lock in your plan.
@@ -106,9 +113,45 @@
   </tr>
 </table>
 
-<p style="margin:0 0 0;font-size:13px;color:#6b7280;line-height:1.7;">
-  <strong>Need help getting started?</strong> Reply to this email or contact
+<p style="margin:0 0 20px;font-size:13px;color:#6b7280;line-height:1.7;">
+  <strong>Need help getting started?</strong> If you have questions during setup, you can reply
+  directly to this email or contact
   <a href="mailto:support@immiglens.ca" style="color:#0B1F3B;text-decoration:none;">support@immiglens.ca</a>.
-  We typically respond within one business day.
+  We typically respond within one business day. If you would prefer a walkthrough, you can
+  {% if onboarding_url is defined and onboarding_url %}
+  <a href="{{ onboarding_url }}" style="color:#0B1F3B;text-decoration:none;">book a free 20-minute onboarding call</a> with us.
+  {% else %}
+  book a free 20-minute onboarding call with us.
+  {% endif %}
 </p>
+
+<p style="margin:0 0 24px;font-size:13px;color:#374151;line-height:1.7;">
+  Warm regards,<br>
+  <strong>The ImmigLens Team</strong>
+</p>
+
+{# DISCLAIMER #}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="border-top:1px solid #EAE8E3;margin:8px 0 0;">
+  <tr>
+    <td style="padding:20px 0 0;">
+      <p style="margin:0 0 10px;font-size:11px;font-weight:700;color:#374151;letter-spacing:0.5px;text-transform:uppercase;">Disclaimer &amp; Important Information</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">About This Email</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">This welcome email was sent because an ImmigLens account was created using this email address. This is a transactional email and cannot be unsubscribed from while your account is active. If you did not create this account, contact us immediately at <a href="mailto:support@immiglens.ca" style="color:#6b7280;">support@immiglens.ca</a> and we will investigate and close the account.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Trial Terms &amp; Limitations</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">Your {{ trial_days }}-day free trial begins on the date your account was created. The trial provides access to all features of the {% if trial_plan is defined and trial_plan %}{{ trial_plan }}{% else %}trial{% endif %} plan. Reports and exports generated during the trial period may include a visible ImmigLens watermark. Watermarks are removed upon activation of a paid subscription. ImmigLens does not require a credit card to begin a trial. At the end of the trial period, your account will revert to a read-only state. All captured evidence, positions, and reports are retained for 30 days following trial expiry, after which they may be permanently deleted if a subscription is not activated.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Data Storage &amp; Canadian Hosting</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">All data associated with your ImmigLens account &mdash; including screenshots, evidence records, position details, and generated reports &mdash; is stored on servers located in Canada (AWS ca-central-1 / Azure Canada Central). ImmigLens does not transfer personal or recruitment data outside of Canada without your explicit consent. Data handling is governed by the Personal Information Protection and Electronic Documents Act (PIPEDA) and, where applicable, provincial privacy legislation including British Columbia&rsquo;s PIPA.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">LMIA Compliance Disclaimer</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens is a software tool designed to assist with the documentation and organization of recruitment evidence for LMIA applications. ImmigLens does not provide legal advice, immigration advice, or ESDC guidance. The screenshots, evidence records, and reports generated by ImmigLens are intended to support the work of Regulated Canadian Immigration Consultants (RCICs), immigration lawyers, employers, and HR professionals &mdash; they do not constitute legal or regulatory filings on their own. Users are solely responsible for ensuring that their LMIA applications comply with all applicable Employment and Social Development Canada (ESDC) requirements. ImmigLens does not guarantee that any evidence captured by the platform will be accepted by ESDC or any other regulatory authority.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Account Security</p>
+      <p style="margin:0 0 0;font-size:11px;color:#6b7280;line-height:1.65;">You are responsible for maintaining the confidentiality of your account credentials. ImmigLens will never ask for your password via email or phone. If you suspect unauthorized access to your account, change your password immediately and contact <a href="mailto:support@immiglens.ca" style="color:#6b7280;">support@immiglens.ca</a>. Enable two-factor authentication (2FA) from your account settings for additional security.</p>
+    </td>
+  </tr>
+</table>
 {% endblock %}

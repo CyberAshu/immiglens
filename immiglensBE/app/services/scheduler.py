@@ -9,6 +9,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.audit import audit
+from app.core.audit_events import AuditAction, AuditEntity
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.capture import CaptureResult, CaptureRound, CaptureStatus, ResultStatus
@@ -17,8 +19,8 @@ from app.models.job_position import JobPosition
 from app.models.notification import NotificationEvent
 from app.models.user import User
 from app.services.change_detector import record_snapshot
-from app.services.email_service import send_capture_completed_email, send_capture_failed_email
-from app.services.notification_service import dispatch_event, send_admin_alert
+from app.services.email_service import send_admin_alert, send_capture_completed_email, send_capture_failed_email
+from app.services.notification_service import dispatch_event
 from app.services.screenshot import capture
 
 scheduler = AsyncIOScheduler()
@@ -173,6 +175,7 @@ async def _expire_subscriptions_job() -> None:
                 )
                 emp_ids = [r[0] for r in emp_ids_res.all()]
 
+                positions_count = 0
                 if emp_ids:
                     pos_res = await db.execute(
                         select(JobPosition).where(
@@ -183,10 +186,23 @@ async def _expire_subscriptions_job() -> None:
                     positions = pos_res.scalars().all()
                     for pos in positions:
                         pos.is_active = False
+                    positions_count = len(positions)
 
                     await db.flush()
                     await pause_rounds_for_user(db, emp_ids)
 
+                await audit(
+                    db,
+                    action=AuditAction.SUBSCRIPTION_EXPIRED,
+                    entity_type=AuditEntity.USER,
+                    actor_id=user.id,
+                    actor_type="system",
+                    entity_id=str(user.id),
+                    entity_label=user.email,
+                    description=f"Subscription expired — {positions_count} position(s) deactivated",
+                    metadata={"positions_deactivated": positions_count},
+                    source="system",
+                )
                 await db.commit()
                 logger.info("Expired subscription for user_id=%s", user_id)
 
@@ -367,6 +383,14 @@ async def recapture_result(result_id: int) -> None:
         res = await db.execute(
             select(CaptureResult)
             .where(CaptureResult.id == result_id)
+            .options(
+                selectinload(CaptureResult.capture_round).selectinload(
+                    CaptureRound.job_position
+                ).selectinload(JobPosition.job_urls),
+                selectinload(CaptureResult.capture_round).selectinload(
+                    CaptureRound.job_position
+                ).selectinload(JobPosition.employer),
+            )
         )
         result = res.scalar_one_or_none()
         if result is None:
@@ -382,9 +406,7 @@ async def recapture_result(result_id: int) -> None:
         result.duration_ms = screenshot_result.duration_ms
         await db.flush()
 
-        # Record a change snapshot for the recaptured result
         await record_snapshot(db, result)
-
         await db.commit()
 
         # If all results for the round are now done/failed, mark round completed
@@ -397,6 +419,73 @@ async def recapture_result(result_id: int) -> None:
         if round_ and all(r.status in (ResultStatus.DONE, ResultStatus.FAILED) for r in round_.results):
             round_.status = CaptureStatus.COMPLETED
             await db.commit()
+
+        # ── Notifications & email for failed recaptures ───────────────────────
+        if result.status != ResultStatus.FAILED:
+            return
+
+        position = result.capture_round.job_position
+        user_id: int | None = getattr(getattr(position, "employer", None), "user_id", None)
+        if user_id is None:
+            emp_res = await db.execute(
+                select(Employer.user_id)
+                .join(JobPosition, Employer.id == JobPosition.employer_id)
+                .where(JobPosition.id == position.id)
+            )
+            user_id = emp_res.scalar_one_or_none()
+
+        if user_id is None:
+            return
+
+        try:
+            await dispatch_event(
+                db,
+                user_id=user_id,
+                event=NotificationEvent.CAPTURE_FAILED,
+                context={
+                    "round_id": result.capture_round_id,
+                    "result_id": result_id,
+                    "url": result.url,
+                    "error": result.error,
+                    "position": position.job_title,
+                },
+                trigger_id=result_id,
+                trigger_type="capture_result",
+                skip_email=True,
+            )
+        except Exception:
+            pass
+
+        try:
+            _user = await db.get(User, user_id)
+            if _user:
+                _ls = (await db.execute(
+                    select(CaptureRound.captured_at)
+                    .where(
+                        CaptureRound.job_position_id == position.id,
+                        CaptureRound.status == CaptureStatus.COMPLETED,
+                    )
+                    .order_by(CaptureRound.captured_at.desc())
+                    .limit(1)
+                )).scalar_one_or_none()
+                await send_capture_failed_email(
+                    to=_user.email,
+                    first_name=_user.full_name.split()[0] if _user.full_name else "there",
+                    position_title=position.job_title,
+                    noc_code=position.noc_code,
+                    attempted_at=datetime.now(timezone.utc).strftime("%b %d, %Y at %H:%M UTC"),
+                    error=result.error or "Unknown error",
+                    affected_sources=[result.url],
+                    capture_id=result.capture_round_id,
+                    last_successful=_ls.strftime("%b %d, %Y") if _ls else "\u2014",
+                    retry_at=None,
+                    fix_url=(
+                        f"{settings.FRONTEND_URL}/employers/"
+                        f"{position.employer_id}/positions/{position.id}"
+                    ),
+                )
+        except Exception:
+            pass
 
 
 async def _run_capture_round(round_id: int) -> None:
@@ -472,6 +561,9 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
         user_id = emp_res.scalar_one_or_none()
 
     # ── ROUND_STARTED ────────────────────────────────────────────────────────
+    # skip_email=True: no user-facing email is sent for round start events.
+    # This is an internal audit/webhook event only. The capture_completed or
+    # capture_failed HTML email covers the user-facing notification instead.
     if user_id is not None:
         try:
             await dispatch_event(
@@ -484,11 +576,13 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                 },
                 trigger_id=round_.id,
                 trigger_type="capture_round",
+                skip_email=True,
             )
         except Exception:
             pass  # Never block capture flow for notification errors
 
     snapshots: list[tuple] = []
+    failed_results: list[CaptureResult] = []
     try:
         for posting in round_.job_position.job_urls:
             if not posting.is_active:
@@ -509,6 +603,8 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
             await db.flush()  # populate capture_result.id before snapshot
             snap = await record_snapshot(db, capture_result)
             snapshots.append((snap, posting.url))
+            if screenshot_result.status.value == ResultStatus.FAILED.value:
+                failed_results.append(capture_result)
     except Exception as exc:
         # Unexpected failure during capture loop — mark round FAILED and notify
         round_.status = CaptureStatus.FAILED
@@ -572,6 +668,64 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
     round_.status = CaptureStatus.COMPLETED
     round_.captured_at = datetime.now(timezone.utc)
     await db.commit()
+
+    # ── Per-URL failure notifications ─────────────────────────────────────────
+    # These fire for individual URLs that failed inside an otherwise-completed
+    # round (e.g. bot-blocked pages, storage upload errors). The round still
+    # counts as COMPLETED because at least some URLs succeeded (or all failed
+    # gracefully). Each failed URL gets a CAPTURE_FAILED notification log entry
+    # and a failure email so the user is always informed.
+    if user_id is not None and failed_results:
+        _user_for_fail = await db.get(User, user_id)
+        _ls_fail = (await db.execute(
+            select(CaptureRound.captured_at)
+            .where(
+                CaptureRound.job_position_id == round_.job_position_id,
+                CaptureRound.status == CaptureStatus.COMPLETED,
+                CaptureRound.id != round_.id,
+            )
+            .order_by(CaptureRound.captured_at.desc())
+            .limit(1)
+        )).scalar_one_or_none()
+        for failed_result in failed_results:
+            try:
+                await dispatch_event(
+                    db,
+                    user_id=user_id,
+                    event=NotificationEvent.CAPTURE_FAILED,
+                    context={
+                        "round_id": round_.id,
+                        "result_id": failed_result.id,
+                        "url": failed_result.url,
+                        "error": failed_result.error,
+                        "position": round_.job_position.job_title,
+                    },
+                    trigger_id=failed_result.id,
+                    trigger_type="capture_result",
+                    skip_email=True,
+                )
+            except Exception:
+                pass
+            if _user_for_fail:
+                try:
+                    await send_capture_failed_email(
+                        to=_user_for_fail.email,
+                        first_name=_user_for_fail.full_name.split()[0] if _user_for_fail.full_name else "there",
+                        position_title=round_.job_position.job_title,
+                        noc_code=round_.job_position.noc_code,
+                        attempted_at=datetime.now(timezone.utc).strftime("%b %d, %Y at %H:%M UTC"),
+                        error=failed_result.error or "Unknown error",
+                        affected_sources=[failed_result.url],
+                        capture_id=round_.id,
+                        last_successful=_ls_fail.strftime("%b %d, %Y") if _ls_fail else "\u2014",
+                        retry_at=None,
+                        fix_url=(
+                            f"{settings.FRONTEND_URL}/employers/"
+                            f"{round_.job_position.employer_id}/positions/{round_.job_position_id}"
+                        ),
+                    )
+                except Exception:
+                    pass
 
     # ── Dispatch notifications ────────────────────────────────────────────────
     if user_id is not None:

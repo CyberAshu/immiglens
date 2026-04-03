@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import log_action
+from app.core.audit import audit
+from app.core.audit_events import AuditAction, AuditEntity
 from app.core.permissions import deactivate_user_positions
 from app.core.database import get_db
-from app.core.dependencies import get_client_ip, get_current_user
+from app.core.dependencies import get_current_user
 from app.models.capture import CaptureResult, CaptureRound, ResultStatus
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
@@ -160,13 +161,26 @@ async def toggle_admin(
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
     user.is_admin = not user.is_admin
+    tog_action = AuditAction.USER_ADMIN_GRANTED if user.is_admin else AuditAction.USER_ADMIN_REVOKED
+    tog_desc = (
+        f'Granted admin access to {user.email}'
+        if user.is_admin
+        else f'Revoked admin access from {user.email}'
+    )
+    await audit(
+        db,
+        action=tog_action,
+        entity_type=AuditEntity.USER,
+        actor_id=current_user.id,
+        actor_type="admin",
+        entity_id=user.id,
+        entity_label=user.email,
+        description=tog_desc,
+        new_data={"is_admin": user.is_admin, "email": user.email},
+        request=request,
+    )
     await db.commit()
     await db.refresh(user)
-    await log_action(db, user_id=current_user.id, action="UPDATE",
-                     resource_type="user", resource_id=user.id,
-                     new_data={"is_admin": user.is_admin, "email": user.email},
-                     ip_address=get_client_ip(request))
-    await db.commit()
     return user
 
 
@@ -215,15 +229,23 @@ async def assign_tier(
     if is_downgrade:
         await deactivate_user_positions(db, user)
     else:
-        await db.commit()
+        await db.flush()
 
-    await db.refresh(user)
-    await log_action(db, user_id=current_user.id, action="UPDATE",
-                     resource_type="user", resource_id=user.id,
-                     old_data={"tier_id": old_tier_id},
-                     new_data={"tier_id": body.tier_id, "tier_expires_at": str(body.tier_expires_at)},
-                     ip_address=get_client_ip(request))
+    await audit(
+        db,
+        action=AuditAction.USER_TIER_ASSIGNED,
+        entity_type=AuditEntity.USER,
+        actor_id=current_user.id,
+        actor_type="admin",
+        entity_id=user.id,
+        entity_label=user.email,
+        description=f'Assigned tier #{body.tier_id} to {user.email}',
+        old_data={"tier_id": old_tier_id},
+        new_data={"tier_id": body.tier_id, "tier_expires_at": str(body.tier_expires_at)},
+        request=request,
+    )
     await db.commit()
+    await db.refresh(user)
     return user
 
 
@@ -239,10 +261,18 @@ async def admin_delete_user(
     user = await db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found.")
-    await log_action(db, user_id=current_user.id, action="DELETE",
-                     resource_type="user", resource_id=user.id,
-                     old_data={"email": user.email},
-                     ip_address=get_client_ip(request))
+    await audit(
+        db,
+        action=AuditAction.USER_DELETED_BY_ADMIN,
+        entity_type=AuditEntity.USER,
+        actor_id=current_user.id,
+        actor_type="admin",
+        entity_id=user.id,
+        entity_label=user.email,
+        description=f'Admin deleted user account {user.email}',
+        old_data={"email": user.email},
+        request=request,
+    )
     await db.delete(user)
     await db.commit()
 
@@ -304,10 +334,18 @@ async def admin_delete_org(
     org = await db.get(Organization, org_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found.")
-    await log_action(db, user_id=current_user.id, action="DELETE",
-                     resource_type="organization", resource_id=org.id,
-                     old_data={"name": org.name},
-                     ip_address=get_client_ip(request))
+    await audit(
+        db,
+        action=AuditAction.ORG_DELETED_BY_ADMIN,
+        entity_type=AuditEntity.ORGANIZATION,
+        actor_id=current_user.id,
+        actor_type="admin",
+        entity_id=org.id,
+        entity_label=org.name,
+        description=f'Admin deleted organization "{org.name}"',
+        old_data={"name": org.name},
+        request=request,
+    )
     await db.delete(org)
     await db.commit()
 
@@ -338,13 +376,21 @@ async def admin_create_tier(
         raise HTTPException(status_code=409, detail="Tier with this name already exists.")
     tier = SubscriptionTier(**body.model_dump())
     db.add(tier)
+    await db.flush()
+    await audit(
+        db,
+        action=AuditAction.TIER_CREATED,
+        entity_type=AuditEntity.SUBSCRIPTION_TIER,
+        actor_id=current_user.id,
+        actor_type="admin",
+        entity_id=tier.id,
+        entity_label=tier.display_name,
+        description=f'Created subscription tier "{tier.display_name}"',
+        new_data={"name": tier.name, "display_name": tier.display_name},
+        request=request,
+    )
     await db.commit()
     await db.refresh(tier)
-    await log_action(db, user_id=current_user.id, action="CREATE",
-                     resource_type="subscription_tier", resource_id=tier.id,
-                     new_data={"name": tier.name, "display_name": tier.display_name},
-                     ip_address=get_client_ip(request))
-    await db.commit()
 
     # Sync to Stripe (best-effort; don't fail the whole request if Stripe is down)
     try:
@@ -378,13 +424,21 @@ async def admin_update_tier(
     old_name    = tier.display_name
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(tier, field, value)
+    await audit(
+        db,
+        action=AuditAction.TIER_UPDATED,
+        entity_type=AuditEntity.SUBSCRIPTION_TIER,
+        actor_id=current_user.id,
+        actor_type="admin",
+        entity_id=tier.id,
+        entity_label=tier.display_name,
+        description=f'Updated subscription tier "{tier.display_name}"',
+        old_data=old,
+        new_data={"display_name": tier.display_name},
+        request=request,
+    )
     await db.commit()
     await db.refresh(tier)
-    await log_action(db, user_id=current_user.id, action="UPDATE",
-                     resource_type="subscription_tier", resource_id=tier.id,
-                     old_data=old, new_data={"display_name": tier.display_name},
-                     ip_address=get_client_ip(request))
-    await db.commit()
 
     # Stripe sync (best-effort)
     try:
@@ -444,11 +498,19 @@ async def admin_delete_tier(
 
     # ── 2. Soft-delete the tier ───────────────────────────────────────────────
     tier.is_active = False
-    await log_action(db, user_id=current_user.id, action="DELETE",
-                     resource_type="subscription_tier", resource_id=tier.id,
-                     old_data={"is_active": True, "name": tier.name},
-                     new_data={"is_active": False, "migrated_users": migrated_count},
-                     ip_address=get_client_ip(request))
+    await audit(
+        db,
+        action=AuditAction.TIER_DEACTIVATED,
+        entity_type=AuditEntity.SUBSCRIPTION_TIER,
+        actor_id=current_user.id,
+        actor_type="admin",
+        entity_id=tier.id,
+        entity_label=tier.name,
+        description=f'Deactivated subscription tier "{tier.name}" ({migrated_count} user(s) migrated to free)',
+        old_data={"is_active": True, "name": tier.name},
+        new_data={"is_active": False, "migrated_users": migrated_count},
+        request=request,
+    )
     await db.commit()
 
     # ── 3. Archive in Stripe (best-effort) ────────────────────────────────────
@@ -576,14 +638,19 @@ async def admin_retry_capture_round(
     if not round_:
         raise HTTPException(status_code=404, detail="Capture round not found.")
 
-    await log_action(
-        db, user_id=current_user.id, action="UPDATE",
-        resource_type="capture_round", resource_id=round_id,
+    await audit(
+        db,
+        action=AuditAction.CAPTURE_TRIGGERED,
+        entity_type=AuditEntity.CAPTURE_ROUND,
+        actor_id=current_user.id,
+        actor_type="admin",
+        entity_id=round_id,
+        description=f'Admin retried capture round #{round_id}',
         old_data={"status": round_.status.value},
         new_data={"status": "pending", "admin_retry": True},
-        ip_address=get_client_ip(request),
+        request=request,
     )
-
+    await db.commit()
     asyncio.create_task(force_run_capture_round(round_id))
     return {"detail": "Retry queued", "round_id": round_id}
 
@@ -608,15 +675,20 @@ async def admin_bulk_retry_captures(
         return {"detail": "No failed rounds found", "queued": 0}
 
     for round_ in failed_rounds:
-        await log_action(
-            db, user_id=current_user.id, action="UPDATE",
-            resource_type="capture_round", resource_id=round_.id,
+        await audit(
+            db,
+            action=AuditAction.CAPTURE_TRIGGERED,
+            entity_type=AuditEntity.CAPTURE_ROUND,
+            actor_id=current_user.id,
+            actor_type="admin",
+            entity_id=round_.id,
+            description=f'Admin bulk-retried failed capture round #{round_.id}',
             old_data={"status": "failed"},
             new_data={"status": "pending", "admin_bulk_retry": True},
-            ip_address=get_client_ip(request),
+            request=request,
         )
         asyncio.create_task(force_run_capture_round(round_.id))
-
+    await db.commit()
     return {"detail": "Bulk retry queued", "queued": len(failed_rounds)}
 
 
@@ -650,13 +722,19 @@ async def admin_recover_all_captures(
         return {"detail": "No problematic rounds found", "queued": 0}
 
     for round_ in rounds:
-        await log_action(
-            db, user_id=current_user.id, action="UPDATE",
-            resource_type="capture_round", resource_id=round_.id,
+        await audit(
+            db,
+            action=AuditAction.CAPTURE_TRIGGERED,
+            entity_type=AuditEntity.CAPTURE_ROUND,
+            actor_id=current_user.id,
+            actor_type="admin",
+            entity_id=round_.id,
+            description=f'Admin recover-all triggered capture round #{round_.id}',
             old_data={"status": round_.status.value},
             new_data={"status": "pending", "admin_recover_all": True},
-            ip_address=get_client_ip(request),
+            request=request,
         )
+    await db.commit()
 
     for round_ in rounds:
         asyncio.create_task(force_run_capture_round(round_.id))

@@ -7,6 +7,8 @@ Call these *before* performing a write that would consume a limited resource:
 
 Raises HTTP 402 if the user is over their plan limit (-1 = unlimited).
 """
+import math
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import HTTPException, status
@@ -16,10 +18,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.capture import CaptureRound, CaptureStatus
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
+from app.models.notification import NotificationEvent, NotificationLog
 from app.models.subscription import SubscriptionTier
 from app.models.user import User
 
 _PAYMENT_REQUIRED = status.HTTP_402_PAYMENT_REQUIRED
+
+# How many days must pass before re-sending a position-limit warning.
+_WARNING_COOLDOWN_DAYS = 7
 
 
 async def _get_tier(db: AsyncSession, user: User) -> SubscriptionTier:
@@ -33,13 +39,77 @@ async def _get_tier(db: AsyncSession, user: User) -> SubscriptionTier:
     )
     tier = res.scalar_one_or_none()
     if tier is None:
-        # No tiers seeded yet — allow everything
-        return SubscriptionTier(
-            max_active_positions=-1,
-            max_urls_per_position=-1,
-            max_captures_per_month=-1,
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Subscription tiers have not been configured. Please contact an administrator.",
         )
     return tier
+
+
+async def _maybe_send_position_limit_warning(
+    db: AsyncSession,
+    user: User,
+    tier: SubscriptionTier,
+    active_count: int,
+) -> None:
+    """Send an 80% position-limit warning (email + in-app) at most once per cooldown period.
+
+    Fires when active_count >= 80% of max_active_positions but < 100%.
+    Uses NotificationLog as an idempotency record — if a POSITION_LIMIT_WARNING
+    log was created within _WARNING_COOLDOWN_DAYS, the warning is suppressed.
+    """
+    threshold = math.ceil(tier.max_active_positions * 0.8)
+    if active_count < threshold or active_count >= tier.max_active_positions:
+        return
+
+    # Dedupe: skip if we already sent a warning recently
+    cutoff = datetime.now(timezone.utc) - timedelta(days=_WARNING_COOLDOWN_DAYS)
+    recent = (
+        await db.execute(
+            select(func.count())
+            .select_from(NotificationLog)
+            .where(
+                NotificationLog.event_type == NotificationEvent.POSITION_LIMIT_WARNING,
+                NotificationLog.trigger_id == user.id,
+                NotificationLog.trigger_type == "user",
+                NotificationLog.created_at >= cutoff,
+            )
+        )
+    ).scalar_one()
+    if recent > 0:
+        return
+
+    try:
+        from app.core.config import settings as _s
+        from app.services.email_service import send_position_limit_warning_email
+        from app.services.notification_service import dispatch_event
+
+        await send_position_limit_warning_email(
+            user.email,
+            user.full_name or "there",
+            tier.display_name,
+            tier.max_active_positions,
+            active_count,
+            f"{_s.FRONTEND_URL}/dashboard",
+            f"{_s.FRONTEND_URL}/plans",
+        )
+
+        await dispatch_event(
+            db,
+            user_id=user.id,
+            event=NotificationEvent.POSITION_LIMIT_WARNING,
+            context={
+                "active_count": active_count,
+                "position_limit": tier.max_active_positions,
+                "percent_used": int(active_count / tier.max_active_positions * 100),
+                "plan_name": tier.display_name,
+            },
+            trigger_id=user.id,
+            trigger_type="user",
+            skip_email=True,  # HTML email already sent above
+        )
+    except Exception:
+        pass  # warnings must never block the write operation
 
 
 async def check_active_position_limit(db: AsyncSession, user: User) -> None:
@@ -69,7 +139,7 @@ async def check_active_position_limit(db: AsyncSession, user: User) -> None:
             await send_plan_limit_email(
                 user.email,
                 user.full_name or "there",
-                tier.name,
+                tier.display_name,
                 tier.max_active_positions,
                 count,
                 f"{_s.FRONTEND_URL}/dashboard",
@@ -82,6 +152,8 @@ async def check_active_position_limit(db: AsyncSession, user: User) -> None:
             detail=f"Your plan allows a maximum of {tier.max_active_positions} active position(s) total. "
                    "Upgrade or deactivate another position first.",
         )
+
+    await _maybe_send_position_limit_warning(db, user, tier, count)
 
 
 async def check_position_reactivate_limit(db: AsyncSession, user: User, exclude_id: int) -> None:
@@ -111,7 +183,7 @@ async def check_position_reactivate_limit(db: AsyncSession, user: User, exclude_
             await send_plan_limit_email(
                 user.email,
                 user.full_name or "there",
-                tier.name,
+                tier.display_name,
                 tier.max_active_positions,
                 count,
                 f"{_s.FRONTEND_URL}/dashboard",
@@ -124,6 +196,8 @@ async def check_position_reactivate_limit(db: AsyncSession, user: User, exclude_
             detail=f"Your plan allows a maximum of {tier.max_active_positions} active position(s) total. "
                    "Deactivate another position to activate this one.",
         )
+
+    await _maybe_send_position_limit_warning(db, user, tier, count)
 
 
 async def check_monthly_capture_limit(db: AsyncSession, user: User) -> None:
@@ -285,5 +359,6 @@ async def deactivate_user_positions(db: AsyncSession, user: User) -> int:
 
     await db.flush()
     await pause_rounds_for_user(db, emp_ids)
-    await db.commit()
+    # NOTE: caller owns db.commit() — this function only flushes so the
+    # business operation and its audit entry remain in the same transaction.
     return len(positions)

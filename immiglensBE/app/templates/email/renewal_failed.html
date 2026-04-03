@@ -7,8 +7,8 @@
 
 <p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.7;">
   Your ImmigLens subscription was due to renew on <strong>{{ renewal_date }}</strong>, but we were
-  unable to process the payment. Your subscription has not been renewed and your account is now in
-  a grace period.
+  unable to process the payment. This means your subscription has not been renewed and your account
+  is now in a grace period.
 </p>
 
 {# Renewal failure details #}
@@ -24,7 +24,11 @@
   </tr>
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fecaca;">Amount attempted</td>
-    <td style="padding:10px 16px;font-size:14px;color:#b91c1c;font-weight:700;border-bottom:1px solid #fecaca;">{{ amount }}</td>
+    <td style="padding:10px 16px;font-size:14px;color:#b91c1c;font-weight:700;border-bottom:1px solid #fecaca;">{{ amount }}{% if tax_amount is defined and tax_amount %} + {{ tax_amount }}{% endif %}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fecaca;">Payment method</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #fecaca;">{{ card_brand }} ending in {{ card_last4 }}</td>
   </tr>
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fecaca;">Failure reason</td>
@@ -54,8 +58,9 @@
     <td style="padding:12px 16px;font-size:13px;color:#9a3412;line-height:1.65;">
       <strong>Your captures are still running &mdash; but not for long.</strong> During the grace period,
       your existing capture schedules continue to run and all evidence remains accessible.
-      If payment is not resolved by <strong>{{ grace_period_end }}</strong>, your account will be
-      suspended and all capture schedules will stop. This could create gaps in your LMIA evidence.
+      However, if payment is not resolved by <strong>{{ grace_period_end }}</strong>, your account will be
+      suspended and all capture schedules will stop. This could create gaps in your LMIA evidence
+      if you are in an active recruitment period.
     </td>
   </tr>
 </table>
@@ -73,9 +78,55 @@
 </table>
 
 <p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">What you need to do</p>
-<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 8px;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
   <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; Update your payment method or confirm your existing card details from Billing Settings</td></tr>
-  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; Once updated, ImmigLens will retry the charge automatically &mdash; no manual action needed</td></tr>
-  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; If your card has expired, add a new card from Billing Settings &rarr; Payment Methods</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; Once updated, ImmigLens will retry the charge automatically &mdash; no manual action needed after updating</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; If you need to switch to a different card or payment method, you can add it from Billing Settings &rarr; Payment Methods</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; If your annual plan no longer meets your needs, consider switching to a monthly plan before renewing</td></tr>
+</table>
+
+<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">What happens if this is not resolved by {{ grace_period_end }}</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; Your account will be <strong>suspended</strong> &mdash; capture schedules will stop immediately</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; No new evidence will be captured for any of your active positions</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; You will not be able to generate new PDF reports</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; Your data (positions, evidence, reports) will be retained for 30 days from suspension</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; After 30 days, data may be permanently deleted &mdash; <strong>this cannot be undone</strong></td></tr>
+</table>
+
+<p style="margin:0 0 20px;font-size:13px;color:#6b7280;line-height:1.7;">
+  If you wish to cancel rather than renew, you can do so from Billing Settings. Cancelling before
+  the grace period ends ensures you retain access until your original renewal date and avoids any
+  further retry attempts on your payment method.
+</p>
+
+<p style="margin:0 0 24px;font-size:13px;color:#374151;line-height:1.7;">
+  Warm regards,<br>
+  <strong>The ImmigLens Team</strong>
+</p>
+
+{# DISCLAIMER #}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="border-top:1px solid #EAE8E3;margin:8px 0 0;">
+  <tr>
+    <td style="padding:20px 0 0;">
+      <p style="margin:0 0 10px;font-size:11px;font-weight:700;color:#374151;letter-spacing:0.5px;text-transform:uppercase;">Disclaimer &amp; Important Information</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Renewal Failure &amp; Grace Period</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">When a subscription renewal payment fails, ImmigLens enters the account into a grace period. During this period, the account remains functional with the restrictions noted above. The grace period is designed to give users time to resolve payment issues without immediate disruption to their evidence capture workflow.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Automatic Retries</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens will attempt to process the renewal payment automatically on the retry dates noted above. If a retry succeeds, the subscription is renewed immediately, the grace period ends, and all functionality is fully restored. You will receive a payment confirmation email once the retry succeeds. You do not need to manually trigger a payment after updating your payment method &mdash; the next scheduled retry will use the updated method.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Impact on LMIA Applications</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">If your account is suspended during an active LMIA application period and capture schedules stop, a gap may appear in your evidence timeline. ImmigLens is not responsible for evidence gaps or LMIA application complications resulting from account suspension due to non-payment. If you are in a time-sensitive application period, we strongly recommend resolving the payment issue immediately or manually uploading evidence for any dates that are missed.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Annual Plan Renewal</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">Annual subscriptions are charged in full at the start of each annual billing period. If a renewal fails, the next billing period does not begin until payment is successfully processed. The renewal date does not shift &mdash; if payment succeeds after the original renewal date, the new billing period is backdated to the original renewal date and your subscription continues without a gap.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Cancellation Before Renewal</p>
+      <p style="margin:0 0 0;font-size:11px;color:#6b7280;line-height:1.65;">If you choose to cancel rather than renew, do so from Billing Settings before the grace period ends. Cancellation stops further retry attempts on your payment method and ends your subscription at the end of the current period. Data retention rules apply as described in your subscription terms.</p>
+    </td>
+  </tr>
 </table>
 {% endblock %}

@@ -11,7 +11,23 @@ Usage (from scheduler or router):
         context={"round_id": 42, "position": "Software Engineer"},
         trigger_id=42,
         trigger_type="capture_round",
+        skip_email=True,   # <-- always True when a typed HTML email is sent directly
     )
+
+Email policy
+------------
+ALL user-facing emails are sent via the typed send_*() helpers in email_service.py
+using Jinja2 HTML templates. The plain-text fallback (_build_email_body) below is
+retained ONLY as a last-resort safety net for future events that have no HTML
+template yet. It must NEVER fire for events that already have a typed send_* helper:
+
+    CAPTURE_COMPLETE  → send_capture_completed_email (skip_email=True in scheduler)
+    CAPTURE_FAILED    → send_capture_failed_email    (skip_email=True in scheduler)
+    ROUND_STARTED     → no user-facing email at all  (skip_email=True in scheduler)
+    POSTING_CHANGED   → no user-facing email         (skip_email=True in scheduler)
+
+If a new event is added that DOES need a fallback plain-text email, set
+skip_email=False at the call site AND add a branch in _build_email_body.
 """
 
 import asyncio
@@ -37,35 +53,20 @@ from app.services.email_service import send_admin_alert, send_email
 
 # ── Email ─────────────────────────────────────────────────────────────────────
 
+# Events that have a typed HTML send_* helper in email_service.py.
+# dispatch_event() must always be called with skip_email=True for these.
+# This set is checked at runtime as a safety net.
+_EVENTS_WITH_HTML_EMAIL: frozenset[NotificationEvent] = frozenset({
+    NotificationEvent.CAPTURE_COMPLETE,
+    NotificationEvent.CAPTURE_FAILED,
+    NotificationEvent.ROUND_STARTED,
+    NotificationEvent.POSTING_CHANGED,
+    NotificationEvent.POSITION_LIMIT_WARNING,
+})
+
+
 def _build_email_body(event: NotificationEvent, context: dict[str, Any]) -> str:
-    """Plain-text email body for each event type."""
-    if event == NotificationEvent.CAPTURE_COMPLETE:
-        return (
-            f"ImmigLens — Capture Complete\n\n"
-            f"Position : {context.get('position', 'N/A')}\n"
-            f"Round ID : {context.get('round_id', 'N/A')}\n"
-            f"Completed: {context.get('completed_at', 'N/A')}\n"
-        )
-    if event == NotificationEvent.CAPTURE_FAILED:
-        return (
-            f"ImmigLens — Capture Failed\n\n"
-            f"Position : {context.get('position', 'N/A')}\n"
-            f"Round ID : {context.get('round_id', 'N/A')}\n"
-            f"Error    : {context.get('error', 'Unknown')}\n"
-        )
-    if event == NotificationEvent.POSTING_CHANGED:
-        return (
-            f"ImmigLens — Job Posting Changed\n\n"
-            f"Posting  : {context.get('posting_url', 'N/A')}\n"
-            f"Summary  : {context.get('change_summary', 'N/A')}\n"
-        )
-    if event == NotificationEvent.ROUND_STARTED:
-        return (
-            f"ImmigLens — Capture Round Started\n\n"
-            f"Position    : {context.get('position', 'N/A')}\n"
-            f"Round ID    : {context.get('round_id', 'N/A')}\n"
-            f"Scheduled at: {context.get('scheduled_at', 'N/A')}\n"
-        )
+    """Plain-text fallback body — only for events WITHOUT a typed HTML helper."""
     return f"ImmigLens event: {event.value}\n\n{json.dumps(context, indent=2)}"
 
 
@@ -73,6 +74,20 @@ logger = logging.getLogger(__name__)
 
 
 async def _deliver_email(to: str, event: NotificationEvent, context: dict[str, Any]) -> None:
+    """Send a plain-text fallback email for events that have no HTML template.
+
+    Raises RuntimeError for events that should never reach this path.
+    """
+    if event in _EVENTS_WITH_HTML_EMAIL:
+        # This is a programming error: the caller forgot skip_email=True.
+        # Log loudly and abort rather than sending a broken plain-text email.
+        logger.error(
+            "BUG: _deliver_email called for %s which has a typed HTML helper. "
+            "dispatch_event must be called with skip_email=True for this event. "
+            "Email NOT sent to %s.",
+            event.value, to,
+        )
+        return
     subject = f"ImmigLens — {event.value.replace('_', ' ').title()}"
     body = _build_email_body(event, context)
     await send_email(to, subject, body)

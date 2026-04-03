@@ -11,6 +11,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import audit
+from app.core.audit_events import AuditAction, AuditEntity
 from app.core.config import settings
 from app.core.dependencies import get_current_user, get_db
 from app.core.permissions import deactivate_user_positions
@@ -238,6 +240,7 @@ class ChangePlanRequest(BaseModel):
 @router.post("/change-plan", response_model=SyncCheckoutResponse)
 async def change_plan(
     body: ChangePlanRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -285,7 +288,20 @@ async def change_plan(
         # Deactivate excess positions only (employers and URLs are left untouched)
         await deactivate_user_positions(db, current_user)
     else:
-        await db.commit()
+        await db.flush()
+    await audit(
+        db,
+        action=AuditAction.SUBSCRIPTION_PLAN_CHANGED,
+        entity_type=AuditEntity.USER,
+        actor_id=current_user.id,
+        entity_id=str(current_user.id),
+        entity_label=current_user.email,
+        old_data={"tier_id": old_tier.id if old_tier else None, "tier_name": old_tier.display_name if old_tier else None},
+        new_data={"tier_id": tier.id, "tier_name": tier.display_name, "is_annual": body.is_annual},
+        description=f"Plan changed to {tier.display_name} ({'annual' if body.is_annual else 'monthly'}, {'downgrade' if is_downgrade else 'upgrade'})",
+        request=request,
+    )
+    await db.commit()
     log.info("change-plan: user %s switched to tier %s (downgrade=%s)", current_user.id, tier.id, is_downgrade)
 
     return SyncCheckoutResponse(
@@ -372,6 +388,82 @@ def _get_period_end(sub: dict) -> int | None:
         pass
     return None
 
+
+def _get_card_details(data: object) -> tuple[str, str]:
+    """Extract card brand and last4 from a Stripe invoice or payment_intent object.
+
+    Stripe embeds card details via charge > payment_method_details > card.
+    Falls back to empty strings if not present (templates render them as blank).
+    """
+    try:
+        # invoice.paid / invoice.payment_failed: charge is a charge ID string
+        # The charge object is not embedded — we skip a second API call here
+        # and instead check payment_method_details on the payment_intent if present.
+        charge_obj = getattr(data, "charge", None)
+        if charge_obj and not isinstance(charge_obj, str):
+            pmd = getattr(charge_obj, "payment_method_details", None)
+            card = getattr(pmd, "card", None) if pmd else None
+            if card:
+                return (
+                    (getattr(card, "brand", "") or "").capitalize(),
+                    getattr(card, "last4", "") or "",
+                )
+    except Exception:
+        pass
+    return "", ""
+
+
+def _get_invoice_tax(data: object) -> tuple[str, str, str, str]:
+    """Extract subtotal, tax amount and tax type from a Stripe invoice object.
+
+    Returns (subtotal_str, tax_str, tax_type_label) all formatted as CAD strings.
+    Falls back to the full amount with zero tax if tax data is absent.
+    """
+    try:
+        total_cents: int = getattr(data, "amount_paid", 0) or 0
+        tax_cents: int = getattr(data, "tax", 0) or 0
+        subtotal_cents = total_cents - tax_cents
+
+        subtotal = f"${subtotal_cents / 100:.2f} CAD"
+        tax_amount = f"${tax_cents / 100:.2f} CAD"
+        total = f"${total_cents / 100:.2f} CAD"
+
+        # Determine tax label from tax rate lines
+        tax_type = "GST/HST"
+        try:
+            total_tax_amounts = getattr(data, "total_tax_amounts", None) or []
+            if total_tax_amounts:
+                rate_obj = getattr(total_tax_amounts[0], "tax_rate", None)
+                if rate_obj:
+                    display = getattr(rate_obj, "display_name", "") or ""
+                    jur = getattr(rate_obj, "jurisdiction", "") or ""
+                    tax_type = f"{display} ({jur})" if jur else display or "GST/HST"
+        except Exception:
+            pass
+
+        return subtotal, tax_amount, total, tax_type
+    except Exception:
+        amount_total = f"${(getattr(data, 'amount_paid', 0) or 0) / 100:.2f} CAD"
+        return amount_total, "$0.00 CAD", amount_total, "GST/HST"
+
+
+def _get_failure_reason(data: object) -> str:
+    """Extract a human-readable failure reason from a Stripe invoice object."""
+    try:
+        # invoice.last_finalization_error or payment_intent last_payment_error
+        err = getattr(data, "last_finalization_error", None)
+        if not err:
+            pi = getattr(data, "payment_intent", None)
+            err = getattr(pi, "last_payment_error", None) if pi and not isinstance(pi, str) else None
+        if err:
+            msg = getattr(err, "message", None) or getattr(err, "decline_code", None)
+            if msg:
+                return str(msg)
+    except Exception:
+        pass
+    return "Charge declined"
+
+
 async def _handle_checkout_completed(data: dict, db: AsyncSession) -> None:
     customer_id: str = getattr(data, "customer", "") or ""
     metadata_obj = getattr(data, "metadata", None)
@@ -423,25 +515,67 @@ async def _handle_checkout_completed(data: dict, db: AsyncSession) -> None:
         except Exception:
             log.exception("Could not retrieve subscription %s", subscription_id)
 
-    await db.commit()
+    await audit(
+        db,
+        action=AuditAction.SUBSCRIPTION_ACTIVATED,
+        entity_type=AuditEntity.USER,
+        actor_id=user.id,
+        actor_type="system",
+        entity_id=str(user.id),
+        entity_label=user.email,
+        new_data={"tier_id": tier_id, "subscription_id": subscription_id},
+        description=f"Subscription activated via checkout (tier_id={tier_id})",
+        source="webhook",
+    )
+    await db.commit()  # single commit: tier assignment + promo redemption + audit are atomic
     log.info("checkout.session.completed: user %s assigned tier %s", user.id, tier_id)
 
     # 6.1 Subscription confirmed email
     try:
         tier_obj = await db.get(SubscriptionTier, user.tier_id) if user.tier_id else None
-        plan_name = tier_obj.name if tier_obj else "ImmigLens"
+        plan_name = tier_obj.display_name if tier_obj else "ImmigLens"
         start_date = datetime.now(timezone.utc).strftime("%B %d, %Y")
         next_date = (
             user.tier_expires_at.strftime("%B %d, %Y")
             if user.tier_expires_at else "N/A"
         )
+        # Determine billing cycle from subscription metadata
+        is_annual = False
+        if subscription_id:
+            try:
+                meta_obj = getattr(data, "metadata", None)
+                is_annual = getattr(meta_obj, "is_annual", "false").lower() == "true" if meta_obj else False
+            except Exception:
+                pass
+        billing_cycle = "Annual" if is_annual else "Monthly"
+        billing_period = "year" if is_annual else "month"
+        # Amount from tier price
+        tier_price = tier_obj.price_per_month if tier_obj else None
+        if tier_price and is_annual:
+            amount_str = f"${tier_price * 10:.2f} CAD"  # annual = 10 months
+        elif tier_price:
+            amount_str = f"${tier_price:.2f} CAD"
+        else:
+            amount_str = "N/A"
+        card_brand, card_last4 = _get_card_details(data)
         await send_subscription_confirmed_email(
             user.email,
             user.full_name or "there",
             plan_name,
-            start_date,
-            next_date,
-            f"{settings.FRONTEND_URL}/dashboard",
+            subscription_id=subscription_id or "N/A",
+            start_date=start_date,
+            billing_cycle=billing_cycle,
+            amount=amount_str,
+            billing_period=billing_period,
+            next_billing_date=next_date,
+            card_brand=card_brand,
+            card_last4=card_last4,
+            billing_email=user.email,
+            position_limit=str(tier_obj.max_active_positions) if tier_obj else "N/A",
+            seat_count="1",
+            support_tier="Standard",
+            retention_period="30 days",
+            dashboard_url=f"{settings.FRONTEND_URL}/dashboard",
         )
     except Exception:
         log.exception("Failed to send subscription_confirmed email to user %s", user.id)
@@ -487,7 +621,19 @@ async def _handle_subscription_updated(data: dict, db: AsyncSession) -> None:
                 if tier_row:
                     user.tier_id = tier_row.id
 
-    await db.commit()
+    await audit(
+        db,
+        action=AuditAction.SUBSCRIPTION_UPDATED,
+        entity_type=AuditEntity.USER,
+        actor_id=user.id,
+        actor_type="system",
+        entity_id=str(user.id),
+        entity_label=user.email,
+        new_data={"tier_id": user.tier_id, "tier_expires_at": str(user.tier_expires_at)},
+        description="Subscription updated via Stripe webhook",
+        source="webhook",
+    )
+    await db.commit()  # single commit: tier/expiry update + audit are atomic
 
 
 async def _handle_subscription_deleted(data: dict, db: AsyncSession) -> None:
@@ -498,6 +644,18 @@ async def _handle_subscription_deleted(data: dict, db: AsyncSession) -> None:
 
     user.tier_id = None
     user.tier_expires_at = None
+    await db.flush()
+    await audit(
+        db,
+        action=AuditAction.SUBSCRIPTION_CANCELLED,
+        entity_type=AuditEntity.USER,
+        actor_id=user.id,
+        actor_type="system",
+        entity_id=str(user.id),
+        entity_label=user.email,
+        description="Subscription cancelled via Stripe webhook",
+        source="webhook",
+    )
     await db.commit()
     log.info("subscription.deleted: reverted user %s to free tier", user.id)
 
@@ -545,7 +703,8 @@ async def _handle_invoice_payment_failed(data: dict, db: AsyncSession) -> None:
     billing_reason: str = getattr(data, "billing_reason", "") or ""
     attempt_count: int = getattr(data, "attempt_count", 1) or 1
     retries_remaining = max(0, 3 - attempt_count)
-    failure_reason = "Charge declined"
+    failure_reason = _get_failure_reason(data)
+    card_brand, card_last4 = _get_card_details(data)
 
     next_attempt_ts = getattr(data, "next_payment_attempt", None)
     retry_date = (
@@ -564,7 +723,7 @@ async def _handle_invoice_payment_failed(data: dict, db: AsyncSession) -> None:
         if billing_reason == "subscription_cycle":
             # Renewal-specific email (6.5)
             tier = await db.get(SubscriptionTier, user.tier_id) if user.tier_id else None
-            plan_name = tier.name if tier else "ImmigLens"
+            plan_name = tier.display_name if tier else "ImmigLens"
             renewal_date = datetime.now(timezone.utc).strftime("%B %d, %Y")
             await send_renewal_failed_email(
                 user.email,
@@ -577,6 +736,8 @@ async def _handle_invoice_payment_failed(data: dict, db: AsyncSession) -> None:
                 retry_date,
                 retries_remaining,
                 billing_url,
+                card_brand=card_brand,
+                card_last4=card_last4,
             )
         else:
             # First-payment failure email (5.2)
@@ -591,10 +752,27 @@ async def _handle_invoice_payment_failed(data: dict, db: AsyncSession) -> None:
                 retry_date,
                 retries_remaining,
                 billing_url,
+                card_brand=card_brand,
+                card_last4=card_last4,
             )
         log.info("invoice.payment_failed email sent to user %s (reason=%s)", user.id, billing_reason)
     except Exception:
         log.exception("Failed to send payment_failed email to user %s", user.id)
+
+    await audit(
+        db,
+        action=AuditAction.PAYMENT_FAILED,
+        entity_type=AuditEntity.USER,
+        actor_id=user.id,
+        actor_type="system",
+        entity_id=str(user.id),
+        entity_label=user.email,
+        metadata={"amount": amount, "billing_reason": billing_reason, "attempt_count": attempt_count, "failure_reason": failure_reason},
+        description=f"Payment failed: {failure_reason} (attempt {attempt_count})",
+        source="webhook",
+        status="failed",
+    )
+    await db.commit()
 
 
 async def _handle_invoice_paid(data: dict, db: AsyncSession) -> None:
@@ -627,17 +805,46 @@ async def _handle_invoice_paid(data: dict, db: AsyncSession) -> None:
 
     try:
         tier_obj = await db.get(SubscriptionTier, user.tier_id) if user.tier_id else None
+        card_brand, card_last4 = _get_card_details(data)
+        subtotal, tax_amount, total_amount, tax_type = _get_invoice_tax(data)
         await send_payment_successful_email(
             user.email,
             user.full_name or "there",
-            amount,
-            invoice_number,
-            tier_obj.name if tier_obj else "ImmigLens",
-            billing_start,
-            billing_end,
-            next_billing_date,
-            f"{settings.FRONTEND_URL}/billing",
+            payment_date=datetime.now(timezone.utc).strftime("%B %d, %Y"),
+            subtotal=subtotal,
+            tax_amount=tax_amount,
+            tax_type=tax_type,
+            total_amount=total_amount,
+            card_brand=card_brand,
+            card_last4=card_last4,
+            plan_name=tier_obj.display_name if tier_obj else "ImmigLens",
+            billing_start=billing_start,
+            billing_end=billing_end,
+            transaction_id=getattr(data, "charge", invoice_number) or invoice_number,
+            invoice_number=invoice_number,
+            next_billing_date=next_billing_date,
+            next_amount=total_amount,
+            invoice_url=getattr(data, "hosted_invoice_url", f"{settings.FRONTEND_URL}/billing") or f"{settings.FRONTEND_URL}/billing",
+            position_limit=str(tier_obj.max_active_positions) if tier_obj else "N/A",
+            capture_limit="Unlimited",
+            storage_limit="N/A",
+            seat_limit="1",
+            support_tier="Standard",
         )
         log.info("invoice.paid email sent to user %s", user.id)
     except Exception:
         log.exception("Failed to send payment_successful email to user %s", user.id)
+
+    await audit(
+        db,
+        action=AuditAction.PAYMENT_SUCCEEDED,
+        entity_type=AuditEntity.USER,
+        actor_id=user.id,
+        actor_type="system",
+        entity_id=str(user.id),
+        entity_label=user.email,
+        metadata={"amount": amount, "invoice_number": invoice_number},
+        description=f"Payment succeeded: {amount} (invoice {invoice_number})",
+        source="webhook",
+    )
+    await db.commit()

@@ -1,7 +1,7 @@
-{% extends "email/base.html" %}
+﻿{% extends "email/base.html" %}
 
 {% block title %}Payment received &mdash; ImmigLens &middot; {{ invoice_number }}{% endblock %}
-{% block preheader %}Payment of {{ amount }} received. Your ImmigLens subscription is active and in good standing.{% endblock %}
+{% block preheader %}Payment received. Your ImmigLens subscription is active and in good standing.{% endblock %}
 {% block content %}
 <p style="margin:0 0 20px;font-size:16px;font-weight:600;color:#111827;">Hi {{ first_name }},</p>
 
@@ -14,9 +14,25 @@
 <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
        style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin:0 0 24px;">
   <tr>
-    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #bbf7d0;">Amount charged</td>
-    <td style="padding:10px 16px;font-size:14px;color:#14532d;font-weight:700;border-bottom:1px solid #bbf7d0;">{{ amount }}</td>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #bbf7d0;">Payment date</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #bbf7d0;">{{ payment_date }}</td>
   </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #bbf7d0;">Amount charged</td>
+    <td style="padding:10px 16px;font-size:14px;color:#14532d;font-weight:700;border-bottom:1px solid #bbf7d0;">
+      {{ subtotal }} + {{ tax_amount }} ({{ tax_type }}) = <strong>{{ total_amount }}</strong>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #bbf7d0;">Payment method</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #bbf7d0;">{{ card_brand }} ending in {{ card_last4 }}</td>
+  </tr>
+  {% if billing_address is defined and billing_address %}
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #bbf7d0;">Billing address</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #bbf7d0;">{{ billing_address }}</td>
+  </tr>
+  {% endif %}
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #bbf7d0;">Plan</td>
     <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #bbf7d0;">{{ plan_name }}</td>
@@ -26,30 +42,81 @@
     <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #bbf7d0;">{{ billing_start }} &ndash; {{ billing_end }}</td>
   </tr>
   <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #bbf7d0;">Transaction ID</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #bbf7d0;">{{ transaction_id }}</td>
+  </tr>
+  <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #bbf7d0;">Invoice number</td>
     <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #bbf7d0;">{{ invoice_number }}</td>
   </tr>
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;">Next charge</td>
-    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;">{{ next_billing_date }}</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;">{{ next_billing_date }} for approximately {{ next_amount }}</td>
   </tr>
 </table>
 
 <table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
   <tr>
     <td style="background-color:#0B1F3B;border-radius:6px;">
-      <a href="{{ billing_url }}"
+      <a href="{{ invoice_url }}"
          style="display:inline-block;padding:11px 22px;color:#ffffff;font-size:14px;font-weight:600;
                 text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
-        View Billing Dashboard &rarr;
+        Download Invoice (PDF) &rarr;
       </a>
     </td>
   </tr>
 </table>
 
-<p style="margin:0;font-size:13px;color:#6b7280;line-height:1.7;">
-  A copy of this invoice is available in your Billing dashboard at any time. Invoices include
-  your GST/HST number, your billing address, and all applicable tax line items, making them
-  suitable for business expense reimbursement.
+<p style="margin:0 0 20px;font-size:13px;color:#6b7280;line-height:1.7;">
+  A copy of this invoice is available in your Billing dashboard at any time. Invoices include your
+  GST/HST number, your billing address, and all applicable tax line items, making them suitable for
+  business expense reimbursement.
 </p>
+
+<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">Your plan entitlements this period</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; <strong>Active job positions:</strong> up to {{ position_limit }}</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; <strong>Automated captures per position:</strong> {{ capture_limit }}</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; <strong>Evidence storage:</strong> {{ storage_limit }}</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; <strong>PDF report generations:</strong> unlimited</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; <strong>User seats:</strong> {{ seat_limit }}</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; <strong>Support:</strong> {{ support_tier }}</td></tr>
+</table>
+
+<p style="margin:0 0 20px;font-size:13px;color:#374151;line-height:1.7;">
+  <strong>Keep your billing details up to date.</strong> To avoid service interruptions, ensure your
+  payment method is current and your card expiry date has not passed. You can update your payment
+  method at any time from Billing Settings. ImmigLens sends a reminder 30 days before a card on
+  file expires.
+</p>
+
+<p style="margin:0 0 24px;font-size:13px;color:#374151;line-height:1.7;">
+  Warm regards,<br>
+  <strong>The ImmigLens Team</strong>
+</p>
+
+{# DISCLAIMER #}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="border-top:1px solid #EAE8E3;margin:8px 0 0;">
+  <tr>
+    <td style="padding:20px 0 0;">
+      <p style="margin:0 0 10px;font-size:11px;font-weight:700;color:#374151;letter-spacing:0.5px;text-transform:uppercase;">Disclaimer &amp; Important Information</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">About This Charge</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">This payment was charged to the payment method on file for your ImmigLens account. The amount charged reflects the plan selected at the time of billing, plus applicable Canadian federal and provincial taxes. Tax amounts are calculated based on the billing address on file. If your billing address is incorrect, update it in Billing Settings and contact <a href="mailto:info@immiglens.ca" style="color:#6b7280;">info@immiglens.ca</a> to request a corrected invoice.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Taxes &amp; GST/HST</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens charges applicable Goods and Services Tax (GST) and/or Harmonized Sales Tax (HST) based on your province of billing. If you are a GST/HST-registered business, your input tax credit (ITC) eligibility depends on your own tax situation &mdash; consult your accountant or tax advisor. ImmigLens&rsquo;s GST/HST registration number is available on your invoice. Invoices include the applicable tax breakdown and are formatted for Canadian business expense purposes.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Refund Policy</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens subscriptions are billed in advance for the billing period. Payments are generally non-refundable once a billing period has begun, except in cases of duplicate charges, system errors, or as required by applicable consumer protection legislation. If you believe you have been charged in error, contact <a href="mailto:info@immiglens.ca" style="color:#6b7280;">info@immiglens.ca</a> within 30 days of the charge date with your Transaction ID and a description of the issue. ImmigLens reviews all billing disputes within 5 business days.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Subscription Auto-Renewal</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">Your ImmigLens subscription renews automatically at the end of each billing period using the payment method on file. You will receive a renewal reminder email before each renewal. To cancel auto-renewal, go to Billing Settings &rarr; Cancel Subscription. Cancellation takes effect at the end of the current billing period &mdash; you retain full access until then. No partial-period refunds are issued upon cancellation.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Billing Security</p>
+      <p style="margin:0 0 0;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens does not store your full card details. All payment processing is handled by Stripe, which is PCI DSS Level 1 compliant. ImmigLens stores only the last four digits of your card number and the expiry date for identification purposes. If you suspect fraudulent use of your payment method, contact your card issuer immediately and then notify us at <a href="mailto:support@immiglens.ca" style="color:#6b7280;">support@immiglens.ca</a>.</p>
+    </td>
+  </tr>
+</table>
 {% endblock %}

@@ -118,11 +118,15 @@ export default function Dashboard() {
   const { user } = useAuth()
   const [statsData, setStatsData] = useState<DashboardStats | null>(null)
   const [planData, setPlanData]   = useState<UsageSummary | null>(null)
+  const [planError, setPlanError] = useState<string | null>(null)
   const [loading, setLoading]     = useState(true)
 
   useEffect(() => {
-    Promise.all([statsApi.get(), subApi.usage()])
-      .then(([s, plan]) => { setStatsData(s); setPlanData(plan) })
+    Promise.all([
+      statsApi.get(),
+      subApi.usage().catch((e: Error) => { setPlanError(e.message); return null }),
+    ])
+      .then(([s, plan]) => { setStatsData(s); if (plan) setPlanData(plan) })
       .finally(() => setLoading(false))
   }, [])
 
@@ -171,6 +175,12 @@ export default function Dashboard() {
       </div>
 
       {/* ── Plan card ───────────────────────────────────── */}
+      {planError && (
+        <div className="db-plan-card" style={{ background: 'linear-gradient(135deg,#374151,#1f2937)', padding: '1rem 1.5rem' }}>
+          <div className="db-plan-texture" />
+          <div style={{ color: '#fca5a5', fontSize: '0.85rem' }}>⚠ {planError}</div>
+        </div>
+      )}
       {planData && (
         <div className="db-plan-card" style={{ background: planGradient(planData.tier.name) }}>
           {/* Subtle texture layer */}

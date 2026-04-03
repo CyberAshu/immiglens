@@ -68,6 +68,6 @@ async def create_user(
         acceptable_use_accepted_at=now if acceptable_use_accepted else None,
     )
     db.add(user)
-    await db.commit()
+    await db.flush()   # assigns user.id; caller owns commit()
     await db.refresh(user)
     return user

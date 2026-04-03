@@ -22,10 +22,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import log_action
+from app.core.audit import audit
+from app.core.audit_events import AuditAction, AuditEntity
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.dependencies import get_client_ip, get_current_user
+from app.core.dependencies import get_current_user
 from app.models.organization import OrgInvitation, OrgMembership, OrgRole, Organization
 from app.models.user import User
 from app.services.email_service import send_invitation_email
@@ -81,19 +82,23 @@ async def create_organization(
     org = Organization(name=body.name, created_by=current_user.id)
     db.add(org)
     await db.flush()
-
-    # Creator automatically becomes the owner
     membership = OrgMembership(
         org_id=org.id, user_id=current_user.id, role=OrgRole.OWNER
     )
     db.add(membership)
+    await audit(
+        db,
+        action=AuditAction.ORG_CREATED,
+        entity_type=AuditEntity.ORGANIZATION,
+        actor_id=current_user.id,
+        entity_id=org.id,
+        entity_label=org.name,
+        description=f'Created organization "{org.name}"',
+        new_data={"name": org.name},
+        request=request,
+    )
     await db.commit()
     await db.refresh(org)
-    await log_action(db, user_id=current_user.id, action="CREATE",
-                     resource_type="organization", resource_id=org.id,
-                     new_data={"name": org.name},
-                     ip_address=get_client_ip(request))
-    await db.commit()
     return org
 
 
@@ -143,10 +148,17 @@ async def delete_organization(
     if not m or m.role != OrgRole.OWNER:
         raise HTTPException(status_code=403, detail="Only the owner can delete an organization")
     org = await _require_org(db, org_id)
-    await log_action(db, user_id=current_user.id, action="DELETE",
-                     resource_type="organization", resource_id=org.id,
-                     old_data={"name": org.name},
-                     ip_address=get_client_ip(request))
+    await audit(
+        db,
+        action=AuditAction.ORG_DELETED,
+        entity_type=AuditEntity.ORGANIZATION,
+        actor_id=current_user.id,
+        entity_id=org.id,
+        entity_label=org.name,
+        description=f'Deleted organization "{org.name}"',
+        old_data={"name": org.name},
+        request=request,
+    )
     await db.delete(org)
     await db.commit()
 
@@ -183,6 +195,7 @@ async def change_member_role(
     org_id: int,
     uid: int,
     role: OrgRole,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -192,7 +205,19 @@ async def change_member_role(
         raise HTTPException(status_code=404, detail="Member not found")
     if target.role == OrgRole.OWNER:
         raise HTTPException(status_code=400, detail="Cannot change the owner's role")
+    old_role = target.role
     target.role = role
+    await audit(
+        db,
+        action=AuditAction.ORG_MEMBER_ROLE_CHANGED,
+        entity_type=AuditEntity.ORG_MEMBER,
+        actor_id=current_user.id,
+        entity_id=target.id,
+        description=f'Changed member #{uid} role from {old_role} to {role} in organization #{org_id}',
+        old_data={"role": str(old_role)},
+        new_data={"role": str(role), "user_id": uid, "org_id": org_id},
+        request=request,
+    )
     await db.commit()
     await db.refresh(target)
     return target
@@ -212,10 +237,16 @@ async def remove_member(
         raise HTTPException(status_code=404, detail="Member not found")
     if target.role == OrgRole.OWNER:
         raise HTTPException(status_code=400, detail="Cannot remove the organization owner")
-    await log_action(db, user_id=current_user.id, action="DELETE",
-                     resource_type="org_member", resource_id=target.id,
-                     old_data={"user_id": uid, "org_id": org_id},
-                     ip_address=get_client_ip(request))
+    await audit(
+        db,
+        action=AuditAction.ORG_MEMBER_REMOVED,
+        entity_type=AuditEntity.ORG_MEMBER,
+        actor_id=current_user.id,
+        entity_id=target.id,
+        description=f'Removed member (user #{uid}) from organization #{org_id}',
+        old_data={"user_id": uid, "org_id": org_id},
+        request=request,
+    )
     await db.delete(target)
     await db.commit()
 
@@ -255,13 +286,20 @@ async def invite_member(
         expires_at=datetime.now(timezone.utc) + timedelta(hours=settings.INVITATION_EXPIRE_HOURS),
     )
     db.add(invitation)
-    await db.commit()
+    await db.flush()  # assign invitation.id before passing to audit
+    await audit(
+        db,
+        action=AuditAction.ORG_INVITATION_SENT,
+        entity_type=AuditEntity.ORG_INVITATION,
+        actor_id=current_user.id,
+        entity_id=invitation.id,
+        entity_label=body.email,
+        description=f'Sent invitation to {body.email} as {body.role} for organization #{org_id}',
+        new_data={"email": body.email, "role": body.role, "org_id": org_id},
+        request=request,
+    )
+    await db.commit()  # single commit: invitation + audit are atomic
     await db.refresh(invitation)
-    await log_action(db, user_id=current_user.id, action="CREATE",
-                     resource_type="org_invitation", resource_id=invitation.id,
-                     new_data={"email": body.email, "role": body.role, "org_id": org_id},
-                     ip_address=get_client_ip(request))
-    await db.commit()
 
     accept_url = f"{settings.FRONTEND_URL}/accept-invite?token={invitation.token}"
     try:
@@ -272,6 +310,8 @@ async def invite_member(
             invitation.role,
             invitation.expires_at.strftime("%B %d, %Y"),
             accept_url,
+            invited_at=datetime.now(timezone.utc).strftime("%B %d, %Y at %H:%M UTC"),
+            inviter_email=current_user.email,
         )
     except Exception:
         logger.warning("Invitation email failed for %s (org=%s)", body.email, org_id)

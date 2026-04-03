@@ -12,10 +12,11 @@ if TYPE_CHECKING:
 
 
 class NotificationEvent(str, PyEnum):
-    CAPTURE_COMPLETE = "capture_complete"
-    CAPTURE_FAILED   = "capture_failed"
-    POSTING_CHANGED  = "posting_changed"
-    ROUND_STARTED    = "round_started"
+    CAPTURE_COMPLETE        = "capture_complete"
+    CAPTURE_FAILED          = "capture_failed"
+    POSTING_CHANGED         = "posting_changed"
+    ROUND_STARTED           = "round_started"
+    POSITION_LIMIT_WARNING  = "position_limit_warning"
 
 
 class NotificationChannel(str, PyEnum):

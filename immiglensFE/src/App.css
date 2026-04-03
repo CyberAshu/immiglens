@@ -1696,67 +1696,6 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
 .audit-print-header {
   display: none;
 }
-/* ===== Print stylesheet ===== */
-@media print {
-  /* Hide everything except the printable audit section */
-  body * { visibility: hidden !important; }
-  .audit-printable,
-  .audit-printable * { visibility: visible !important; }
-
-  .audit-printable {
-    position: fixed;
-    inset: 0;
-    padding: 1.5cm 1.5cm 2cm;
-    background: #fff;
-  }
-
-  /* Show the print header */
-  .audit-print-header {
-    display: block !important;
-    margin-bottom: 1rem;
-    border-bottom: 2px solid #0B1F3B;
-    padding-bottom: 0.6rem;
-  }
-  .audit-print-title {
-    font-size: 1.2rem;
-    font-weight: 700;
-    color: #0B1F3B;
-  }
-  .audit-print-meta {
-    font-size: 0.75rem;
-    color: #6b7280;
-    margin-top: 0.2rem;
-  }
-
-  /* Table-like print layout */
-  .audit-list {
-    border: 1px solid #d1d5db !important;
-    border-radius: 0 !important;
-  }
-  .audit-row {
-    grid-template-columns: 32px 1fr auto auto !important;
-    padding: 0.5rem 0.6rem !important;
-    page-break-inside: avoid;
-  }
-  .audit-icon { width: 24px !important; height: 24px !important; }
-  .audit-summary { font-size: 0.82rem !important; }
-  .audit-meta   { font-size: 0.7rem !important; }
-  .audit-who-name  { font-size: 0.75rem !important; }
-  .audit-who-email { font-size: 0.68rem !important; }
-  .audit-actions-col { display: none !important; }
-  .audit-detail-pane { display: none !important; }
-
-  /* Hide all navigation, filters, pagination, buttons */
-  .audit-filter-panel,
-  .audit-export-actions,
-  .pagination-bar,
-  .page-header .audit-export-actions,
-  nav,
-  aside,
-  header,
-  .sidebar,
-  .topbar { display: none !important; }
-}
 
 /* ===== Filter bar ===== */
 .filter-bar {
@@ -1825,126 +1764,228 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   letter-spacing: 0.05em;
 }
 
-/* ===== Activity Log — card list layout ===== */
-.audit-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  border: 1px solid #e5e7eb;
+/* ===== Activity Log — Data Table ===== */
+
+/* Scroll wrapper so table doesn't break the page on narrow screens */
+.audit-table-wrap {
   border-radius: 10px;
+  border: 1px solid #e5e7eb;
   overflow: hidden;
   background: #fff;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-.audit-row {
-  display: grid;
-  grid-template-columns: 44px 1fr auto 90px;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.85rem 1rem;
-  border-bottom: 1px solid #f3f4f6;
-  transition: background 0.1s;
-}
-.audit-row:last-child { border-bottom: none; }
-.audit-row:hover { background: #fafafa; }
-.audit-row--expanded { background: #f8fafc; border-bottom: none; }
-
-.audit-icon-col { display: flex; align-items: flex-start; justify-content: center; padding-top: 0.1rem; }
-.audit-icon {
-  width: 36px; height: 36px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 8px;
-  flex-shrink: 0;
-  transition: opacity 0.15s;
-}
 .audit-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.6rem;
-  padding: 3rem 1rem;
+  padding: 3.5rem 1rem;
   color: #9ca3af;
   font-size: 0.9rem;
 }
 
-.audit-main { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
-
-.audit-summary {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #1E2329;
-  line-height: 1.3;
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  min-width: 820px;
 }
 
-.audit-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.audit-action-pill {
+/* ── Table header ── */
+.audit-th {
+  background: #0B1F3B;
+  color: rgba(255,255,255,0.75);
+  text-align: left;
   font-size: 0.7rem;
   font-weight: 700;
-  padding: 1px 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0.7rem 0.875rem;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.audit-th.audit-th-desc { width: 30%; }
+.audit-th.audit-th-btn  { width: 44px; padding: 0; }
+
+/* ── Table rows ── */
+.audit-tr {
+  border-bottom: 1px solid #f1f5f9;
+  transition: background 0.1s;
+}
+.audit-tr:hover { background: #f8fafc; }
+/* Row that has a detail sub-row — its bottom border is removed so the group runs together */
+.audit-tr--has-detail {
+  border-bottom: none;
+}
+
+/* ── Table cells ── */
+.audit-td {
+  padding: 0.75rem 0.875rem;
+  vertical-align: top;
+  color: #374151;
+}
+
+/* Date / Time column */
+.audit-td-time { white-space: nowrap; min-width: 110px; }
+.audit-date {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1e2329;
+  line-height: 1.3;
+}
+.audit-time-sm {
+  font-size: 0.72rem;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+/* Action column */
+.audit-td-action { min-width: 130px; }
+.audit-action-pill {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 3px 8px;
   border-radius: 20px;
   border: 1px solid;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
+  max-width: 160px;
+}
+
+/* Resource column */
+.audit-td-resource { min-width: 140px; }
+.audit-res-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.audit-res-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.audit-res-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.audit-res-type {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+}
+.audit-res-sub {
+  font-size: 0.72rem;
+  color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+/* Description column */
+.audit-td-desc { }
+.audit-summary-text {
+  font-size: 0.875rem;
+  color: #374151;
+  line-height: 1.45;
+}
+
+/* Performed By column */
+.audit-td-who { min-width: 130px; }
+.audit-actor-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1e2329;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+.audit-actor-email {
+  font-size: 0.72rem;
+  color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+  margin-top: 2px;
+}
+.audit-actor-system {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 2px 8px 2px 6px;
   white-space: nowrap;
 }
 
-.audit-res-tag {
-  font-size: 0.75rem;
+/* Status column */
+.audit-td-status { min-width: 80px; white-space: nowrap; }
+.audit-status-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 20px;
+  border: 1px solid;
+}
+.audit-status-success {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+.audit-status-failed {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+.audit-source-tag {
+  font-size: 0.68rem;
   color: #6b7280;
   background: #f3f4f6;
   border-radius: 4px;
-  padding: 1px 6px;
-  white-space: nowrap;
-}
-
-.audit-time {
-  font-size: 0.75rem;
-  color: #9ca3af;
-  white-space: nowrap;
-}
-
-.audit-who {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.1rem;
-  min-width: 0;
-}
-.audit-who-name  { font-size: 0.82rem; font-weight: 600; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
-.audit-who-email { font-size: 0.72rem; color: #9ca3af; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
-
-.audit-actions-col { display: flex; justify-content: flex-end; }
-
-.audit-details-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.78rem;
+  padding: 1px 5px;
+  margin-top: 4px;
+  display: inline-block;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   font-weight: 600;
-  color: #6b7280;
-  background: transparent;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 0.25rem 0.6rem;
-  cursor: pointer;
-  transition: all 0.15s;
-  font-family: inherit;
-  white-space: nowrap;
 }
-.audit-details-btn:hover { background: #f3f4f6; border-color: #9ca3af; color: #374151; }
-.audit-details-btn svg { flex-shrink: 0; }
+.audit-ip-sm {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  font-family: 'Courier New', monospace;
+  margin-top: 4px;
+}
 
-/* ===== Tier Cards ===== */
-.audit-detail-pane {
-  background: #f8fafc;
-  border-bottom: 1px solid #e5e7eb;
-  padding: 0.75rem 1rem 1rem calc(44px + 0.75rem + 1rem);
+/* Expand button column — removed (no expand/collapse, detail always visible) */
+
+/* ── Always-visible detail row ── */
+.audit-tr-detail {
+  background: #fafbfc;
+  border-bottom: 2px solid #e5e7eb;   /* stronger separator marks end of each log group */
+}
+.audit-tr-detail:last-child { border-bottom: none; }
+.audit-detail-inner {
+  padding: 1rem 1.25rem 1.25rem;
 }
 .audit-change-grid {
   display: grid;
@@ -1987,8 +2028,178 @@ button.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
   color: #1E2329;
   word-break: break-word;
 }
+.audit-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  flex-wrap: wrap;
+}
+.audit-detail-ua {
+  font-size: 0.7rem;
+  color: #cbd5e1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 400px;
+}
 
-/* ===== Tier Cards ===== */
+/* IP address badge (used inline in filters area) */
+.audit-ip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 1px 5px;
+  white-space: nowrap;
+  font-family: 'Courier New', monospace;
+}
+
+/* ===== Print stylesheet ===== */
+@media print {
+  /* ── Page setup ── */
+  @page {
+    size: A4 landscape;           /* landscape gives the table enough width */
+    margin: 12mm 10mm 14mm 10mm;
+  }
+
+  /* ── Step 1: nuke every chrome element with display:none ─────────────
+     Visibility tricks leave elements in the layout flow (sidebar still
+     steals width). display:none removes them from layout entirely.        */
+  .navbar,
+  .app-body > .sidebar,
+  .page-header,
+  .audit-filter-panel,
+  .audit-export-actions,
+  .pagination-bar,
+  .back-to-top,
+  nav.sidebar-nav,
+  aside.sidebar { display: none !important; }
+
+  /* ── Step 2: remove app-body flex so .page-main fills full width ── */
+  .app        { display: block !important; }
+  .app-body   { display: block !important; }
+  .page-main  {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* ── Step 3: the audit page wrapper ── */
+  .page {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* ── Step 4: print header (hidden on screen) ── */
+  .audit-print-header {
+    display: block !important;
+    margin-bottom: 6pt;
+    border-bottom: 2pt solid #0B1F3B;
+    padding-bottom: 4pt;
+  }
+  .audit-print-title {
+    font-size: 12pt;
+    font-weight: 700;
+    color: #0B1F3B;
+  }
+  .audit-print-meta {
+    font-size: 7.5pt;
+    color: #6b7280;
+    margin-top: 2pt;
+  }
+
+  /* ── Step 5: the table wrapper ── */
+  .audit-table-wrap {
+    border: 1pt solid #c8d2e0 !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    width: 100% !important;
+  }
+
+  /* ── Step 6: the table itself ── */
+  .audit-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: 7.5pt !important;
+    border-collapse: collapse !important;
+    table-layout: auto !important;
+  }
+
+  /* ── Step 7: column header — force colors, remove sticky ── */
+  .audit-th {
+    position: static !important;    /* kill sticky — it breaks page flow */
+    background: #0B1F3B !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-size: 7pt !important;
+    padding: 5pt 5pt !important;
+    white-space: nowrap;
+  }
+  /* Repeat the header on every printed page */
+  thead { display: table-header-group !important; }
+  tbody { display: table-row-group !important; }
+
+  /* ── Step 8: data cells ── */
+  .audit-td {
+    padding: 4pt 5pt !important;
+    font-size: 7.5pt !important;
+    vertical-align: top !important;
+    border-bottom: 0.5pt solid #e5e7eb !important;
+  }
+
+  /* ── Step 9: keep each log group (data row + detail row) together ── */
+  .audit-tr        { page-break-after:  avoid !important; }
+  .audit-tr-detail { page-break-before: avoid !important; break-before: avoid !important; }
+
+  /* ── Step 10: force background colors for all colored elements ── */
+  .audit-tr-detail {
+    background: #fafbfc !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .audit-td-detail { padding: 4pt 5pt !important; }
+  .audit-detail-inner { padding: 4pt !important; }
+
+  .audit-change-card--old {
+    background: #fef2f2 !important;
+    border-color: #fecaca !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .audit-change-card--new {
+    background: #f0fdf4 !important;
+    border-color: #bbf7d0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .audit-action-pill,
+  .audit-status-badge,
+  .audit-res-icon {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── Step 11: description column — allow wrapping, don't clip ── */
+  .audit-td-desc       { word-break: break-word !important; }
+  .audit-summary-text  { white-space: normal !important; }
+  .audit-res-sub,
+  .audit-actor-name,
+  .audit-actor-email   { max-width: none !important; }
+}
+
+/* ===== Pagination ===== */
 .pagination-bar {
   display: flex;
   align-items: center;

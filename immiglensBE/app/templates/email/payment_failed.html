@@ -23,6 +23,10 @@
     <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #fecaca;">{{ attempted_at }}</td>
   </tr>
   <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fecaca;">Payment method</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #fecaca;">{{ card_brand }} ending in {{ card_last4 }}</td>
+  </tr>
+  <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fecaca;">Failure reason</td>
     <td style="padding:10px 16px;font-size:13px;color:#b91c1c;font-weight:600;border-bottom:1px solid #fecaca;">{{ failure_reason }}</td>
   </tr>
@@ -35,12 +39,28 @@
     <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #fecaca;">{{ retry_date }}</td>
   </tr>
   <tr>
-    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;">Retries remaining</td>
-    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;">{{ retries_remaining }} automatic retries remaining</td>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fecaca;">Retries remaining</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #fecaca;">{{ retries_remaining }} automatic retries remaining</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;">Account status</td>
+    <td style="padding:10px 16px;font-size:13px;color:#b91c1c;font-weight:500;">Active &mdash; restricted (new positions cannot be created)</td>
   </tr>
 </table>
 
-<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="background-color:#fff7ed;border:1px solid #fed7aa;border-radius:6px;margin:0 0 20px;">
+  <tr>
+    <td style="padding:12px 16px;font-size:13px;color:#9a3412;line-height:1.65;">
+      <strong>Action required &mdash; update your payment method.</strong> Your account remains accessible
+      during the grace period, but the creation of new Job Positions has been disabled until payment
+      is resolved. All existing positions, capture schedules, evidence, and reports remain fully
+      accessible and unaffected.
+    </td>
+  </tr>
+</table>
+
+<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 24px;">
   <tr>
     <td style="background-color:#dc2626;border-radius:6px;">
       <a href="{{ billing_url }}"
@@ -53,15 +73,56 @@
 </table>
 
 <p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">What happens during the grace period</p>
-<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 16px;">
-  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; All existing Job Positions remain active and capture schedules continue to run</td></tr>
-  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; Evidence Timeline, screenshots, and all existing reports remain accessible</td></tr>
-  <tr><td style="padding:4px 0;font-size:13px;color:#b91c1c;font-weight:500;line-height:1.6;">&bull;&nbsp; New Job Positions cannot be created until payment is resolved</td></tr>
-  <tr><td style="padding:4px 0;font-size:13px;color:#b91c1c;font-weight:500;line-height:1.6;">&bull;&nbsp; If all retries fail by {{ grace_period_end }}, your account will be suspended</td></tr>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; All existing Job Positions remain active and capture schedules continue to run</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; Evidence Timeline, screenshots, and all existing reports remain accessible</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; New Job Positions cannot be created until payment is resolved</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; ImmigLens will retry the payment automatically on <strong>{{ retry_date }}</strong></td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; If all retries fail by <strong>{{ grace_period_end }}</strong>, your account will be suspended</td></tr>
 </table>
 
-<p style="margin:0;font-size:13px;color:#6b7280;line-height:1.7;">
-  Questions? Reply to this email or contact
-  <a href="mailto:info@immiglens.ca" style="color:#0B1F3B;text-decoration:none;">info@immiglens.ca</a>.
+<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">How to resolve this</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; Update your payment method from Billing Settings &mdash; the retry will then proceed automatically</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; If your card has expired, replace it with a new card or add an alternative payment method</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; If you believe this is a bank-side error, contact your card issuer to authorize the charge</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; If you need to discuss your subscription, reply to this email or contact <a href="mailto:info@immiglens.ca" style="color:#374151;">info@immiglens.ca</a></td></tr>
+</table>
+
+<p style="margin:0 0 24px;font-size:13px;color:#374151;line-height:1.7;">
+  If payment is not resolved by <strong>{{ grace_period_end }}</strong>, your account will be
+  suspended. Account suspension means capture schedules will stop and you will not be able to
+  generate new reports. Your data will be retained for 30 days following suspension, after which
+  it may be permanently deleted.
 </p>
+
+<p style="margin:0 0 24px;font-size:13px;color:#374151;line-height:1.7;">
+  Warm regards,<br>
+  <strong>The ImmigLens Team</strong>
+</p>
+
+{# DISCLAIMER #}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="border-top:1px solid #EAE8E3;margin:8px 0 0;">
+  <tr>
+    <td style="padding:20px 0 0;">
+      <p style="margin:0 0 10px;font-size:11px;font-weight:700;color:#374151;letter-spacing:0.5px;text-transform:uppercase;">Disclaimer &amp; Important Information</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Grace Period Terms</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens provides a grace period following a payment failure, during which existing account functionality remains available (with the restriction on new position creation noted above). This grace period is provided as a courtesy and does not constitute a waiver of payment obligations. ImmigLens reserves the right to modify the grace period duration for accounts with a history of repeated payment failures.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Account Suspension</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">If payment is not resolved by the end of the grace period, your account will be suspended. During suspension: all capture schedules are paused, the dashboard becomes read-only, new reports cannot be generated, and access to new features is restricted. Suspended accounts are not deleted immediately &mdash; your data is retained for 30 days from the date of suspension, provided a subscription is not reactivated. After 30 days, data may be permanently and irreversibly deleted. ImmigLens will send reminder notifications before data deletion occurs.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Retry Schedule</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens automatically retries failed payments on a scheduled basis. {{ retries_remaining }} retries remain for this billing cycle. If all retries fail, the subscription is cancelled and the account suspended. To stop the retry cycle and prevent further decline fees from your bank, update your payment method or cancel your subscription from Billing Settings.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Impact on LMIA Evidence</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">If capture schedules are paused due to account suspension, gaps may appear in your LMIA evidence timeline. ImmigLens is not responsible for evidence gaps resulting from account suspension due to non-payment. If you are in the middle of an active LMIA application period, we strongly recommend resolving the payment issue as quickly as possible to avoid disruption to your evidence capture.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Disputing a Charge</p>
+      <p style="margin:0 0 0;font-size:11px;color:#6b7280;line-height:1.65;">If you believe the payment was declined in error or you have been charged an incorrect amount, contact <a href="mailto:info@immiglens.ca" style="color:#6b7280;">info@immiglens.ca</a> before initiating a chargeback with your card issuer. Chargebacks may result in immediate account suspension. ImmigLens investigates all billing disputes promptly and will work to resolve legitimate issues within 3 business days.</p>
+    </td>
+  </tr>
+</table>
 {% endblock %}
