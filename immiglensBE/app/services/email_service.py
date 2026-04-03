@@ -599,6 +599,46 @@ async def send_plan_limit_email(
     )
 
 
+# ── 6.10 Position limit warning (80%) ────────────────────────────────────────
+
+async def send_position_limit_warning_email(
+    to: str,
+    first_name: str,
+    plan_name: str,
+    position_limit: int,
+    active_count: int,
+    manage_url: str,
+    upgrade_url: str,
+) -> None:
+    percent = int(active_count / position_limit * 100)
+    remaining = position_limit - active_count
+    html = render_email("plan_limit.html", {
+        "first_name": first_name,
+        "plan_name": plan_name,
+        "position_limit": position_limit,
+        "active_count": active_count,
+        "warning_mode": True,
+        "percent_used": percent,
+        "remaining": remaining,
+        "manage_url": manage_url,
+        "upgrade_url": upgrade_url,
+    })
+    plain = (
+        f"Hi {first_name},\n\n"
+        f"You\u2019re approaching the active position limit on your {plan_name} plan.\n"
+        f"You\u2019ve used {active_count} of {position_limit} positions ({percent}%).\n"
+        f"{remaining} position(s) remaining before you hit your limit.\n\n"
+        f"Manage positions: {manage_url}\n"
+        f"Upgrade your plan: {upgrade_url}"
+    )
+    await send_email(
+        to,
+        f"You\u2019ve used {percent}% of your active position limit \u2014 ImmigLens",
+        plain,
+        html,
+    )
+
+
 # ── Invitation ────────────────────────────────────────────────────────────────
 
 async def send_invitation_email(

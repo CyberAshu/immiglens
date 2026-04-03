@@ -1,19 +1,26 @@
 {% extends "email/base.html" %}
 
-{% block title %}You've reached your active position limit &mdash; ImmigLens{% endblock %}
-{% block preheader %}You've reached the {{ position_limit }}-position limit on your {{ plan_name }} plan. Archive a position or upgrade to continue.{% endblock %}
+{% block title %}{% if warning_mode %}You're approaching your active position limit{% else %}You've reached your active position limit{% endif %} &mdash; ImmigLens{% endblock %}
+{% block preheader %}{% if warning_mode %}You've used {{ percent_used }}% of your {{ position_limit }}-position limit on your {{ plan_name }} plan. {{ remaining }} slot(s) remaining.{% else %}You've reached the {{ position_limit }}-position limit on your {{ plan_name }} plan. Archive a position or upgrade to continue.{% endif %}{% endblock %}
 {% block content %}
 <p style="margin:0 0 20px;font-size:16px;font-weight:600;color:#111827;">Hi {{ first_name }},</p>
 
 <p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.7;">
+{% if warning_mode %}
+  You are approaching the active Job Position limit on your current ImmigLens plan. You have used
+  <strong>{{ active_count }} of {{ position_limit }} positions ({{ percent_used }}%)</strong>.
+  You have <strong>{{ remaining }} slot(s) remaining</strong>. Consider upgrading your plan before
+  you reach the limit to avoid any disruption.
+{% else %}
   You have reached the active Job Position limit on your current ImmigLens plan. You will not be
   able to create new Job Positions until you either archive an existing position or upgrade to a
   higher plan.
+{% endif %}
 </p>
 
 {# Plan limit summary #}
 <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
-       style="background-color:#fffbeb;border:1px solid #fde68a;border-radius:6px;margin:0 0 24px;">
+       style="background-color:{% if warning_mode %}#fffbeb{% else %}#fffbeb{% endif %};border:1px solid #fde68a;border-radius:6px;margin:0 0 24px;">
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fde68a;">Current plan</td>
     <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #fde68a;">{{ plan_name }}</td>
@@ -24,11 +31,19 @@
   </tr>
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fde68a;">Active positions in use</td>
+    {% if warning_mode %}
+    <td style="padding:10px 16px;font-size:14px;color:#d97706;font-weight:700;border-bottom:1px solid #fde68a;">{{ active_count }} of {{ position_limit }} &mdash; {{ percent_used }}% used</td>
+    {% else %}
     <td style="padding:10px 16px;font-size:14px;color:#b45309;font-weight:700;border-bottom:1px solid #fde68a;">{{ active_count }} of {{ position_limit }} &mdash; limit reached</td>
+    {% endif %}
   </tr>
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fde68a;">Positions available</td>
+    {% if warning_mode %}
+    <td style="padding:10px 16px;font-size:13px;color:#d97706;font-weight:600;border-bottom:1px solid #fde68a;">{{ remaining }} remaining</td>
+    {% else %}
     <td style="padding:10px 16px;font-size:13px;color:#b45309;font-weight:600;border-bottom:1px solid #fde68a;">0 &mdash; limit reached</td>
+    {% endif %}
   </tr>
   {% if archived_count is defined %}
   <tr>

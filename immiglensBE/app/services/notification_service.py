@@ -61,6 +61,7 @@ _EVENTS_WITH_HTML_EMAIL: frozenset[NotificationEvent] = frozenset({
     NotificationEvent.CAPTURE_FAILED,
     NotificationEvent.ROUND_STARTED,
     NotificationEvent.POSTING_CHANGED,
+    NotificationEvent.POSITION_LIMIT_WARNING,
 })
 
 
