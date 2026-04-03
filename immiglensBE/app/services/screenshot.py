@@ -108,14 +108,33 @@ async def capture(url: str, max_attempts: int = 2) -> ScreenshotResult:
 
         if result.status == URLStatus.DONE:
             try:
+                png_bytes = dest_png.read_bytes()
+                pdf_bytes = dest_pdf.read_bytes()
+
+                # Supabase returns 400 for empty or near-empty uploads.
+                # A valid full-page PNG is always > 5 KB; anything smaller means
+                # Playwright captured a blank/bot-block page.
+                MIN_PNG_BYTES = 5_120  # 5 KB
+                if len(png_bytes) < MIN_PNG_BYTES:
+                    last_result = ScreenshotResult(
+                        url=url,
+                        status=URLStatus.FAILED,
+                        error=(
+                            f"Screenshot too small ({len(png_bytes)} bytes) — "
+                            "page may have been blocked or returned an empty response."
+                        ),
+                        duration_ms=result.duration_ms,
+                    )
+                    continue
+
                 png_filename = f"{stem}.png"
                 pdf_filename = f"{stem}_print.pdf"
 
                 png_url = await storage.upload(
-                    "screenshots", png_filename, dest_png.read_bytes(), "image/png"
+                    "screenshots", png_filename, png_bytes, "image/png"
                 )
                 pdf_url = await storage.upload(
-                    "screenshots", pdf_filename, dest_pdf.read_bytes(), "application/pdf"
+                    "screenshots", pdf_filename, pdf_bytes, "application/pdf"
                 )
                 return ScreenshotResult(
                     url=url,
