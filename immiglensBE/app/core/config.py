@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_SERVICE_KEY: str
 
-    MAX_CONCURRENT_SCREENSHOTS: int = 5
+    MAX_CONCURRENT_SCREENSHOTS: int = 2
     PAGE_TIMEOUT_MS: int = 60_000
     NETWORK_IDLE_TIMEOUT_MS: int = 10_000
     JS_SETTLE_DELAY_S: float = 1.5
