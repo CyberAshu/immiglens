@@ -38,6 +38,8 @@ class BrowserManager:
                     "--disable-setuid-sandbox",
                     "--disable-dev-shm-usage",
                     "--disable-gpu",
+                    "--no-zygote",
+                    "--js-flags=--max-old-space-size=128",
                 ]
             )
             self._browser.on("disconnected", lambda _: self._on_disconnected())
@@ -67,7 +69,7 @@ class BrowserManager:
                 try:
                     browser = await self._ensure_browser()
                     context = await browser.new_context(
-                        viewport={"width": 1440, "height": 900},
+                        viewport={"width": 1280, "height": 720},
                         user_agent=(
                             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                             "AppleWebKit/537.36 (KHTML, like Gecko) "

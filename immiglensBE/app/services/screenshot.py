@@ -27,8 +27,8 @@ async def _attempt_capture(url: str, dest: Path, pdf_dest: Path) -> ScreenshotRe
     """Single capture attempt — saves full-page PNG and print-layout PDF."""
     start = time.monotonic()
 
-    async with browser_manager.acquire_page() as page:
-        try:
+    try:
+        async with browser_manager.acquire_page() as page:
             await page.goto(url, timeout=settings.PAGE_TIMEOUT_MS, wait_until="commit")
 
             try:
@@ -76,19 +76,19 @@ async def _attempt_capture(url: str, dest: Path, pdf_dest: Path) -> ScreenshotRe
                 duration_ms=duration,
             )
 
-        except PlaywrightTimeoutError:
-            duration = int((time.monotonic() - start) * 1000)
-            return ScreenshotResult(
-                url=url, status=URLStatus.FAILED,
-                error="Navigation timed out.", duration_ms=duration,
-            )
+    except PlaywrightTimeoutError:
+        duration = int((time.monotonic() - start) * 1000)
+        return ScreenshotResult(
+            url=url, status=URLStatus.FAILED,
+            error="Navigation timed out.", duration_ms=duration,
+        )
 
-        except Exception as exc:
-            duration = int((time.monotonic() - start) * 1000)
-            return ScreenshotResult(
-                url=url, status=URLStatus.FAILED,
-                error=str(exc), duration_ms=duration,
-            )
+    except Exception as exc:
+        duration = int((time.monotonic() - start) * 1000)
+        return ScreenshotResult(
+            url=url, status=URLStatus.FAILED,
+            error=str(exc), duration_ms=duration,
+        )
 
 
 async def capture(url: str, max_attempts: int = 2) -> ScreenshotResult:
