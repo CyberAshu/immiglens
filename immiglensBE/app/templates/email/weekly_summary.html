@@ -8,8 +8,9 @@
 <p style="margin:0 0 24px;font-size:13px;color:#6b7280;">{{ week_start }} &ndash; {{ week_end }}</p>
 
 <p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.7;">
-  Hi {{ first_name }}, here is your ImmigLens activity summary for the week above.
-  This digest covers all capture activity, evidence milestones, and items that may need your attention.
+  Hi {{ first_name }}, here is your ImmigLens activity summary for the week of
+  <strong>{{ week_start }}</strong> to <strong>{{ week_end }}</strong>.
+  This digest covers all capture activity, evidence milestones, and any items that may need your attention.
 </p>
 
 {# Week at a glance #}
@@ -24,18 +25,37 @@
       <span style="{% if stats.failed > 0 %}color:#dc2626;{% endif %}">{{ stats.failed }} failed</span>
     </td>
   </tr>
+  {% if stats.success_rate is defined and stats.success_rate != '' %}
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Success rate</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #e5e7eb;">{{ stats.success_rate }}% (vs. prior week)</td>
+  </tr>
+  {% endif %}
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Screenshots captured</td>
     <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #e5e7eb;">{{ stats.screenshots }} new screenshots</td>
   </tr>
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Active positions</td>
-    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #e5e7eb;">{{ stats.active_positions }} active &middot; {{ stats.paused_positions }} paused</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #e5e7eb;">
+      {{ stats.active_positions }} active &middot; {{ stats.paused_positions }} paused
+      {% if stats.archived_this_week is defined and stats.archived_this_week %}
+        &middot; {{ stats.archived_this_week }} archived this week
+      {% endif %}
+    </td>
   </tr>
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Reports generated</td>
     <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #e5e7eb;">{{ stats.reports }} PDF reports</td>
   </tr>
+  {% if stats.storage_used is defined and stats.storage_used != '' %}
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Storage used</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #e5e7eb;">
+      {{ stats.storage_used }}{% if stats.storage_limit is defined and stats.storage_limit %} of {{ stats.storage_limit }}{% endif %}{% if stats.storage_pct is defined and stats.storage_pct %} ({{ stats.storage_pct }}% used){% endif %}
+    </td>
+  </tr>
+  {% endif %}
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;">Next captures</td>
     <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;">{{ stats.next_captures }} captures scheduled for next week</td>
@@ -91,14 +111,37 @@
 </table>
 {% else %}
 <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
-       style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin:0 0 24px;">
+       style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin:0 0 16px;">
   <tr>
     <td style="padding:12px 16px;font-size:13px;color:#14532d;line-height:1.65;">
       <strong>No action items this week.</strong> Your evidence collection is running cleanly.
     </td>
   </tr>
 </table>
+<p style="margin:0 0 24px;font-size:13px;color:#6b7280;line-height:1.7;">
+  You can still review the full Evidence Timeline for each position to confirm coverage looks
+  complete before your next LMIA submission.
+</p>
 {% endif %}
+
+{% if looking_ahead is defined and looking_ahead %}
+<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">Looking ahead to next week</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="background-color:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;margin:0 0 20px;">
+  <tr>
+    <td style="padding:14px 16px;">
+      {% for item in looking_ahead %}
+      <p style="margin:0 0 {% if not loop.last %}4px{% else %}0{% endif %};font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; {{ item }}</p>
+      {% endfor %}
+    </td>
+  </tr>
+</table>
+{% endif %}
+
+<p style="margin:0 0 24px;font-size:13px;color:#374151;line-height:1.7;">
+  Warm regards,<br>
+  <strong>The ImmigLens Team</strong>
+</p>
 
 <table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 8px;">
   <tr>
@@ -108,6 +151,31 @@
                 text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
         View Full Dashboard &rarr;
       </a>
+    </td>
+  </tr>
+</table>
+
+{# DISCLAIMER #}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="border-top:1px solid #EAE8E3;margin:8px 0 0;">
+  <tr>
+    <td style="padding:20px 0 0;">
+      <p style="margin:0 0 10px;font-size:11px;font-weight:700;color:#374151;letter-spacing:0.5px;text-transform:uppercase;">Disclaimer &amp; Important Information</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">About This Digest</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">This weekly summary is sent every Monday morning and covers activity from the prior calendar week (Monday 00:00 UTC to Sunday 23:59 UTC). Data shown reflects the state of your ImmigLens account at the time of report generation. Activity that occurred after the generation time will appear in next week&rsquo;s digest. Weekly summaries are sent regardless of whether any activity occurred &mdash; a digest showing zero captures may indicate a misconfiguration worth investigating.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Data Accuracy</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">The statistics in this digest are drawn from ImmigLens&rsquo;s internal capture and evidence logs. While ImmigLens strives for accuracy in all reported figures, minor discrepancies may occur due to time zone differences, in-progress capture runs at the time of report generation, or edge cases in error classification. For authoritative evidence records, always refer to the Evidence Timeline in your ImmigLens dashboard rather than the digest figures.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Attention Items Disclaimer</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">The &lsquo;Items that need your attention&rsquo; section is generated automatically based on rule-based checks (failed captures, expired URLs, long periods of inactivity). These flags are informational and do not constitute a legal assessment of whether your LMIA evidence is complete or compliant. The absence of flagged items in this digest does not guarantee that your evidence is sufficient for ESDC review. ImmigLens recommends reviewing all evidence manually with your RCIC or immigration lawyer before submitting an LMIA application.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Notification Preferences</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">You are receiving this weekly summary because the Weekly Digest option is enabled in your account&rsquo;s Notification Settings. You can switch to monthly digests, disable the digest entirely, or configure which types of events are included, from Account Settings &rarr; Notifications. Disabling the weekly digest does not affect transactional notifications such as capture failure alerts, payment notifications, or security emails.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">CASL Compliance</p>
+      <p style="margin:0 0 0;font-size:11px;color:#6b7280;line-height:1.65;">This weekly activity digest is a commercial electronic message as defined under Canada&rsquo;s Anti-Spam Legislation (CASL). You may unsubscribe from digest emails at any time using the link below. Unsubscribing from the digest does not unsubscribe you from transactional or security emails, which are sent based on account activity and cannot be disabled while your account is active.</p>
     </td>
   </tr>
 </table>

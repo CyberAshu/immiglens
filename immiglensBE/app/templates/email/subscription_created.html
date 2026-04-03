@@ -14,16 +14,52 @@
 <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
        style="background-color:#F6F4EF;border:1px solid #EAE8E3;border-radius:6px;margin:0 0 24px;">
   <tr>
-    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #c7d7ff;">Plan</td>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Plan</td>
     <td style="padding:10px 16px;font-size:14px;color:#0B1F3B;font-weight:700;border-bottom:1px solid #EAE8E3;">{{ plan_name }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Subscription ID</td>
+    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ subscription_id }}</td>
   </tr>
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Started</td>
     <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ start_date }}</td>
   </tr>
   <tr>
-    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;">Next billing date</td>
-    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;">{{ next_billing_date }}</td>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Billing cycle</td>
+    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ billing_cycle }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Amount</td>
+    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ amount }} + applicable taxes per {{ billing_period }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Next billing date</td>
+    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ next_billing_date }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Payment method</td>
+    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ card_brand }} ending in {{ card_last4 }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Billing email</td>
+    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ billing_email }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Active positions allowed</td>
+    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">Up to {{ position_limit }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Seats</td>
+    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ seat_count }} user seat(s)</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Support tier</td>
+    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ support_tier }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;">Canadian hosting</td>
+    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;">AWS ca-central-1 / Azure Canada Central</td>
   </tr>
 </table>
 
@@ -39,17 +75,66 @@
   </tr>
 </table>
 
-<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">Managing your subscription</p>
-<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 16px;">
-  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; Upgrade at any time from Billing Settings &mdash; new limits take effect immediately</td></tr>
-  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; Download invoices and receipts from the Billing Dashboard</td></tr>
-  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; Update your payment method or billing address from Billing Settings</td></tr>
-  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; Add or remove team members from Account Settings &rarr; Team</td></tr>
+<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">Full plan entitlements</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>Active Job Positions:</strong> up to {{ position_limit }} &mdash; only active positions count toward this limit; archived positions do not</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>Automated capture schedules:</strong> unlimited per active position</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>PDF report generation:</strong> unlimited regenerations per position</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>Export formats:</strong> PDF, CSV evidence log</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>User seats:</strong> {{ seat_count }} &mdash; additional seats can be added from Account Settings</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>Data retention:</strong> {{ retention_period }} beyond subscription end date</td></tr>
 </table>
 
-<p style="margin:0;font-size:13px;color:#6b7280;line-height:1.7;">
-  Questions? Contact us at
-  <a href="mailto:support@immiglens.ca" style="color:#0B1F3B;text-decoration:none;">support@immiglens.ca</a>.
-  We typically respond within one business day.
+<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">Managing your subscription</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; Upgrade at any time from Billing Settings &mdash; new limits take effect immediately</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>Note:</strong> downgrading to a lower plan deactivates all active positions immediately; you will then need to manually reactivate the positions you want to keep, up to the new plan&rsquo;s limit</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; Download invoices and receipts from the Billing Dashboard</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; Update your payment method or billing address from Billing Settings</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; Add or remove team members from Account Settings &rarr; Team</td></tr>
+</table>
+
+{% if founding_member_discount is defined and founding_member_discount %}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="background-color:#fffbeb;border:1px solid #fde68a;border-radius:6px;margin:0 0 24px;">
+  <tr>
+    <td style="padding:12px 16px;font-size:13px;color:#92400e;line-height:1.65;">
+      <strong>Founding Member benefit applied.</strong> If you activated your subscription during the
+      Founding Member offer period, your <strong>{{ founding_member_discount }}% lifetime discount</strong>
+      has been applied and is reflected in the amount above. This discount is tied to your account and
+      will continue for as long as your subscription remains active. It cannot be transferred to another account.
+    </td>
+  </tr>
+</table>
+{% endif %}
+
+<p style="margin:0 0 24px;font-size:13px;color:#374151;line-height:1.7;">
+  Warm regards,<br>
+  <strong>The ImmigLens Team</strong>
 </p>
+
+{# DISCLAIMER #}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="border-top:1px solid #EAE8E3;margin:8px 0 0;">
+  <tr>
+    <td style="padding:20px 0 0;">
+      <p style="margin:0 0 10px;font-size:11px;font-weight:700;color:#374151;letter-spacing:0.5px;text-transform:uppercase;">Disclaimer &amp; Important Information</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Subscription Terms</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">By activating this subscription, you agree to ImmigLens&rsquo;s Terms of Service and Privacy Policy, available at immiglens.ca/legal. Your subscription renews automatically at the end of each billing cycle unless cancelled. Cancellation must be completed before the renewal date to avoid being charged for the next cycle. Subscriptions are subject to ImmigLens&rsquo;s Fair Use Policy &mdash; accounts that significantly exceed normal usage patterns may be subject to review.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Plan Limits &amp; Enforcement</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">Your plan allows up to {{ position_limit }} active Job Positions at any time. Only positions with a status of Active count toward this limit &mdash; archived, paused, and completed positions do not. If you reach the active position limit, you will not be able to create new positions until you either archive an existing one or upgrade your plan. ImmigLens will notify you when you reach 80% of your limit.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Price Changes</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens may adjust subscription pricing from time to time. Existing subscribers will receive a minimum of 30 days&rsquo; written notice before any price change takes effect on their account. You may cancel your subscription before the price change takes effect if you do not wish to continue at the new price. Founding Member discounts are exempt from standard price changes &mdash; the discounted rate is locked for Founding Members for the lifetime of the subscription.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Cancellation &amp; Data Retention</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">You may cancel your ImmigLens subscription at any time from Billing Settings. Upon cancellation, you retain full access until the end of the current billing period. After access ends, your data (positions, evidence, reports) is retained for 30 days. You may reactivate your account during this window and all data will be intact. After 30 days, data is permanently deleted. ImmigLens is not responsible for data loss resulting from account cancellation or expiry.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Hosted in Canada</p>
+      <p style="margin:0 0 0;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens stores all customer data on infrastructure located in Canada. This includes all screenshot evidence, position data, user account information, and generated reports. ImmigLens does not transfer data to servers outside of Canada. This hosting arrangement is designed to support compliance with PIPEDA and Canadian data residency expectations for immigration-related documentation.</p>
+    </td>
+  </tr>
+</table>
 {% endblock %}

@@ -34,12 +34,16 @@
     <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ sources | join(' &middot; ') }}</td>
   </tr>
   <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Capture method</td>
+    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">Automated scheduled run</td>
+  </tr>
+  <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Capture ID</td>
     <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">#{{ capture_id }}</td>
   </tr>
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Evidence total</td>
-    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ total_evidence }} screenshots in timeline</td>
+    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ total_evidence }} screenshots in timeline for this position</td>
   </tr>
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;">Next scheduled run</td>
@@ -47,20 +51,31 @@
   </tr>
 </table>
 
+<p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.7;">
+  Each screenshot in this capture has been logged with a precise UTC timestamp, the source URL,
+  the HTTP response code received, and a SHA-256 hash of the image file. This metadata is included
+  in all generated LMIA evidence reports and is available in your Evidence Timeline.
+</p>
+
 {# Verify notice #}
 <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
-       style="background-color:#fffbeb;border:1px solid #fde68a;border-radius:6px;margin:0 0 24px;">
+       style="background-color:#fffbeb;border:1px solid #fde68a;border-radius:6px;margin:0 0 20px;">
   <tr>
     <td style="padding:14px 16px;font-size:13px;color:#92400e;line-height:1.65;">
-      <strong>&#9888; Action recommended &mdash; please verify this capture.</strong><br>
-      A completed capture does not automatically mean the screenshots are accurate or usable. We
-      strongly recommend opening your Evidence Timeline and visually reviewing every screenshot
+      <strong>&#9888; Action recommended &mdash; please verify this capture.</strong> A completed capture
+      does not automatically mean the screenshots are accurate or usable. Job boards, employer portals,
+      and external websites can experience outages, server errors, display issues, or temporary content
+      failures that result in a screenshot that appears to have succeeded but contains incorrect,
+      incomplete, or misleading content such as a blank page, an error message, a login wall, a CAPTCHA
+      screen, or stale cached content. ImmigLens detects obvious failures (e.g. HTTP 404, connection
+      refused) but cannot always distinguish a visually degraded page from a healthy one. We strongly
+      recommend opening your Evidence Timeline and visually reviewing every screenshot in this capture
       before relying on it for your LMIA application.
     </td>
   </tr>
 </table>
 
-<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 24px;">
   <tr>
     <td style="background-color:#0B1F3B;border-radius:6px;">
       <a href="{{ timeline_url }}"
@@ -68,6 +83,89 @@
                 text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
         Review This Capture Now &rarr;
       </a>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">What to look for when reviewing your screenshots</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; The job posting content is fully visible &mdash; title, description, salary, and employer details are present and legible</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; The page is not showing a login screen, CAPTCHA, error message (e.g. 500, 503, 403), or &lsquo;page not found&rsquo; result</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; The job board&rsquo;s header and branding are visible, confirming the correct source platform was captured</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; The posting URL shown in the screenshot matches the source URL you configured in your capture job</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; The content reflects the current version of the posting &mdash; not a cached or outdated version from a previous capture</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; If the posting has been recently updated (e.g. salary revised, description changed), confirm the screenshot reflects the updated content</td></tr>
+</table>
+
+<p style="margin:0 0 16px;font-size:13px;color:#374151;line-height:1.7;">
+  <strong>If a screenshot looks wrong &mdash; here is what to do.</strong> Do not wait until report
+  generation time to discover a bad screenshot. Trigger a manual re-capture from the same position.
+  If the job board was experiencing an outage at the time of this capture, wait for it to recover and
+  run a manual capture as soon as it is back online. Document the outage date and time in your notes
+  in case ESDC queries the gap.
+</p>
+
+<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">Known technical conditions that can cause inaccurate captures</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 16px;">
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>Job board server outage or scheduled maintenance</strong> &mdash; the page may load partially or show a maintenance screen</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>CDN or caching issue</strong> &mdash; the platform may serve stale content that does not reflect the live posting</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>Geographic or IP-based restrictions</strong> &mdash; some platforms serve different content to automated browsers or non-regional IPs</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>JavaScript rendering delays</strong> &mdash; some platforms load job content dynamically; a slow render may result in a partially loaded page</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>Session or cookie requirements</strong> &mdash; platforms that require prior interaction (e.g. cookie consent) before displaying content may show a consent wall instead of the posting</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>Platform-side anti-bot measures</strong> &mdash; some job boards apply rate limiting or bot detection that may result in a blocked or degraded page response even without a formal error code</td></tr>
+</table>
+
+<p style="margin:0 0 20px;font-size:13px;color:#374151;line-height:1.7;">
+  ImmigLens records the HTTP response code returned by the source URL at the time of capture. A
+  response of 200 (OK) means the server responded successfully &mdash; but it does not guarantee the
+  page content was complete or accurate. Always rely on your own visual review of the screenshot
+  rather than the status code alone.
+</p>
+
+<p style="margin:0 0 16px;font-size:13px;color:#374151;line-height:1.7;">
+  No further automated action is required. Your capture schedule will continue on its regular interval.
+</p>
+
+<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">What happens next</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 24px;">
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; Review the screenshots from this capture in your Evidence Timeline &mdash; this is the most important step</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; Trigger a manual re-capture if any screenshot in this run is unusable &mdash; do not wait for the next scheduled run</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; When you are ready to generate your LMIA report, ImmigLens will flag any positions with flagged or missing screenshots before export</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; Capture logs, including any flags you apply, are retained permanently and are included in all data exports</td></tr>
+</table>
+
+<p style="margin:0 0 24px;font-size:13px;color:#374151;line-height:1.7;">
+  Warm regards,<br>
+  <strong>The ImmigLens Team</strong>
+</p>
+
+{# DISCLAIMER #}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="border-top:1px solid #EAE8E3;margin:8px 0 0;">
+  <tr>
+    <td style="padding:20px 0 0;">
+      <p style="margin:0 0 10px;font-size:11px;font-weight:700;color:#374151;letter-spacing:0.5px;text-transform:uppercase;">Disclaimer &amp; Important Information</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">About Automated Captures</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens uses a browser automation framework to capture screenshots of publicly accessible web pages. Captures reflect the state of the target URL at the exact time the capture was executed. ImmigLens does not modify, edit, or alter any content captured from source URLs. Screenshots are stored as-is, without post-processing other than lossless compression and secure storage.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Timestamp Integrity</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">All capture timestamps are recorded in Coordinated Universal Time (UTC) at the moment the screenshot is taken on our servers. Timestamps are cryptographically signed and cannot be retroactively altered. The local time shown in this notification is derived from your account&rsquo;s timezone setting &mdash; if this is incorrect, update it in Account Settings. ImmigLens timestamps are intended to serve as supporting documentation of recruitment activity and should be used in conjunction with other evidence such as invoices, job board confirmation emails, and HR records.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Screenshot Authenticity</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens generates a SHA-256 hash fingerprint for every screenshot at the time of capture. This hash is stored alongside the image and is included in PDF reports as an integrity reference. If the content of a page changes between captures, this will be reflected in the evidence timeline as a new screenshot; the prior screenshot is not overwritten. ImmigLens retains all historical screenshots for the retention period defined by your subscription plan.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Screenshot Accuracy &mdash; User Responsibility</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">A capture status of &lsquo;Completed&rsquo; or &lsquo;Successful&rsquo; indicates that ImmigLens was able to reach the target URL and record a screenshot without receiving a recognized error code. It does not guarantee that the screenshot content is accurate, complete, or representative of a live, correct job posting. Technical conditions outside ImmigLens&rsquo;s control &mdash; including job board server outages, CDN caching issues, JavaScript rendering failures, anti-bot responses, geographic content restrictions, and session or cookie requirements &mdash; can produce a screenshot that passes automated validation but contains incorrect or misleading content (e.g. a blank page, a maintenance screen, a CAPTCHA, or stale content). Users are solely responsible for reviewing all captured screenshots before including them in any LMIA application package. ImmigLens strongly recommends a manual visual review of every screenshot immediately after each capture run.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Re-Capture</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">If a screenshot is inaccurate, you can trigger a manual re-capture before generating a report. Flagged screenshots are not deleted &mdash; they remain in the timeline as a record of the capture attempt. The flag status, flag date, and flagging user are recorded in the capture log and included in report exports.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Compliance Disclaimer</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">Automated screenshots captured by ImmigLens are intended as supporting documentation of recruitment efforts. They do not constitute legal proof of compliance with ESDC requirements and should not be treated as a substitute for a comprehensive LMIA evidence package reviewed by a qualified professional. Users are responsible for ensuring the completeness, accuracy, and authenticity of all evidence submitted in an LMIA application. ImmigLens recommends retaining supplementary evidence alongside ImmigLens captures, including original job board invoices, confirmation emails, and posting receipts.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Notification Preferences</p>
+      <p style="margin:0 0 0;font-size:11px;color:#6b7280;line-height:1.65;">You are receiving per-capture completion notifications because this preference is enabled in your account settings. If you manage a high volume of positions and prefer a less frequent update, you can switch to daily digest or weekly summary notifications from Account Settings &rarr; Notifications. Critical alerts (failures, gaps, expiry warnings) are always sent regardless of your digest preference.</p>
     </td>
   </tr>
 </table>

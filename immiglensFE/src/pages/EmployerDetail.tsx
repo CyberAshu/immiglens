@@ -33,11 +33,11 @@ export default function EmployerDetail() {
   const { confirmModal, askConfirm }      = useConfirm()
 
   useEffect(() => {
-    Promise.all([employersApi.list(), positionsApi.list(id), subscriptionsApi.usage()])
+    Promise.all([employersApi.list(), positionsApi.list(id), subscriptionsApi.usage().catch(() => null)])
       .then(([emps, pos, usage]) => {
         setEmployer(emps.find(e => e.id === id) ?? null)
         setPositionList(pos)
-        const freq = usage.tier.min_capture_frequency_days ?? 7
+        const freq = usage?.tier.min_capture_frequency_days ?? 7
         setMinFreq(freq)
         setIsCustomFreq(false)
         setForm(f => ({ ...f, capture_frequency_days: freq }))

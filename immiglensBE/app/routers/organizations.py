@@ -272,6 +272,8 @@ async def invite_member(
             invitation.role,
             invitation.expires_at.strftime("%B %d, %Y"),
             accept_url,
+            invited_at=datetime.now(timezone.utc).strftime("%B %d, %Y at %H:%M UTC"),
+            inviter_email=current_user.email,
         )
     except Exception:
         logger.warning("Invitation email failed for %s (org=%s)", body.email, org_id)

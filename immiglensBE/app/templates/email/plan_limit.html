@@ -23,9 +23,25 @@
     <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #fde68a;">{{ position_limit }} positions</td>
   </tr>
   <tr>
-    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;">Active positions in use</td>
-    <td style="padding:10px 16px;font-size:14px;color:#b45309;font-weight:700;">{{ active_count }} of {{ position_limit }} &mdash; limit reached</td>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fde68a;">Active positions in use</td>
+    <td style="padding:10px 16px;font-size:14px;color:#b45309;font-weight:700;border-bottom:1px solid #fde68a;">{{ active_count }} of {{ position_limit }} &mdash; limit reached</td>
   </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fde68a;">Positions available</td>
+    <td style="padding:10px 16px;font-size:13px;color:#b45309;font-weight:600;border-bottom:1px solid #fde68a;">0 &mdash; limit reached</td>
+  </tr>
+  {% if archived_count is defined %}
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #fde68a;">Archived positions</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #fde68a;">{{ archived_count }} (do not count toward limit)</td>
+  </tr>
+  {% endif %}
+  {% if triggered_at is defined and triggered_at %}
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;">Triggered at</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;">{{ triggered_at }}{% if triggered_position is defined and triggered_position %} when <strong>{{ triggered_position }}</strong> was created{% endif %}</td>
+  </tr>
+  {% endif %}
 </table>
 
 <p style="margin:0 0 12px;font-size:13px;font-weight:600;color:#374151;">Option 1 &mdash; Archive a completed position</p>
@@ -48,12 +64,33 @@
 </table>
 
 <p style="margin:0 0 12px;font-size:13px;font-weight:600;color:#374151;">Option 2 &mdash; Upgrade your plan</p>
-<p style="margin:0 0 16px;font-size:13px;color:#374151;line-height:1.7;">
+<p style="margin:0 0 12px;font-size:13px;color:#374151;line-height:1.7;">
   Upgrading unlocks more active position slots immediately. New limits take effect as soon as
   your upgrade is confirmed.
 </p>
 
-<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+{# Upgrade comparison table #}
+{% if next_plan_name is defined and next_plan_name %}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;margin:0 0 16px;">
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Your current plan</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #e5e7eb;">{{ plan_name }} &mdash; {{ position_limit }} positions{% if current_price is defined %} &mdash; ${{ current_price }}/mo{% endif %}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #e5e7eb;">Next plan up</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;border-bottom:1px solid #e5e7eb;">{{ next_plan_name }} &mdash; {{ next_plan_limit }} positions{% if next_plan_price is defined %} &mdash; ${{ next_plan_price }}/mo{% endif %}</td>
+  </tr>
+  {% if price_difference is defined %}
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;">Difference</td>
+    <td style="padding:10px 16px;font-size:13px;color:#111827;font-weight:500;">${{ price_difference }}/mo for {{ slot_difference }} additional active positions</td>
+  </tr>
+  {% endif %}
+</table>
+{% endif %}
+
+<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 24px;">
   <tr>
     <td style="background-color:#d97706;border-radius:6px;">
       <a href="{{ upgrade_url }}"
@@ -65,8 +102,46 @@
   </tr>
 </table>
 
-<p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.7;">
-  Reaching the limit does not affect your existing active positions. All active capture
-  schedules continue to run and evidence continues to be collected for all existing positions.
+<p style="margin:0 0 12px;font-size:13px;color:#374151;line-height:1.7;">
+  <strong>What happens to existing positions when you hit the limit.</strong> Reaching the limit does not
+  affect your existing active positions in any way. All active capture schedules continue to run, evidence
+  continues to be collected, and reports can still be generated for all existing positions. Only the
+  creation of new positions is blocked.
 </p>
+
+{# Understanding active vs archived #}
+<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">Understanding active vs. archived positions</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; <strong>Active</strong> &mdash; currently in recruitment; capture schedules are running; <strong>counts toward your plan limit</strong></td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; <strong>Paused</strong> &mdash; temporarily inactive; capture schedules are paused; still counts toward your plan limit</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; <strong>Archived</strong> &mdash; recruitment period has ended; no captures run; <strong>does NOT count toward your plan limit</strong></td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.6;">&bull;&nbsp; <strong>Completed</strong> &mdash; reports have been generated and the position is closed; <strong>does NOT count toward your plan limit</strong></td></tr>
+</table>
+
+<p style="margin:0 0 24px;font-size:13px;color:#374151;line-height:1.7;">
+  Warm regards,<br>
+  <strong>The ImmigLens Team</strong>
+</p>
+
+{# DISCLAIMER #}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="border-top:1px solid #EAE8E3;margin:8px 0 0;">
+  <tr>
+    <td style="padding:20px 0 0;">
+      <p style="margin:0 0 10px;font-size:11px;font-weight:700;color:#374151;letter-spacing:0.5px;text-transform:uppercase;">Disclaimer &amp; Important Information</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Plan Limit Enforcement</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens plan limits apply to the number of Job Positions with a status of Active at any given time. The limit is enforced at the time of position creation &mdash; if you are at the limit, the creation of a new position will be blocked with an on-screen error message and this email notification. Positions that are archived, completed, or deleted do not count toward the active limit, and archiving a position immediately frees up a slot. ImmigLens does not retroactively remove or archive positions on your behalf to stay within plan limits.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Upgrading Mid-Cycle</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">If you upgrade your plan during an active billing period, the new plan limits take effect immediately. The additional charge for the upgrade is prorated based on the number of days remaining in the current billing cycle. The prorated amount is charged to your payment method on file and reflected on your next invoice.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Downgrading &amp; Immediate Position Deactivation</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">If you downgrade to a plan with fewer active position slots, the change takes effect immediately upon confirmation &mdash; not at the end of the billing cycle. At the moment of downgrade, all of your currently active positions are automatically set to Inactive, regardless of how many positions you have or whether they are within the new plan&rsquo;s limit. This is a system-wide reset to ensure no account exceeds the new plan limit. Once the downgrade is processed, you must manually go into your Positions dashboard and reactivate the positions you wish to keep active, up to the limit of your new plan. Positions that remain inactive do not count toward your plan limit, and their capture schedules remain paused until you reactivate them. No evidence, screenshots, or reports are deleted when a position is deactivated &mdash; the full evidence history is preserved. ImmigLens strongly recommends deciding in advance which positions you intend to reactivate before confirming a downgrade, particularly if you are in an active LMIA recruitment period, as capture schedules will stop on all positions the moment the downgrade is confirmed.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">LMIA Workflow Continuity</p>
+      <p style="margin:0 0 0;font-size:11px;color:#6b7280;line-height:1.65;">Reaching a plan limit during an active LMIA application period could disrupt your ability to track new positions in ImmigLens. If you anticipate needing additional positions for upcoming LMIA work, we recommend upgrading proactively rather than waiting until the limit is reached. ImmigLens usage-threshold warning emails are sent when you reach 80% of your plan limit to help you plan ahead.</p>
+    </td>
+  </tr>
+</table>
 {% endblock %}

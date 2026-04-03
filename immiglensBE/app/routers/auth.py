@@ -423,7 +423,12 @@ async def forgot_password(
     reset_url = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
     logger.debug("Password reset token generated for %s", payload.email)
     try:
-        await send_password_reset_email(payload.email, user.full_name or "there", reset_url)
+        await send_password_reset_email(
+            payload.email,
+            user.full_name or "there",
+            reset_url,
+            requested_at=datetime.now(timezone.utc).strftime("%B %d, %Y at %H:%M UTC"),
+        )
         logger.info("Password reset email dispatched to %s", payload.email)
     except Exception as exc:
         logger.warning("Password reset email failed for %s: %s", payload.email, exc)

@@ -33,11 +33,9 @@ async def _get_tier(db: AsyncSession, user: User) -> SubscriptionTier:
     )
     tier = res.scalar_one_or_none()
     if tier is None:
-        # No tiers seeded yet — allow everything
-        return SubscriptionTier(
-            max_active_positions=-1,
-            max_urls_per_position=-1,
-            max_captures_per_month=-1,
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Subscription tiers have not been configured. Please contact an administrator.",
         )
     return tier
 
@@ -69,7 +67,7 @@ async def check_active_position_limit(db: AsyncSession, user: User) -> None:
             await send_plan_limit_email(
                 user.email,
                 user.full_name or "there",
-                tier.name,
+                tier.display_name,
                 tier.max_active_positions,
                 count,
                 f"{_s.FRONTEND_URL}/dashboard",
@@ -111,7 +109,7 @@ async def check_position_reactivate_limit(db: AsyncSession, user: User, exclude_
             await send_plan_limit_email(
                 user.email,
                 user.full_name or "there",
-                tier.name,
+                tier.display_name,
                 tier.max_active_positions,
                 count,
                 f"{_s.FRONTEND_URL}/dashboard",

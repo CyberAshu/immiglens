@@ -1,15 +1,17 @@
 import logging
 import uuid
+from datetime import date, datetime, timezone
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.audit import log_action
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
-from app.models.capture import CaptureRound
+from app.models.capture import CaptureRound, CaptureStatus
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
 from app.models.report import ReportDocument
@@ -113,12 +115,51 @@ async def delete_document(
 async def generate_report(
     employer_id: int,
     position_id: int,
+    acknowledge_early: bool = Body(False, embed=True),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     position = await _load_position(employer_id, position_id, current_user, db)
     emp_result = await db.execute(select(Employer).where(Employer.id == employer_id))
     employer = emp_result.scalar_one()
+
+    # ── 28-day ESDC minimum active period check ───────────────────────────
+    today = date.today()
+    days_active = (today - position.start_date).days
+    MINIMUM_DAYS = 28
+    if days_active < MINIMUM_DAYS:
+        days_remaining = MINIMUM_DAYS - days_active
+        if not acknowledge_early:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "EARLY_REPORT",
+                    "days_active": days_active,
+                    "days_remaining": days_remaining,
+                    "message": (
+                        f"This position has only been active for {days_active} day(s). "
+                        f"ESDC requires a minimum of {MINIMUM_DAYS} days. "
+                        f"{days_remaining} day(s) remaining."
+                    ),
+                },
+            )
+        # Acknowledged early generation — log to audit trail
+        await log_action(
+            db,
+            user_id=current_user.id,
+            action="EARLY_REPORT_ACKNOWLEDGED",
+            resource_type="job_position",
+            resource_id=position_id,
+            employer_id=employer_id,
+            position_id=position_id,
+            new_data={
+                "acknowledged_at": datetime.now(timezone.utc).isoformat(),
+                "days_active": days_active,
+                "days_remaining": days_remaining,
+                "note": "User explicitly acknowledged generating report before 28-day ESDC minimum.",
+            },
+        )
+        await db.commit()
 
     sorted_rounds = sorted(position.capture_rounds, key=lambda r: r.scheduled_at)
 
@@ -135,19 +176,36 @@ async def generate_report(
 
     try:
         from app.core.config import settings
-        from datetime import datetime, timezone
         generated_at = datetime.now(timezone.utc).strftime("%B %d, %Y at %H:%M UTC")
-        dashboard_url = (
-            f"{settings.FRONTEND_URL}/employers/{employer_id}/positions/{position_id}"
-        )
+        request_date = generated_at
+        # Build source list and counts from sorted_rounds
+        _sources: list[str] = [u.url for u in (position.job_urls or [])]
+        _screenshot_count = sum(len(r.results) for r in sorted_rounds)
+        _successful = sum(1 for r in sorted_rounds if r.status == CaptureStatus.COMPLETED)
+        _failed = sum(1 for r in sorted_rounds if r.status == CaptureStatus.FAILED)
+        _partial = 0  # CaptureStatus has no PARTIAL value
+        _ad_start = min((r.captured_at for r in sorted_rounds if getattr(r, 'captured_at', None)), default=None)
+        _ad_end = max((r.captured_at for r in sorted_rounds if getattr(r, 'captured_at', None)), default=None)
         await send_report_ready_email(
             current_user.email,
             current_user.full_name or "there",
             position.job_title,
             position.noc_code or "N/A",
-            employer.company_name,
+            employer.business_name,
             generated_at,
-            dashboard_url,
+            download_url=f"{settings.FRONTEND_URL}/employers/{employer_id}/positions/{position_id}/reports",
+            ad_start=_ad_start.strftime("%B %d, %Y") if _ad_start else "N/A",
+            ad_end=_ad_end.strftime("%B %d, %Y") if _ad_end else "N/A",
+            screenshot_count=_screenshot_count,
+            source_count=len(_sources),
+            sources=_sources,
+            capture_count=len(sorted_rounds),
+            successful_count=_successful,
+            failed_count=_failed,
+            partial_count=_partial,
+            report_id=position_id,
+            requested_by=current_user.full_name or current_user.email,
+            request_date=request_date,
         )
     except Exception:
         logger.warning("report_ready email failed for user_id=%s", current_user.id)

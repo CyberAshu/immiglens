@@ -17,8 +17,8 @@ from app.models.job_position import JobPosition
 from app.models.notification import NotificationEvent
 from app.models.user import User
 from app.services.change_detector import record_snapshot
-from app.services.email_service import send_capture_completed_email, send_capture_failed_email
-from app.services.notification_service import dispatch_event, send_admin_alert
+from app.services.email_service import send_admin_alert, send_capture_completed_email, send_capture_failed_email
+from app.services.notification_service import dispatch_event
 from app.services.screenshot import capture
 
 scheduler = AsyncIOScheduler()
@@ -472,6 +472,9 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
         user_id = emp_res.scalar_one_or_none()
 
     # ── ROUND_STARTED ────────────────────────────────────────────────────────
+    # skip_email=True: no user-facing email is sent for round start events.
+    # This is an internal audit/webhook event only. The capture_completed or
+    # capture_failed HTML email covers the user-facing notification instead.
     if user_id is not None:
         try:
             await dispatch_event(
@@ -484,6 +487,7 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                 },
                 trigger_id=round_.id,
                 trigger_type="capture_round",
+                skip_email=True,
             )
         except Exception:
             pass  # Never block capture flow for notification errors

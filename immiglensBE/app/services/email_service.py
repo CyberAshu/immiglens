@@ -133,12 +133,17 @@ async def send_otp_email(to: str, first_name: str, otp_code: str) -> None:
 # ── Password reset ────────────────────────────────────────────────────────────
 
 async def send_password_reset_email(
-    to: str, first_name: str, reset_url: str
+    to: str,
+    first_name: str,
+    reset_url: str,
+    requested_at: str,
 ) -> None:
     html = render_email("password_reset.html", {
         "first_name": first_name,
+        "email": to,
         "reset_url": reset_url,
         "expire_hours": settings.PASSWORD_RESET_EXPIRE_HOURS,
+        "requested_at": requested_at,
     })
     plain = (
         f"Hi {first_name},\n\n"
@@ -209,6 +214,7 @@ async def send_capture_failed_email(
     last_successful: Optional[str],
     retry_at: Optional[str],
     fix_url: str,
+    max_retries: int = 3,
 ) -> None:
     html = render_email("capture_failed.html", {
         "first_name": first_name,
@@ -221,6 +227,7 @@ async def send_capture_failed_email(
         "last_successful": last_successful or "None",
         "retry_at": retry_at or "Not scheduled",
         "fix_url": fix_url,
+        "max_retries": max_retries,
     })
     plain = (
         f"Hi {first_name},\n\n"
@@ -248,7 +255,20 @@ async def send_report_ready_email(
     noc_code: str,
     employer_name: str,
     generated_at: str,
-    dashboard_url: str,
+    download_url: str,
+    ad_start: str,
+    ad_end: str,
+    screenshot_count: int,
+    source_count: int,
+    sources: list[str],
+    capture_count: int,
+    successful_count: int,
+    failed_count: int,
+    partial_count: int,
+    report_id: int,
+    requested_by: str,
+    request_date: str,
+    file_size: Optional[str] = None,
 ) -> None:
     html = render_email("report_ready.html", {
         "first_name": first_name,
@@ -256,14 +276,30 @@ async def send_report_ready_email(
         "noc_code": noc_code,
         "employer_name": employer_name,
         "generated_at": generated_at,
-        "dashboard_url": dashboard_url,
+        "download_url": download_url,
+        "ad_start": ad_start,
+        "ad_end": ad_end,
+        "screenshot_count": screenshot_count,
+        "source_count": source_count,
+        "sources": sources,
+        "capture_count": capture_count,
+        "successful_count": successful_count,
+        "failed_count": failed_count,
+        "partial_count": partial_count,
+        "report_id": report_id,
+        "requested_by": requested_by,
+        "request_date": request_date,
+        "file_size": file_size,
     })
     plain = (
         f"Hi {first_name},\n\n"
-        f"Your LMIA evidence report for \u2018{position_title}\u2019 has been generated.\n"
+        f"Your LMIA evidence report for \u2018{position_title}\u2019 is ready.\n"
         f"Employer: {employer_name}\n"
+        f"Advertising period: {ad_start} \u2013 {ad_end}\n"
+        f"Screenshots: {screenshot_count} across {source_count} source(s)\n"
+        f"Report ID: #{report_id}\n"
         f"Generated: {generated_at}\n\n"
-        f"Return to your dashboard to regenerate or download: {dashboard_url}"
+        f"Download your report: {download_url}"
     )
     await send_email(
         to,
@@ -278,31 +314,63 @@ async def send_report_ready_email(
 async def send_payment_successful_email(
     to: str,
     first_name: str,
-    amount: str,
-    invoice_number: str,
+    payment_date: str,
+    subtotal: str,
+    tax_amount: str,
+    tax_type: str,
+    total_amount: str,
+    card_brand: str,
+    card_last4: str,
     plan_name: str,
     billing_start: str,
     billing_end: str,
+    transaction_id: str,
+    invoice_number: str,
     next_billing_date: str,
-    billing_url: str,
+    next_amount: str,
+    invoice_url: str,
+    position_limit: str,
+    capture_limit: str,
+    storage_limit: str,
+    seat_limit: str,
+    support_tier: str,
+    billing_address: Optional[str] = None,
+    founding_member_discount: Optional[str] = None,
 ) -> None:
     html = render_email("payment_successful.html", {
         "first_name": first_name,
-        "amount": amount,
-        "invoice_number": invoice_number,
+        "payment_date": payment_date,
+        "subtotal": subtotal,
+        "tax_amount": tax_amount,
+        "tax_type": tax_type,
+        "total_amount": total_amount,
+        "card_brand": card_brand,
+        "card_last4": card_last4,
+        "billing_address": billing_address,
         "plan_name": plan_name,
         "billing_start": billing_start,
         "billing_end": billing_end,
+        "transaction_id": transaction_id,
+        "invoice_number": invoice_number,
         "next_billing_date": next_billing_date,
-        "billing_url": billing_url,
+        "next_amount": next_amount,
+        "invoice_url": invoice_url,
+        "position_limit": position_limit,
+        "capture_limit": capture_limit,
+        "storage_limit": storage_limit,
+        "seat_limit": seat_limit,
+        "support_tier": support_tier,
+        "founding_member_discount": founding_member_discount,
     })
     plain = (
         f"Hi {first_name},\n\n"
-        f"Payment received \u2014 {amount}\n"
+        f"Payment received \u2014 {total_amount}\n"
         f"Invoice: {invoice_number}\n"
+        f"Transaction ID: {transaction_id}\n"
         f"Plan: {plan_name} ({billing_start} \u2013 {billing_end})\n"
-        f"Next charge: {next_billing_date}\n\n"
-        f"View your billing dashboard: {billing_url}"
+        f"Payment method: {card_brand} ending in {card_last4}\n"
+        f"Next charge: {next_billing_date} for approx. {next_amount}\n\n"
+        f"Download invoice: {invoice_url}"
     )
     await send_email(
         to,
@@ -324,6 +392,8 @@ async def send_payment_failed_email(
     retry_date: str,
     retries_remaining: int,
     billing_url: str,
+    card_brand: str = "",
+    card_last4: str = "",
 ) -> None:
     html = render_email("payment_failed.html", {
         "first_name": first_name,
@@ -334,6 +404,8 @@ async def send_payment_failed_email(
         "retry_date": retry_date,
         "retries_remaining": retries_remaining,
         "billing_url": billing_url,
+        "card_brand": card_brand,
+        "card_last4": card_last4,
     })
     plain = (
         f"Hi {first_name},\n\n"
@@ -358,21 +430,48 @@ async def send_subscription_confirmed_email(
     to: str,
     first_name: str,
     plan_name: str,
+    subscription_id: str,
     start_date: str,
+    billing_cycle: str,
+    amount: str,
+    billing_period: str,
     next_billing_date: str,
+    card_brand: str,
+    card_last4: str,
+    billing_email: str,
+    position_limit: str,
+    seat_count: str,
+    support_tier: str,
+    retention_period: str,
     dashboard_url: str,
+    founding_member_discount: Optional[str] = None,
 ) -> None:
     html = render_email("subscription_created.html", {
         "first_name": first_name,
         "plan_name": plan_name,
+        "subscription_id": subscription_id,
         "start_date": start_date,
+        "billing_cycle": billing_cycle,
+        "amount": amount,
+        "billing_period": billing_period,
         "next_billing_date": next_billing_date,
+        "card_brand": card_brand,
+        "card_last4": card_last4,
+        "billing_email": billing_email,
+        "position_limit": position_limit,
+        "seat_count": seat_count,
+        "support_tier": support_tier,
+        "retention_period": retention_period,
         "dashboard_url": dashboard_url,
+        "founding_member_discount": founding_member_discount,
     })
     plain = (
         f"Hi {first_name},\n\n"
         f"Your ImmigLens {plan_name} subscription is now active.\n"
+        f"Subscription ID: {subscription_id}\n"
         f"Started: {start_date}\n"
+        f"Billing: {amount} + taxes per {billing_period}\n"
+        f"Payment method: {card_brand} ending in {card_last4}\n"
         f"Next billing date: {next_billing_date}\n\n"
         f"Go to your dashboard: {dashboard_url}"
     )
@@ -397,6 +496,9 @@ async def send_renewal_failed_email(
     retry_date: str,
     retries_remaining: int,
     billing_url: str,
+    card_brand: str = "",
+    card_last4: str = "",
+    tax_amount: Optional[str] = None,
 ) -> None:
     html = render_email("renewal_failed.html", {
         "first_name": first_name,
@@ -408,6 +510,9 @@ async def send_renewal_failed_email(
         "retry_date": retry_date,
         "retries_remaining": retries_remaining,
         "billing_url": billing_url,
+        "card_brand": card_brand,
+        "card_last4": card_last4,
+        "tax_amount": tax_amount,
     })
     plain = (
         f"Hi {first_name},\n\n"
@@ -503,6 +608,8 @@ async def send_invitation_email(
     role: str,
     expires_at: str,
     accept_url: str,
+    invited_at: str,
+    inviter_email: Optional[str] = None,
 ) -> None:
     html = render_email("invitation.html", {
         "org_name": org_name,
@@ -510,6 +617,8 @@ async def send_invitation_email(
         "role": role,
         "expires_at": expires_at,
         "accept_url": accept_url,
+        "invited_at": invited_at,
+        "inviter_email": inviter_email,
     })
     plain = (
         f"You have been invited to join {org_name} on ImmigLens.\n\n"

@@ -18,9 +18,9 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
     },
   })
   if (!res.ok) {
-    if (res.status === 401) {
+    if (res.status === 401 && localStorage.getItem('token')) {
       localStorage.removeItem('token')
-      window.location.href = '/'
+      window.location.href = '/login'
       return undefined as T
     }
     const body = await res.json().catch(() => ({}))

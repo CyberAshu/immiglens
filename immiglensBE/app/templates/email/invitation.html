@@ -6,15 +6,22 @@
 <p style="margin:0 0 20px;font-size:16px;font-weight:600;color:#111827;">You&rsquo;ve been invited to ImmigLens</p>
 
 <p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.7;">
-  <strong>{{ inviter_name }}</strong> has invited you to join
-  <strong>{{ org_name }}</strong> on ImmigLens as <strong>{{ role }}</strong>.
+  <strong>{{ inviter_name }}</strong> has invited you to join <strong>{{ org_name }}</strong>
+  on ImmigLens as <strong>{{ role | title }}</strong>. Accept the invitation below to get access
+  to the organization&rsquo;s account.
+</p>
+
+<p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.7;">
+  ImmigLens is a Canadian LMIA evidence management platform used by RCICs, immigration lawyers,
+  and employers to automate job posting screenshot capture, organize recruitment evidence, and
+  generate ESDC-ready PDF reports.
 </p>
 
 {# Invitation details #}
 <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
        style="background-color:#F6F4EF;border:1px solid #EAE8E3;border-radius:6px;margin:0 0 24px;">
   <tr>
-    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #c7d7ff;">Organization</td>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Organization</td>
     <td style="padding:10px 16px;font-size:14px;color:#0B1F3B;font-weight:700;border-bottom:1px solid #EAE8E3;">{{ org_name }}</td>
   </tr>
   <tr>
@@ -25,13 +32,23 @@
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Your role</td>
     <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ role | title }}</td>
   </tr>
+  {% if inviter_email is defined and inviter_email %}
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Inviter email</td>
+    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ inviter_email }}</td>
+  </tr>
+  {% endif %}
+  <tr>
+    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Invited on</td>
+    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ invited_at }}</td>
+  </tr>
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;">Invitation expires</td>
-    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;">{{ expires_at }}</td>
+    <td style="padding:10px 16px;font-size:13px;color:#b91c1c;font-weight:600;">{{ expires_at }}</td>
   </tr>
 </table>
 
-<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 24px;">
+<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 16px;">
   <tr>
     <td style="background-color:#0B1F3B;border-radius:6px;">
       <a href="{{ accept_url }}"
@@ -46,21 +63,64 @@
 <p style="margin:0 0 16px;font-size:13px;color:#6b7280;line-height:1.7;">
   If the button above does not work, copy and paste the following link into your browser:
 </p>
-<p style="margin:0 0 20px;font-size:12px;color:#0B1F3B;word-break:break-all;line-height:1.6;">
+<p style="margin:0 0 24px;font-size:12px;color:#0B1F3B;word-break:break-all;line-height:1.6;">
   <a href="{{ accept_url }}" style="color:#0B1F3B;text-decoration:none;">{{ accept_url }}</a>
 </p>
 
+<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">What your role means</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>Admin</strong> &mdash; full access to all positions, evidence, reports, billing, and team management</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>Member</strong> &mdash; can create and manage positions, run captures, and generate reports; cannot access billing or invite other users</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>Viewer</strong> &mdash; read-only access to positions and evidence; cannot create positions, trigger captures, or generate reports</td></tr>
+</table>
+
+<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">What happens when you accept</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; If you already have an ImmigLens account, you will be added to <strong>{{ org_name }}</strong> and can switch between your accounts from the dashboard</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; If you do not have an account, you will be prompted to create one (free) before joining the organization &mdash; no subscription of your own is required</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; After accepting, your access is governed by the <strong>{{ role | title }}</strong> role assigned to you and can be changed by an Admin at any time</td></tr>
+  <tr><td style="padding:3px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; The invitation link can only be used once and expires on <strong>{{ expires_at }}</strong></td></tr>
+</table>
+
 <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
-       style="background-color:#F6F4EF;border:1px solid #EAE8E3;border-radius:6px;margin:0 0 8px;">
+       style="background-color:#fffbeb;border:1px solid #fde68a;border-radius:6px;margin:0 0 24px;">
   <tr>
-    <td style="padding:12px 16px;font-size:13px;color:#6b7280;line-height:1.65;">
-      This invitation expires on <strong>{{ expires_at }}</strong> and can only be accepted once.
-      If you did not expect this invitation, you can safely ignore this email.
-      Contact <a href="mailto:support@immiglens.ca" style="color:#0B1F3B;text-decoration:none;">support@immiglens.ca</a>
-      if you have concerns.
+    <td style="padding:12px 16px;font-size:13px;color:#92400e;line-height:1.65;">
+      <strong>Did not expect this?</strong> If you were not expecting this invitation, you can safely
+      ignore this email &mdash; the link will expire and no account will be created without your action.
+      If you believe this invitation was sent in error or you have concerns about who sent it, contact
+      <a href="mailto:support@immiglens.ca" style="color:#92400e;text-decoration:none;">support@immiglens.ca</a>.
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0 0 24px;font-size:13px;color:#374151;line-height:1.7;">
+  Warm regards,<br>
+  <strong>The ImmigLens Team</strong>
+</p>
+
+{# DISCLAIMER #}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="border-top:1px solid #EAE8E3;margin:8px 0 0;">
+  <tr>
+    <td style="padding:20px 0 0;">
+      <p style="margin:0 0 10px;font-size:11px;font-weight:700;color:#374151;letter-spacing:0.5px;text-transform:uppercase;">Disclaimer &amp; Important Information</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">About This Email</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">This invitation email was sent because an ImmigLens account holder nominated your email address to join their organization. This is a transactional email. No ImmigLens account has been created for you and no action has been taken on your behalf &mdash; accepting or ignoring this invitation is entirely your choice. If you did not expect this invitation and believe it was sent in error, contact <a href="mailto:support@immiglens.ca" style="color:#6b7280;">support@immiglens.ca</a>.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Invitation Validity &amp; Security</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">The invitation link in this email is single-use and expires on {{ expires_at }}. After expiry, the link becomes invalid and cannot be reactivated. If you wish to join the organization after the link has expired, ask {{ inviter_name }} to send a new invitation. Do not forward this email or share the invitation link &mdash; it is specific to your email address and is not designed to be transferred.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Role &amp; Permissions</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">Your access within {{ org_name }} is governed by the {{ role | title }} role assigned by the inviting Admin. Roles determine which features and data you can access or modify. Your role can be changed or revoked by an organization Admin at any time without notice. ImmigLens is not responsible for role assignments made by organization administrators.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Account Creation for New Users</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">If you do not have an existing ImmigLens account, accepting this invitation will prompt you to create one. Creating a personal ImmigLens account is free and does not require a subscription. Your personal account is separate from the organization you join &mdash; you will access the organization&rsquo;s data under the role permissions granted by the inviting organization, not as an independent account holder. Your personal account data and the organization&rsquo;s data are stored separately.</p>
+
+      <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Privacy &amp; Data Access</p>
+      <p style="margin:0 0 0;font-size:11px;color:#6b7280;line-height:1.65;">By accepting this invitation, you will have access to recruitment position data, evidence records, and reports belonging to <strong>{{ org_name }}</strong>, as permitted by your role. You are responsible for handling this data in compliance with applicable privacy legislation, including PIPEDA. Do not access, copy, or share organizational data beyond what is required for your legitimate work responsibilities. All access and actions within an ImmigLens account are logged in the account&rsquo;s audit trail.</p>
     </td>
   </tr>
 </table>
 {% endblock %}
-
-{% block sign_off %}{% endblock %}
