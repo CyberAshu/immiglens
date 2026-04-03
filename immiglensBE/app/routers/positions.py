@@ -3,9 +3,10 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.audit import log_action
+from app.core.audit import audit
+from app.core.audit_events import AuditAction, AuditEntity
 from app.core.database import get_db
-from app.core.dependencies import get_client_ip, get_current_user
+from app.core.dependencies import get_current_user
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
 from app.models.job_url import JobUrl
@@ -95,13 +96,20 @@ async def create_position(
 
     position = JobPosition(**payload.model_dump(), employer_id=employer_id)
     db.add(position)
-    await db.commit()
-    await db.refresh(position)
-    await log_action(db, user_id=current_user.id, action="CREATE",
-                     resource_type="position", resource_id=position.id,
-                     employer_id=employer_id, position_id=position.id,
-                     new_data={"job_title": position.job_title, "employer_id": employer_id},
-                     ip_address=get_client_ip(request))
+    await db.flush()
+    await audit(
+        db,
+        action=AuditAction.POSITION_CREATED,
+        entity_type=AuditEntity.POSITION,
+        actor_id=current_user.id,
+        entity_id=position.id,
+        entity_label=position.job_title,
+        employer_id=employer_id,
+        position_id=position.id,
+        description=f'Created position "{position.job_title}" for employer #{employer_id}',
+        new_data={"job_title": position.job_title, "employer_id": employer_id},
+        request=request,
+    )
     await db.commit()
     await schedule_rounds_for_position(db, position)
     result = await db.execute(
@@ -151,19 +159,29 @@ async def update_position(
             new_data[field] = new_val.isoformat() if hasattr(new_val, 'isoformat') else new_val
         setattr(position, field, new_val)
 
-    await db.commit()
+    desc = f'Updated position "{position.job_title}"' + (' — no field changes' if not old_data else '')
+    await audit(
+        db,
+        action=AuditAction.POSITION_UPDATED,
+        entity_type=AuditEntity.POSITION,
+        actor_id=current_user.id,
+        entity_id=position.id,
+        entity_label=position.job_title,
+        employer_id=employer_id,
+        position_id=position_id,
+        description=desc,
+        old_data=old_data or None,
+        new_data=new_data or None,
+        request=request,
+    )
+    await db.commit()  # single commit: update + audit are atomic
     await db.refresh(position)
 
     if needs_reschedule:
+        # reschedule_rounds_for_position calls schedule_rounds_for_position which
+        # commits its own round records — this is a separate concern from the
+        # business+audit transaction above.
         await reschedule_rounds_for_position(db, position)
-
-    if old_data:
-        await log_action(db, user_id=current_user.id, action="UPDATE",
-                         resource_type="position", resource_id=position.id,
-                         employer_id=employer_id, position_id=position_id,
-                         old_data=old_data, new_data=new_data,
-                         ip_address=get_client_ip(request))
-        await db.commit()
 
     return position
 
@@ -177,11 +195,19 @@ async def delete_position(
     current_user: User = Depends(get_current_user),
 ):
     position = await _get_position_or_404(employer_id, position_id, current_user, db)
-    await log_action(db, user_id=current_user.id, action="DELETE",
-                     resource_type="position", resource_id=position.id,
-                     employer_id=employer_id, position_id=position_id,
-                     old_data={"job_title": position.job_title},
-                     ip_address=get_client_ip(request))
+    await audit(
+        db,
+        action=AuditAction.POSITION_DELETED,
+        entity_type=AuditEntity.POSITION,
+        actor_id=current_user.id,
+        entity_id=position.id,
+        entity_label=position.job_title,
+        employer_id=employer_id,
+        position_id=position_id,
+        description=f'Deleted position "{position.job_title}"',
+        old_data={"job_title": position.job_title},
+        request=request,
+    )
     await db.delete(position)
     await db.commit()
 
@@ -207,17 +233,31 @@ async def toggle_position(
             .where(JobUrl.job_position_id == position_id)
             .values(is_active=False)
         )
-    await db.commit()
+    tog_action = AuditAction.POSITION_ACTIVATED if position.is_active else AuditAction.POSITION_DEACTIVATED
+    tog_desc = (
+        f'Activated position "{position.job_title}"'
+        if position.is_active
+        else f'Deactivated position "{position.job_title}"'
+    )
+    await audit(
+        db,
+        action=tog_action,
+        entity_type=AuditEntity.POSITION,
+        actor_id=current_user.id,
+        entity_id=position.id,
+        entity_label=position.job_title,
+        employer_id=employer_id,
+        position_id=position_id,
+        description=tog_desc,
+        new_data={"job_title": position.job_title, "is_active": position.is_active},
+        request=request,
+    )
+    await db.commit()  # single commit: toggle + URL cascade + audit are atomic
     await db.refresh(position)
-    # On re-activation: restore capture schedule so RCIC doesn't lose their rounds
+    # On re-activation: restore capture schedule so RCIC doesn't lose their rounds.
+    # Called after commit so round queries see the committed is_active=True state.
     if was_inactive and position.is_active:
         await requeue_rounds_for_position(db, position)
-    await log_action(db, user_id=current_user.id, action="UPDATE",
-                     resource_type="position", resource_id=position.id,
-                     employer_id=employer_id, position_id=position_id,
-                     new_data={"job_title": position.job_title, "is_active": position.is_active},
-                     ip_address=get_client_ip(request))
-    await db.commit()
     result = await db.execute(
         select(JobPosition)
         .options(
@@ -247,14 +287,22 @@ async def add_posting(
     await check_url_limit(db, current_user, position_id)
     job_url = JobUrl(**payload.model_dump(), job_position_id=position_id)
     db.add(job_url)
-    await db.commit()
+    await db.flush()  # assign job_url.id before passing it to audit
+    await audit(
+        db,
+        action=AuditAction.POSTING_CREATED,
+        entity_type=AuditEntity.POSTING,
+        actor_id=current_user.id,
+        entity_id=job_url.id,
+        entity_label=job_url.url,
+        employer_id=employer_id,
+        position_id=position_id,
+        description=f'Added job board URL for position "{position.job_title}"',
+        new_data={"url": job_url.url, "platform": job_url.platform},
+        request=request,
+    )
+    await db.commit()  # single commit: URL + audit are atomic
     await db.refresh(job_url)
-    await log_action(db, user_id=current_user.id, action="CREATE",
-                     resource_type="url", resource_id=job_url.id,
-                     employer_id=employer_id, position_id=position_id,
-                     new_data={"url": job_url.url, "position_id": position_id},
-                     ip_address=get_client_ip(request))
-    await db.commit()
     return job_url
 
 
@@ -282,11 +330,19 @@ async def update_url(
         job_url.platform = payload.platform
     if payload.url is not None:
         job_url.url = payload.url
-    await log_action(db, user_id=current_user.id, action="UPDATE",
-                     resource_type="url", resource_id=job_url.id,
-                     employer_id=employer_id, position_id=position_id,
-                     new_data={"url": job_url.url},
-                     ip_address=get_client_ip(request))
+    await audit(
+        db,
+        action=AuditAction.POSTING_UPDATED,
+        entity_type=AuditEntity.POSTING,
+        actor_id=current_user.id,
+        entity_id=job_url.id,
+        entity_label=job_url.url,
+        employer_id=employer_id,
+        position_id=position_id,
+        description=f'Updated job board URL in position #{position_id}',
+        new_data={"url": job_url.url, "platform": job_url.platform},
+        request=request,
+    )
     await db.commit()
     await db.refresh(job_url)
     return job_url
@@ -311,11 +367,19 @@ async def delete_url(
     job_url = result.scalar_one_or_none()
     if job_url is None:
         raise HTTPException(status_code=404, detail="URL not found.")
-    await log_action(db, user_id=current_user.id, action="DELETE",
-                     resource_type="url", resource_id=job_url.id,
-                     employer_id=employer_id, position_id=position_id,
-                     old_data={"url": job_url.url},
-                     ip_address=get_client_ip(request))
+    await audit(
+        db,
+        action=AuditAction.POSTING_DELETED,
+        entity_type=AuditEntity.POSTING,
+        actor_id=current_user.id,
+        entity_id=job_url.id,
+        entity_label=job_url.url,
+        employer_id=employer_id,
+        position_id=position_id,
+        description=f'Removed job board URL from position #{position_id}',
+        old_data={"url": job_url.url},
+        request=request,
+    )
     await db.delete(job_url)
     await db.commit()
 
@@ -343,12 +407,25 @@ async def toggle_url(
     if not job_url.is_active:
         await check_url_reactivate_limit(db, current_user, position_id, exclude_id=url_id)
     job_url.is_active = not job_url.is_active
+    url_action = AuditAction.POSTING_ACTIVATED if job_url.is_active else AuditAction.POSTING_DEACTIVATED
+    url_desc = (
+        f'Activated job board URL for position #{position_id}'
+        if job_url.is_active
+        else f'Deactivated job board URL for position #{position_id}'
+    )
+    await audit(
+        db,
+        action=url_action,
+        entity_type=AuditEntity.POSTING,
+        actor_id=current_user.id,
+        entity_id=job_url.id,
+        entity_label=job_url.url,
+        employer_id=employer_id,
+        position_id=position_id,
+        description=url_desc,
+        new_data={"url": job_url.url, "is_active": job_url.is_active},
+        request=request,
+    )
     await db.commit()
     await db.refresh(job_url)
-    await log_action(db, user_id=current_user.id, action="UPDATE",
-                     resource_type="url", resource_id=job_url.id,
-                     employer_id=employer_id, position_id=position_id,
-                     new_data={"url": job_url.url, "is_active": job_url.is_active},
-                     ip_address=get_client_ip(request))
-    await db.commit()
     return job_url

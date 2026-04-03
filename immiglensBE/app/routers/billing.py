@@ -11,6 +11,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import audit
+from app.core.audit_events import AuditAction, AuditEntity
 from app.core.config import settings
 from app.core.dependencies import get_current_user, get_db
 from app.core.permissions import deactivate_user_positions
@@ -238,6 +240,7 @@ class ChangePlanRequest(BaseModel):
 @router.post("/change-plan", response_model=SyncCheckoutResponse)
 async def change_plan(
     body: ChangePlanRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -285,7 +288,20 @@ async def change_plan(
         # Deactivate excess positions only (employers and URLs are left untouched)
         await deactivate_user_positions(db, current_user)
     else:
-        await db.commit()
+        await db.flush()
+    await audit(
+        db,
+        action=AuditAction.SUBSCRIPTION_PLAN_CHANGED,
+        entity_type=AuditEntity.USER,
+        actor_id=current_user.id,
+        entity_id=str(current_user.id),
+        entity_label=current_user.email,
+        old_data={"tier_id": old_tier.id if old_tier else None, "tier_name": old_tier.display_name if old_tier else None},
+        new_data={"tier_id": tier.id, "tier_name": tier.display_name, "is_annual": body.is_annual},
+        description=f"Plan changed to {tier.display_name} ({'annual' if body.is_annual else 'monthly'}, {'downgrade' if is_downgrade else 'upgrade'})",
+        request=request,
+    )
+    await db.commit()
     log.info("change-plan: user %s switched to tier %s (downgrade=%s)", current_user.id, tier.id, is_downgrade)
 
     return SyncCheckoutResponse(
@@ -499,7 +515,19 @@ async def _handle_checkout_completed(data: dict, db: AsyncSession) -> None:
         except Exception:
             log.exception("Could not retrieve subscription %s", subscription_id)
 
-    await db.commit()
+    await audit(
+        db,
+        action=AuditAction.SUBSCRIPTION_ACTIVATED,
+        entity_type=AuditEntity.USER,
+        actor_id=user.id,
+        actor_type="system",
+        entity_id=str(user.id),
+        entity_label=user.email,
+        new_data={"tier_id": tier_id, "subscription_id": subscription_id},
+        description=f"Subscription activated via checkout (tier_id={tier_id})",
+        source="webhook",
+    )
+    await db.commit()  # single commit: tier assignment + promo redemption + audit are atomic
     log.info("checkout.session.completed: user %s assigned tier %s", user.id, tier_id)
 
     # 6.1 Subscription confirmed email
@@ -593,7 +621,19 @@ async def _handle_subscription_updated(data: dict, db: AsyncSession) -> None:
                 if tier_row:
                     user.tier_id = tier_row.id
 
-    await db.commit()
+    await audit(
+        db,
+        action=AuditAction.SUBSCRIPTION_UPDATED,
+        entity_type=AuditEntity.USER,
+        actor_id=user.id,
+        actor_type="system",
+        entity_id=str(user.id),
+        entity_label=user.email,
+        new_data={"tier_id": user.tier_id, "tier_expires_at": str(user.tier_expires_at)},
+        description="Subscription updated via Stripe webhook",
+        source="webhook",
+    )
+    await db.commit()  # single commit: tier/expiry update + audit are atomic
 
 
 async def _handle_subscription_deleted(data: dict, db: AsyncSession) -> None:
@@ -604,6 +644,18 @@ async def _handle_subscription_deleted(data: dict, db: AsyncSession) -> None:
 
     user.tier_id = None
     user.tier_expires_at = None
+    await db.flush()
+    await audit(
+        db,
+        action=AuditAction.SUBSCRIPTION_CANCELLED,
+        entity_type=AuditEntity.USER,
+        actor_id=user.id,
+        actor_type="system",
+        entity_id=str(user.id),
+        entity_label=user.email,
+        description="Subscription cancelled via Stripe webhook",
+        source="webhook",
+    )
     await db.commit()
     log.info("subscription.deleted: reverted user %s to free tier", user.id)
 
@@ -707,6 +759,21 @@ async def _handle_invoice_payment_failed(data: dict, db: AsyncSession) -> None:
     except Exception:
         log.exception("Failed to send payment_failed email to user %s", user.id)
 
+    await audit(
+        db,
+        action=AuditAction.PAYMENT_FAILED,
+        entity_type=AuditEntity.USER,
+        actor_id=user.id,
+        actor_type="system",
+        entity_id=str(user.id),
+        entity_label=user.email,
+        metadata={"amount": amount, "billing_reason": billing_reason, "attempt_count": attempt_count, "failure_reason": failure_reason},
+        description=f"Payment failed: {failure_reason} (attempt {attempt_count})",
+        source="webhook",
+        status="failed",
+    )
+    await db.commit()
+
 
 async def _handle_invoice_paid(data: dict, db: AsyncSession) -> None:
     """5.1 Payment Successful — fired on invoice.paid for any successful charge."""
@@ -767,3 +834,17 @@ async def _handle_invoice_paid(data: dict, db: AsyncSession) -> None:
         log.info("invoice.paid email sent to user %s", user.id)
     except Exception:
         log.exception("Failed to send payment_successful email to user %s", user.id)
+
+    await audit(
+        db,
+        action=AuditAction.PAYMENT_SUCCEEDED,
+        entity_type=AuditEntity.USER,
+        actor_id=user.id,
+        actor_type="system",
+        entity_id=str(user.id),
+        entity_label=user.email,
+        metadata={"amount": amount, "invoice_number": invoice_number},
+        description=f"Payment succeeded: {amount} (invoice {invoice_number})",
+        source="webhook",
+    )
+    await db.commit()

@@ -9,6 +9,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.audit import audit
+from app.core.audit_events import AuditAction, AuditEntity
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.models.capture import CaptureResult, CaptureRound, CaptureStatus, ResultStatus
@@ -173,6 +175,7 @@ async def _expire_subscriptions_job() -> None:
                 )
                 emp_ids = [r[0] for r in emp_ids_res.all()]
 
+                positions_count = 0
                 if emp_ids:
                     pos_res = await db.execute(
                         select(JobPosition).where(
@@ -183,10 +186,23 @@ async def _expire_subscriptions_job() -> None:
                     positions = pos_res.scalars().all()
                     for pos in positions:
                         pos.is_active = False
+                    positions_count = len(positions)
 
                     await db.flush()
                     await pause_rounds_for_user(db, emp_ids)
 
+                await audit(
+                    db,
+                    action=AuditAction.SUBSCRIPTION_EXPIRED,
+                    entity_type=AuditEntity.USER,
+                    actor_id=user.id,
+                    actor_type="system",
+                    entity_id=str(user.id),
+                    entity_label=user.email,
+                    description=f"Subscription expired — {positions_count} position(s) deactivated",
+                    metadata={"positions_deactivated": positions_count},
+                    source="system",
+                )
                 await db.commit()
                 logger.info("Expired subscription for user_id=%s", user_id)
 

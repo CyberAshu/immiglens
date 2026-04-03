@@ -8,6 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.audit import audit
+from app.core.audit_events import AuditAction, AuditEntity
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
@@ -132,7 +134,7 @@ def _verify_token(value: str, stored_hash: str) -> bool:
 
 
 @router.post("/register", response_model=UserOut, status_code=201)
-async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register(payload: RegisterRequest, request: Request, db: AsyncSession = Depends(get_db)):
     existing = await get_user_by_email(db, payload.email)
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered.")
@@ -145,6 +147,18 @@ async def register(payload: RegisterRequest, db: AsyncSession = Depends(get_db))
         privacy_accepted=payload.accept_privacy,
         acceptable_use_accepted=payload.accept_acceptable_use,
     )
+    await audit(
+        db,
+        action=AuditAction.REGISTER,
+        entity_type=AuditEntity.USER,
+        actor_id=user.id,
+        entity_id=user.id,
+        entity_label=user.email,
+        description=f'New account registered: {user.email}',
+        new_data={"email": user.email, "full_name": user.full_name},
+        request=request,
+    )
+    await db.commit()
     try:
         await send_welcome_email(
             user.email,
@@ -165,6 +179,21 @@ async def login(payload: LoginRequest, request: Request, db: AsyncSession = Depe
     """
     user = await get_user_by_email(db, payload.email)
     if not user or not verify_password(payload.password, user.hashed_password):
+        try:
+            await audit(
+                db,
+                action=AuditAction.LOGIN_FAILED,
+                entity_type=AuditEntity.USER,
+                actor_id=None,
+                status="failed",
+                entity_label=payload.email,
+                description=f'Failed login attempt for {payload.email}',
+                metadata={"reason": "invalid_credentials"},
+                request=request,
+            )
+            await db.commit()
+        except Exception:
+            logger.exception("Could not write failed login audit for %s", payload.email)
         raise HTTPException(status_code=401, detail="Invalid credentials.")
 
     candidate_token = request.cookies.get(_DEVICE_COOKIE) or payload.device_token
@@ -187,6 +216,17 @@ async def login(payload: LoginRequest, request: Request, db: AsyncSession = Depe
                     TrustedDevice.user_id == user.id,
                     TrustedDevice.expires_at <= now,
                 )
+            )
+            await audit(
+                db,
+                action=AuditAction.TRUSTED_DEVICE_LOGIN,
+                entity_type=AuditEntity.USER,
+                actor_id=user.id,
+                entity_id=user.id,
+                entity_label=user.email,
+                description=f'Trusted device login for {user.email}',
+                metadata={"device_name": trusted.device_name},
+                request=request,
             )
             await db.commit()
             logger.info("Trusted device login for %s", payload.email)
@@ -287,8 +327,29 @@ async def verify_otp(
             samesite="strict",
             path="/",
         )
+        await audit(
+            db,
+            action=AuditAction.TRUSTED_DEVICE_REGISTERED,
+            entity_type=AuditEntity.USER,
+            actor_id=user.id,
+            entity_id=user.id,
+            entity_label=user.email,
+            description=f'Trusted device registered for {user.email} ({device_name})',
+            metadata={"browser": browser, "os": os_name, "device_name": device_name},
+            request=request,
+        )
         logger.info("Trusted device registered for %s (browser=%s, os=%s, ip=%s)", payload.email, browser, os_name, ip)
 
+    await audit(
+        db,
+        action=AuditAction.OTP_VERIFIED,
+        entity_type=AuditEntity.USER,
+        actor_id=user.id,
+        entity_id=user.id,
+        entity_label=user.email,
+        description=f'OTP verified — login successful for {user.email}',
+        request=request,
+    )
     await db.commit()
 
     return TokenResponse(access_token=create_access_token(user.id))
@@ -302,6 +363,7 @@ async def me(current_user: User = Depends(get_current_user)):
 @router.patch("/me", response_model=UserOut)
 async def update_profile(
     payload: UpdateProfileRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -309,7 +371,20 @@ async def update_profile(
     full_name = payload.full_name.strip()
     if not full_name:
         raise HTTPException(status_code=422, detail="Full name cannot be empty.")
+    old_name = current_user.full_name
     current_user.full_name = full_name
+    await db.flush()
+    await audit(
+        db,
+        action=AuditAction.PROFILE_UPDATED,
+        entity_type=AuditEntity.USER,
+        actor_id=current_user.id,
+        entity_id=str(current_user.id),
+        entity_label=current_user.email,
+        old_data={"full_name": old_name},
+        new_data={"full_name": full_name},
+        request=request,
+    )
     await db.commit()
     await db.refresh(current_user)
     return current_user
@@ -318,6 +393,7 @@ async def update_profile(
 @router.patch("/change-password", status_code=200)
 async def change_password(
     payload: ChangePasswordRequest,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -329,6 +405,17 @@ async def change_password(
     if payload.current_password == payload.new_password:
         raise HTTPException(status_code=422, detail="New password must differ from the current password.")
     current_user.hashed_password = hash_password(payload.new_password)
+    await db.flush()
+    await audit(
+        db,
+        action=AuditAction.PASSWORD_CHANGED,
+        entity_type=AuditEntity.USER,
+        actor_id=current_user.id,
+        entity_id=str(current_user.id),
+        entity_label=current_user.email,
+        description="Password changed by user",
+        request=request,
+    )
     await db.commit()
     logger.info("Password changed for user_id=%s", current_user.id)
     return {"message": "Password updated successfully."}
@@ -394,7 +481,9 @@ async def revoke_trusted_device(
 
 @router.post("/forgot-password", status_code=200)
 async def forgot_password(
-    payload: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)
+    payload: ForgotPasswordRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
 ):
     """Send a password-reset link to the user's email.
     Always returns success to prevent email enumeration.
@@ -418,6 +507,16 @@ async def forgot_password(
             + timedelta(hours=settings.PASSWORD_RESET_EXPIRE_HOURS),
         )
     )
+    await audit(
+        db,
+        action=AuditAction.PASSWORD_RESET_REQUESTED,
+        entity_type=AuditEntity.USER,
+        actor_id=user.id,
+        entity_id=str(user.id),
+        entity_label=user.email,
+        description=f"Password reset requested for {user.email}",
+        request=request,
+    )
     await db.commit()
 
     reset_url = f"{settings.FRONTEND_URL}/reset-password?token={raw_token}"
@@ -438,7 +537,9 @@ async def forgot_password(
 
 @router.post("/reset-password", status_code=200)
 async def reset_password(
-    payload: ResetPasswordRequest, db: AsyncSession = Depends(get_db)
+    payload: ResetPasswordRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
 ):
     """Validate the reset token and update the user's password."""
     if len(payload.new_password) < 8:
@@ -468,6 +569,16 @@ async def reset_password(
     )
     await db.execute(
         delete(TrustedDevice).where(TrustedDevice.user_id == record.user_id)
+    )
+    await audit(
+        db,
+        action=AuditAction.PASSWORD_RESET_COMPLETED,
+        entity_type=AuditEntity.USER,
+        actor_id=user.id,
+        entity_id=str(user.id),
+        entity_label=user.email,
+        description="Password reset completed via email link",
+        request=request,
     )
     await db.commit()
 

@@ -10,9 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.audit import log_action
+from app.core.audit import audit
+from app.core.audit_events import AuditAction, AuditEntity
 from app.core.database import get_db
-from app.core.dependencies import get_client_ip, get_current_user
+from app.core.dependencies import get_current_user
 from app.models.promotion import Promotion
 from app.models.user import User
 from app.schemas.promotion import (
@@ -184,8 +185,7 @@ async def admin_create_promotion(
 
     promo = Promotion(**data)
     db.add(promo)
-    await db.commit()
-    await db.refresh(promo)
+    await db.flush()
 
     # Auto-create Stripe coupon (best-effort)
     try:
@@ -198,16 +198,22 @@ async def admin_create_promotion(
             promotion_id=promo.id,
         )
         promo.stripe_coupon_id = coupon_id
-        await db.commit()
-        await db.refresh(promo)
     except Exception as exc:
         log.warning("Stripe coupon creation failed for promotion %s: %s", promo.id, exc)
 
-    await log_action(db, user_id=current_user.id, action="CREATE",
-                     resource_type="promotion", resource_id=promo.id,
-                     new_data={"name": promo.name, "code": promo.code},
-                     ip_address=get_client_ip(request))
+    await audit(
+        db,
+        action=AuditAction.PROMO_CREATED,
+        entity_type=AuditEntity.PROMOTION,
+        actor_id=current_user.id,
+        entity_id=promo.id,
+        entity_label=promo.name,
+        description=f'Created promotion "{promo.name}" (code: {promo.code})',
+        new_data={"name": promo.name, "code": promo.code},
+        request=request,
+    )
     await db.commit()
+    await db.refresh(promo)
     return _to_out(promo)
 
 
@@ -250,13 +256,25 @@ async def admin_update_promotion(
         except Exception as exc:
             log.warning("Stripe coupon archive failed for promotion %s: %s", promo.id, exc)
 
-    await db.commit()
+    promo_action = AuditAction.PROMO_DEACTIVATED if not promo.is_active else AuditAction.PROMO_UPDATED
+    promo_desc = (
+        f'Deactivated promotion "{promo.name}"'
+        if not promo.is_active
+        else f'Updated promotion "{promo.name}"'
+    )
+    await audit(
+        db,
+        action=promo_action,
+        entity_type=AuditEntity.PROMOTION,
+        actor_id=current_user.id,
+        entity_id=promo.id,
+        entity_label=promo.name,
+        description=promo_desc,
+        new_data=body.model_dump(exclude_none=True),
+        request=request,
+    )
+    await db.commit()  # single commit: promo changes + audit are atomic
     await db.refresh(promo)
-    await log_action(db, user_id=current_user.id, action="UPDATE",
-                     resource_type="promotion", resource_id=promo.id,
-                     new_data=body.model_dump(exclude_none=True),
-                     ip_address=get_client_ip(request))
-    await db.commit()
     return _to_out(promo)
 
 
@@ -278,8 +296,16 @@ async def admin_delete_promotion(
             stripe_service.archive_coupon(promo.stripe_coupon_id)
         except Exception as exc:
             log.warning("Stripe coupon archive failed for promotion %s: %s", promo.id, exc)
-    await log_action(db, user_id=current_user.id, action="UPDATE",
-                     resource_type="promotion", resource_id=promo.id,
-                     old_data={"is_active": True}, new_data={"is_active": False},
-                     ip_address=get_client_ip(request))
+    await audit(
+        db,
+        action=AuditAction.PROMO_DEACTIVATED,
+        entity_type=AuditEntity.PROMOTION,
+        actor_id=current_user.id,
+        entity_id=promo.id,
+        entity_label=promo.name,
+        description=f'Deactivated promotion "{promo.name}"',
+        old_data={"is_active": True},
+        new_data={"is_active": False},
+        request=request,
+    )
     await db.commit()

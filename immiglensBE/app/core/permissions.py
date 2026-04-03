@@ -359,5 +359,6 @@ async def deactivate_user_positions(db: AsyncSession, user: User) -> int:
 
     await db.flush()
     await pause_rounds_for_user(db, emp_ids)
-    await db.commit()
+    # NOTE: caller owns db.commit() — this function only flushes so the
+    # business operation and its audit entry remain in the same transaction.
     return len(positions)

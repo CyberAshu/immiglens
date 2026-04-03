@@ -2,13 +2,14 @@ import logging
 import uuid
 from datetime import date, datetime, timezone
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.audit import log_action
+from app.core.audit import audit
+from app.core.audit_events import AuditAction, AuditEntity
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.models.capture import CaptureRound, CaptureStatus
@@ -57,6 +58,7 @@ async def _load_position(
 async def upload_document(
     employer_id: int,
     position_id: int,
+    request: Request,
     file: UploadFile = File(...),
     doc_type: str = Query("supporting", pattern="^(supporting|job_match)$"),
     db: AsyncSession = Depends(get_db),
@@ -80,6 +82,20 @@ async def upload_document(
         doc_type=doc_type,
     )
     db.add(doc)
+    await db.flush()
+    await audit(
+        db,
+        action=AuditAction.DOCUMENT_UPLOADED,
+        entity_type=AuditEntity.DOCUMENT,
+        actor_id=current_user.id,
+        entity_id=doc.id,
+        entity_label=original_name,
+        employer_id=employer_id,
+        position_id=position_id,
+        description=f'Uploaded document "{original_name}" ({doc_type}) for position #{position_id}',
+        new_data={"filename": original_name, "doc_type": doc_type},
+        request=request,
+    )
     await db.commit()
     await db.refresh(doc)
     return doc
@@ -90,6 +106,7 @@ async def delete_document(
     employer_id: int,
     position_id: int,
     doc_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -107,6 +124,19 @@ async def delete_document(
         await storage.delete("documents", [bucket_path])
     except (IndexError, Exception):
         pass
+    await audit(
+        db,
+        action=AuditAction.DOCUMENT_DELETED,
+        entity_type=AuditEntity.DOCUMENT,
+        actor_id=current_user.id,
+        entity_id=doc.id,
+        entity_label=doc.original_filename,
+        employer_id=employer_id,
+        position_id=position_id,
+        description=f'Deleted document "{doc.original_filename}" from position #{position_id}',
+        old_data={"filename": doc.original_filename, "doc_type": doc.doc_type},
+        request=request,
+    )
     await db.delete(doc)
     await db.commit()
 
@@ -115,6 +145,7 @@ async def delete_document(
 async def generate_report(
     employer_id: int,
     position_id: int,
+    request: Request,
     acknowledge_early: bool = Body(False, embed=True),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -144,20 +175,22 @@ async def generate_report(
                 },
             )
         # Acknowledged early generation — log to audit trail
-        await log_action(
+        await audit(
             db,
-            user_id=current_user.id,
-            action="EARLY_REPORT_ACKNOWLEDGED",
-            resource_type="job_position",
-            resource_id=position_id,
+            action=AuditAction.REPORT_EARLY_ACKNOWLEDGED,
+            entity_type=AuditEntity.POSITION,
+            actor_id=current_user.id,
+            entity_id=position_id,
+            entity_label=position.job_title,
             employer_id=employer_id,
             position_id=position_id,
+            description=f'Acknowledged early report generation for "{position.job_title}" ({days_active}/{MINIMUM_DAYS} days)',
             new_data={
                 "acknowledged_at": datetime.now(timezone.utc).isoformat(),
                 "days_active": days_active,
                 "days_remaining": days_remaining,
-                "note": "User explicitly acknowledged generating report before 28-day ESDC minimum.",
             },
+            request=request,
         )
         await db.commit()
 
@@ -209,6 +242,25 @@ async def generate_report(
         )
     except Exception:
         logger.warning("report_ready email failed for user_id=%s", current_user.id)
+
+    await audit(
+        db,
+        action=AuditAction.REPORT_GENERATED,
+        entity_type=AuditEntity.REPORT,
+        actor_id=current_user.id,
+        entity_id=position_id,
+        entity_label=position.job_title,
+        employer_id=employer_id,
+        position_id=position_id,
+        description=f'Generated LMIA report for "{position.job_title}" ({employer.business_name})',
+        new_data={
+            "position_title": position.job_title,
+            "employer": employer.business_name,
+            "capture_rounds": len(sorted_rounds),
+        },
+        request=request,
+    )
+    await db.commit()
 
     return Response(
         content=pdf_bytes,

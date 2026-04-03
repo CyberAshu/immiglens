@@ -3,9 +3,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.audit import log_action
+from app.core.audit import audit
+from app.core.audit_events import AuditAction, AuditEntity
 from app.core.database import get_db
-from app.core.dependencies import get_client_ip, get_current_user
+from app.core.dependencies import get_current_user
 from app.core.permissions import check_monthly_capture_limit
 from app.models.capture import CaptureResult, CaptureRound, CaptureStatus
 from app.models.employer import Employer
@@ -93,11 +94,18 @@ async def trigger_capture_round(
 
     await check_monthly_capture_limit(db, current_user)
     await force_run_capture_round(round_id)
-    await log_action(db, user_id=current_user.id, action="CREATE",
-                     resource_type="capture_round", resource_id=round_id,
-                     employer_id=employer_id, position_id=position_id,
-                     new_data={"position_id": position_id, "triggered_manually": True},
-                     ip_address=get_client_ip(request))
+    await audit(
+        db,
+        action=AuditAction.CAPTURE_TRIGGERED,
+        entity_type=AuditEntity.CAPTURE_ROUND,
+        actor_id=current_user.id,
+        entity_id=round_id,
+        employer_id=employer_id,
+        position_id=position_id,
+        description=f'Manually triggered capture round #{round_id} for position #{position_id}',
+        new_data={"position_id": position_id, "triggered_manually": True},
+        request=request,
+    )
     await db.commit()
     await db.refresh(round_)
     result2 = await db.execute(
