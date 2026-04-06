@@ -143,6 +143,7 @@ async def register(payload: RegisterRequest, request: Request, db: AsyncSession 
         payload.email,
         payload.password,
         payload.full_name,
+        date_of_birth=payload.date_of_birth,
         terms_accepted=payload.accept_terms,
         privacy_accepted=payload.accept_privacy,
         acceptable_use_accepted=payload.accept_acceptable_use,

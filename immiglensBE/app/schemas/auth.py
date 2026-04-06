@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, field_validator
@@ -12,6 +12,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     full_name: str
+    date_of_birth: date
     accept_terms: bool = False
     accept_privacy: bool = False
     accept_acceptable_use: bool = False
@@ -35,6 +36,15 @@ class RegisterRequest(BaseModel):
         if not stripped:
             raise ValueError("Full name must not be blank.")
         return stripped
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def must_be_18(cls, v: date) -> date:
+        today = date.today()
+        age = today.year - v.year - ((today.month, today.day) < (v.month, v.day))
+        if age < 18:
+            raise ValueError("You must be at least 18 years old to register.")
+        return v
 
     @field_validator("accept_terms", "accept_privacy", "accept_acceptable_use")
     @classmethod

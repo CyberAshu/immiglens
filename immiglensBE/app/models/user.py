@@ -1,7 +1,7 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, ForeignKey, String, DateTime
+from sqlalchemy import Boolean, Date, ForeignKey, String, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -45,6 +45,7 @@ class User(Base):
     acceptable_use_accepted_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    date_of_birth: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
     employers: Mapped[list["Employer"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

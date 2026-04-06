@@ -6,11 +6,12 @@ export const auth = {
     email: string,
     password: string,
     full_name: string,
+    date_of_birth: string,
     consent: { accept_terms: boolean; accept_privacy: boolean; accept_acceptable_use: boolean },
   ) =>
     request<User>('/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, full_name, ...consent }),
+      body: JSON.stringify({ email, password, full_name, date_of_birth, ...consent }),
     }),
 
   requestOtp: (email: string, password: string) =>

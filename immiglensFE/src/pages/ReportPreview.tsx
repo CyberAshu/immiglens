@@ -227,9 +227,10 @@ export default function ReportPreview() {
     copied.forEach(pg => outDoc.addPage(pg))
     const bytes = await outDoc.save()
     const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'application/pdf' }))
+    const safeTitle = (position?.job_title ?? 'Report').replace(/[^\w\s-]/g, '').trim()
     const a = document.createElement('a')
     a.href = url
-    a.download = 'LMIA_Report.pdf'
+    a.download = `Recruitment Proof - ${safeTitle}.pdf`
     a.click()
     setTimeout(() => URL.revokeObjectURL(url), 10_000)
   }
@@ -421,7 +422,7 @@ export default function ReportPreview() {
           >
             <div className="rpe-no-pdf">
               Your browser cannot display PDFs inline.{' '}
-              <a href={previewBlobUrl ?? ''} download="LMIA_Report.pdf">Download instead</a>.
+              <a href={previewBlobUrl ?? ''} download={`Recruitment Proof - ${(position?.job_title ?? 'Report').replace(/[^\w\s-]/g, '').trim()}.pdf`}>Download instead</a>.
             </div>
           </object>
         </div>

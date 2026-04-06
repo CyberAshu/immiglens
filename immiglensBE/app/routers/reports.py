@@ -1,4 +1,5 @@
 import logging
+import re
 import uuid
 from datetime import date, datetime, timezone
 
@@ -261,9 +262,13 @@ async def generate_report(
         request=request,
     )
     await db.commit()
+    
+    safe_title = re.sub(r'[^\w\s-]', '', position.job_title).strip()
+    safe_title = re.sub(r'\s+', ' ', safe_title)
+    pdf_filename = f"Recruitment Proof - {safe_title}.pdf"
 
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": 'attachment; filename="LMIA_Report.pdf"'},
+        headers={"Content-Disposition": f'attachment; filename="{pdf_filename}"'},
     )

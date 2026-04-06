@@ -73,6 +73,7 @@ export default function Register() {
 
   const [fullName, setFullName]     = useState('')
   const [email, setEmail]           = useState('')
+  const [dob, setDob]               = useState('')
   const [password, setPassword]     = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword]       = useState(false)
@@ -88,12 +89,19 @@ export default function Register() {
     e.preventDefault()
     setError(null)
     if (password !== confirmPassword) { setError('Passwords do not match.'); return }
+    if (!dob) { setError('Please enter your date of birth.'); return }
+    const dobDate = new Date(dob)
+    const today = new Date()
+    const age = today.getFullYear() - dobDate.getFullYear() -
+      (today.getMonth() < dobDate.getMonth() ||
+       (today.getMonth() === dobDate.getMonth() && today.getDate() < dobDate.getDate()) ? 1 : 0)
+    if (age < 18) { setError('You must be at least 18 years old to register.'); return }
     if (!allAccepted) { setError('Please accept all policies to continue.'); return }
     const normalized  = email.trim().toLowerCase()
     const trimmedName = fullName.trim()
     setLoading(true)
     try {
-      await auth.register(normalized, password, trimmedName, {
+      await auth.register(normalized, password, trimmedName, dob, {
         accept_terms: true,
         accept_privacy: true,
         accept_acceptable_use: true,
@@ -149,7 +157,23 @@ export default function Register() {
               </div>
             </div>
 
-            {/* Row 2: Password + Confirm */}
+            {/* Row 2: DOB */}
+            <div className="asf-row">
+              <div className="asf-field">
+                <label className="asf-label">Date of Birth</label>
+                <div className="asf-input-wrap">
+                  <input
+                    type="date"
+                    value={dob}
+                    onChange={e => setDob(e.target.value)}
+                    required
+                    max={new Date(new Date().setFullYear(new Date().getFullYear() - 18)).toISOString().split('T')[0]}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Row 3: Password + Confirm */}
             <div className="asf-row">
               <div className="asf-field">
                 <label className="asf-label">Password</label>
