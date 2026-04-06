@@ -2,71 +2,18 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { BackToTop } from '../components/BackToTop'
-import { notifications as notifApi } from '../api'
-import type { NotificationEvent, NotificationLog } from '../types'
+import { NotificationBell } from '../components/NotificationBell'
 import {
-  Bell,
   Building2,
-  CheckCircle2,
   ChevronDown,
   ClipboardList,
   CreditCard,
   LayoutDashboard,
   LogOut,
-  PlayCircle,
-  RefreshCw,
   Settings,
   ShieldCheck,
-  XCircle,
 } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 import '../App.css'
-
-// ─── helpers ──────────────────────────────────────────────────────────────────
-
-const EVENT_META: Record<NotificationEvent, { icon: LucideIcon; color: string; bg: string; title: string }> = {
-  capture_complete: { icon: CheckCircle2, color: '#16a34a', bg: '#f0fdf4', title: 'Capture completed' },
-  capture_failed:   { icon: XCircle,      color: '#dc2626', bg: '#fef2f2', title: 'Capture failed' },
-  posting_changed:  { icon: RefreshCw,    color: '#2563eb', bg: '#eff6ff', title: 'Job posting changed' },
-  round_started:    { icon: PlayCircle,   color: '#d97706', bg: '#fffbeb', title: 'Capture round started' },
-}
-
-function parseContext(json: string | null): Record<string, string> {
-  if (!json) return {}
-  try { return JSON.parse(json) } catch { return {} }
-}
-
-function notifDetail(log: NotificationLog): { Icon: LucideIcon; color: string; bg: string; title: string; subtitle: string } {
-  const meta = log.event_type ? EVENT_META[log.event_type] : null
-  const ctx  = parseContext(log.context_json)
-
-  let subtitle = ''
-  if (log.event_type === 'capture_complete' || log.event_type === 'capture_failed' || log.event_type === 'round_started') {
-    subtitle = ctx.position ?? ''
-    if (ctx.round_id) subtitle += subtitle ? ` · Round #${ctx.round_id}` : `Round #${ctx.round_id}`
-  } else if (log.event_type === 'posting_changed') {
-    try { subtitle = new URL(ctx.posting_url ?? '').hostname } catch { subtitle = ctx.posting_url ?? '' }
-    if (ctx.change_summary) subtitle += subtitle ? ` — ${ctx.change_summary}` : ctx.change_summary
-  }
-
-  return {
-    Icon:     meta?.icon ?? Bell,
-    color:    meta?.color ?? '#6b7280',
-    bg:       meta?.bg    ?? '#f3f4f6',
-    title:    meta?.title ?? 'Notification',
-    subtitle: subtitle.length > 60 ? subtitle.slice(0, 57) + '…' : subtitle,
-  }
-}
-
-function timeAgo(dateStr: string) {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1)  return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24)  return `${hrs}h ago`
-  return `${Math.floor(hrs / 24)}d ago`
-}
 
 // ─── component ────────────────────────────────────────────────────────────────
 
@@ -77,45 +24,19 @@ export default function Layout() {
   const location = useLocation()
 
   const [profileOpen, setProfileOpen] = useState(false)
-  const [bellOpen, setBellOpen] = useState(false)
-  const [notifLogs, setNotifLogs] = useState<NotificationLog[]>([])
 
   const profileRef = useRef<HTMLDivElement>(null)
-  const bellRef = useRef<HTMLDivElement>(null)
 
   // Scroll page-main to top on every route change
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
     setProfileOpen(false)
-    setBellOpen(false)
   }, [location.pathname])
 
-  // Initial fetch + background polling every 60 s
-  useEffect(() => {
-    const fetchLogs = () => notifApi.listLogs().then(setNotifLogs).catch(() => {})
-    fetchLogs()
-    const interval = setInterval(fetchLogs, 60_000)
-    return () => clearInterval(interval)
-  }, [])
-
-  // Auto-create default notification rules for new users (first login)
-  useEffect(() => {
-    if (!user) return
-    notifApi.listPreferences().then(prefs => {
-      if (prefs.length === 0) {
-        const events: NotificationEvent[] = ['capture_complete', 'capture_failed', 'posting_changed', 'round_started']
-        events.forEach(event_type =>
-          notifApi.createPreference({ event_type, channel: 'email', destination: user.email }).catch(() => {})
-        )
-      }
-    }).catch(() => {})
-  }, [user?.id])
-
-  // Close dropdowns on outside click
+  // Close profile dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false)
-      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
@@ -128,20 +49,6 @@ export default function Layout() {
 
   const navCls = ({ isActive }: { isActive: boolean }) =>
     `sidebar-link${isActive ? ' sidebar-link--active' : ''}`
-
-  const recentNotifs = notifLogs.slice(0, 5)
-  const unreadCount  = notifLogs.filter(n => !n.is_read && n.status === 'sent').length
-
-  function openBell() {
-    const wasOpen = bellOpen
-    setBellOpen(o => !o)
-    setProfileOpen(false)
-    // Mark all as read optimistically when opening
-    if (!wasOpen && unreadCount > 0) {
-      notifApi.markAllRead().catch(() => {})
-      setNotifLogs(logs => logs.map(l => ({ ...l, is_read: true })))
-    }
-  }
 
   const initials = user?.full_name
     ? user.full_name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -160,51 +67,7 @@ export default function Layout() {
 
         <div className="nav-right">
           {/* Bell */}
-          <div className="nav-dropdown-wrap" ref={bellRef}>
-            <button
-              className="nav-icon-btn"
-              onClick={openBell}
-              aria-label="Notifications"
-            >
-              <Bell size={17} strokeWidth={2} />
-              {unreadCount > 0 && <span className="nav-bell-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
-            </button>
-
-            {bellOpen && (
-              <div className="nav-dropdown nav-dropdown--bell">
-                <div className="nav-dropdown-header">Notifications</div>
-                {recentNotifs.length === 0 ? (
-                  <div className="nav-dropdown-empty">No notifications yet</div>
-                ) : (
-                  recentNotifs.map(log => {
-                    const { Icon, color, bg, title, subtitle } = notifDetail(log)
-                    return (
-                      <div key={log.id} className={`nav-notif-item${!log.is_read ? ' nav-notif-item--unread' : ''}`}>
-                        <div className="nav-notif-row">
-                          <span className="nav-notif-icon" aria-hidden="true" style={{ background: bg, color }}>
-                            <Icon size={14} strokeWidth={2} />
-                          </span>
-                          <div className="nav-notif-body">
-                            <span className="nav-notif-title">{title}</span>
-                            {subtitle && <span className="nav-notif-subtitle">{subtitle}</span>}
-                          </div>
-                          <div className="nav-notif-aside">
-                            <span className={`nav-notif-status-dot nav-notif-status-dot--${log.status}`} title={log.status} />
-                            <span className="nav-notif-time">{timeAgo(log.created_at)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
-                <div className="nav-dropdown-footer">
-                  <button className="nav-dropdown-view-all" onClick={() => { setBellOpen(false); navigate('/notifications') }}>
-                    View All
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          <NotificationBell />
 
           <div className="nav-divider" />
 
@@ -212,7 +75,7 @@ export default function Layout() {
           <div className="nav-dropdown-wrap" ref={profileRef}>
             <button
               className="nav-profile-btn"
-              onClick={() => { setProfileOpen(o => !o); setBellOpen(false) }}
+              onClick={() => setProfileOpen(o => !o)}
             >
               <span className="nav-user-avatar nav-user-avatar--initials">{initials}</span>
               <span className="nav-profile-name">{user?.full_name}</span>

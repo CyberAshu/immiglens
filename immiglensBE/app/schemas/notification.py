@@ -1,43 +1,29 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, EmailStr
 
-from app.models.notification import NotificationChannel, NotificationEvent, NotifStatus
-
-
-class NotificationPreferenceCreate(BaseModel):
-    event_type: NotificationEvent
-    channel: NotificationChannel
-    destination: str
-
-    @field_validator("destination")
-    @classmethod
-    def destination_not_empty(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("destination cannot be empty")
-        return v.strip()
+from app.models.notification import NotificationEvent, NotifStatus
 
 
-class NotificationPreferenceUpdate(BaseModel):
-    is_active: bool
+# ── Settings ──────────────────────────────────────────────────────────────────
 
-
-class NotificationPreferenceOut(BaseModel):
-    id: int
-    user_id: int
-    event_type: NotificationEvent
-    channel: NotificationChannel
-    destination: str
-    is_active: bool
-    created_at: datetime
+class NotificationSettingsOut(BaseModel):
+    """User-facing notification settings."""
+    notification_email: Optional[str]
 
     model_config = {"from_attributes": True}
 
 
+class NotificationSettingsUpdate(BaseModel):
+    """Payload for updating notification email. Set to None to revert to account email."""
+    notification_email: Optional[EmailStr] = None
+
+
+# ── Delivery logs ─────────────────────────────────────────────────────────────
+
 class NotificationLogOut(BaseModel):
     id: int
-    preference_id: int
     event_type: Optional[NotificationEvent] = None
     trigger_id: Optional[int]
     trigger_type: Optional[str]

@@ -10,6 +10,7 @@ import {
   ListTodo,
   Download,
   Settings,
+  Play,
   User,
   Users,
   Briefcase,
@@ -17,8 +18,11 @@ import {
   Loader2,
 } from 'lucide-react'
 import { FeatureCard, StepCard, CTABand, PricingCard } from './LandingUI'
+import { VideoModal } from '../../components/VideoModal'
 import { subscriptions } from '../../api/subscriptions'
 import type { SubscriptionTier } from '../../types'
+
+const DEMO_VIDEO_URL = 'https://www.youtube.com/embed/?autoplay=1'
 
 function fmt(v: number) { return v === -1 ? 'Unlimited' : String(v) }
 
@@ -203,6 +207,7 @@ function HeroMockup() {
 export function LandingHome() {
   const [tiers, setTiers]         = useState<SubscriptionTier[]>([])
   const [tiersLoading, setTiersLoading] = useState(true)
+  const [demoOpen, setDemoOpen]   = useState(false)
 
   useEffect(() => {
     subscriptions.tiers()
@@ -218,6 +223,7 @@ export function LandingHome() {
   return (
 
     <div className="flex flex-col min-h-screen w-full overflow-hidden">
+      <VideoModal open={demoOpen} onClose={() => setDemoOpen(false)} videoUrl={DEMO_VIDEO_URL} />
       {/* A) HERO */}
       <section className="relative pt-24 pb-32 lg:pt-36 lg:pb-40 overflow-hidden">
         <div className="absolute inset-0 bg-brand-navy/5 pattern-dots pointer-events-none" />
@@ -232,28 +238,29 @@ export function LandingHome() {
                 LMIA Recruitment Proof Automated
               </div>
               <h1 className="text-5xl lg:text-6xl font-extrabold text-brand-navy leading-[1.1] mb-6 tracking-tight">
-                Set it once. We capture LMIA recruitment proof{' '}
-                <span className="text-brand-gold">automatically.</span>
+                No more manual screenshots.{' '}
+                <span className="text-brand-gold">We capture your recruitment proof automatically.</span>
               </h1>
               <p className="text-xl text-brand-charcoal/80 mb-10 leading-relaxed">
-                Add your job posting links, choose the capture schedule, and download a timestamped
-                LMIA-ready PDF report whenever you need it.
+                ImmigLens monitors your job postings and captures timestamped screenshots automatically
+                so you always have audit-ready LMIA recruitment proof, without the manual work.
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-4 mb-12">
+              <div className="flex flex-col sm:flex-row gap-4 mb-4">
                 <Link
                   to="/register"
                   className="bg-brand-gold hover:bg-[#b38e3c] text-white px-8 py-4 rounded-xl font-semibold shadow-lg shadow-brand-gold/20 transition-all text-lg flex items-center justify-center gap-2"
                 >
                   Start Free Trial <ArrowRight size={20} />
                 </Link>
-                <Link
-                  to="/how-it-works"
-                  className="bg-white hover:bg-gray-50 text-brand-navy border-2 border-brand-navy px-8 py-4 rounded-xl font-semibold shadow-sm transition-all text-lg flex items-center justify-center"
+                <button
+                  onClick={() => setDemoOpen(true)}
+                  className="bg-white hover:bg-gray-50 text-brand-navy border-2 border-brand-navy px-8 py-4 rounded-xl font-semibold shadow-sm transition-all text-lg flex items-center justify-center gap-2"
                 >
-                  View Sample Report
-                </Link>
+                  <Play size={18} strokeWidth={2.5} /> Watch Demo
+                </button>
               </div>
+              <p className="text-xs text-brand-charcoal/50 mb-8">No credit card required · Cancel anytime</p>
 
               <div className="pt-8 border-t border-brand-navy/10">
                 <div className="flex flex-wrap gap-x-6 gap-y-3 text-sm font-medium text-brand-charcoal/70 mb-4">
@@ -334,7 +341,7 @@ export function LandingHome() {
               <div className="absolute top-0 right-0 w-32 h-32 bg-green-200/50 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2" />
               <h3 className="text-3xl font-bold text-brand-navy mb-6 flex items-center gap-3">
                 <span className="w-10 h-10 rounded-full bg-brand-gold flex items-center justify-center text-white shadow-md">✓</span>
-                LMIA Vault Automation
+                ImmigLens Automation
               </h3>
               <ul className="space-y-6">
                 {[
@@ -416,7 +423,7 @@ export function LandingHome() {
               Proof collection in three simple steps
             </h2>
             <p className="text-xl text-brand-charcoal/70">
-              From setup to final report, LMIA Vault handles the heavy lifting.
+              From setup to final report, ImmigLens handles the heavy lifting.
             </p>
           </div>
 

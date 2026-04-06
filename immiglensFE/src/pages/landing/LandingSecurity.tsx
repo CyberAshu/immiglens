@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom'
 import { Shield, Lock, Eye, Database, FileCheck } from 'lucide-react'
 
 const sections = [
@@ -18,7 +17,7 @@ const sections = [
     icon: Eye,
     title: 'Audit & Export History',
     content:
-      'Every action within the LMIA Vault is logged. Our comprehensive audit trail tracks who created positions, when captures occurred, and who exported reports. This ensures complete accountability and traceability for your firm\'s compliance processes.',
+      'Every action within ImmigLens is logged. Our comprehensive audit trail tracks who created positions, when captures occurred, and who exported reports. This ensures complete accountability and traceability for your firm\'s compliance processes.',
   },
   {
     icon: FileCheck,
@@ -48,6 +47,13 @@ export function LandingSecurity() {
 
       {/* Content */}
       <section className="py-24 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-6 mb-10 shadow-sm">
+          <h3 className="text-green-900 font-bold mb-2 text-lg">In plain language</h3>
+          <p className="text-green-800/80 leading-relaxed">
+            ImmigLens stores your job posting screenshots and timestamps on encrypted, Canadian-compliant servers. Only you and your team members have access. We never sell or share your data. You can export or delete everything at any time.
+          </p>
+        </div>
+
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 mb-16 shadow-sm">
           <h3 className="text-amber-900 font-bold mb-2 flex items-center gap-2">
             <Shield size={20} className="text-amber-600" /> Important Note on Capture Modes
@@ -84,12 +90,12 @@ export function LandingSecurity() {
           <h3 className="text-2xl font-bold text-brand-navy mb-6">
             Have specific security requirements?
           </h3>
-          <Link
-            to="/contact"
+          <a
+            href="mailto:hello@immiglens.ca"
             className="bg-brand-navy hover:bg-brand-charcoal text-white px-8 py-4 rounded-xl font-semibold shadow-lg transition-all text-lg inline-flex items-center gap-2"
           >
             Contact Our Security Team
-          </Link>
+          </a>
         </div>
       </section>
     </div>

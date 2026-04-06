@@ -1,7 +1,12 @@
-import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 export function LandingLegal() {
-  const [activeTab, setActiveTab] = useState<'terms' | 'privacy'>('terms')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab = (searchParams.get('tab') === 'privacy' ? 'privacy' : 'terms') as 'terms' | 'privacy'
+
+  function setTab(tab: 'terms' | 'privacy') {
+    setSearchParams({ tab }, { replace: true })
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-brand-offwhite">
@@ -19,13 +24,13 @@ export function LandingLegal() {
         <div className="md:w-64 shrink-0">
           <div className="sticky top-32 space-y-2">
             <button
-              onClick={() => setActiveTab('terms')}
+              onClick={() => setTab('terms')}
               className={`w-full text-left px-5 py-3 rounded-xl font-medium transition-colors ${activeTab === 'terms' ? 'bg-brand-navy text-white shadow-md' : 'text-brand-charcoal/70 hover:bg-gray-100'}`}
             >
               Terms of Service
             </button>
             <button
-              onClick={() => setActiveTab('privacy')}
+              onClick={() => setTab('privacy')}
               className={`w-full text-left px-5 py-3 rounded-xl font-medium transition-colors ${activeTab === 'privacy' ? 'bg-brand-navy text-white shadow-md' : 'text-brand-charcoal/70 hover:bg-gray-100'}`}
             >
               Privacy Policy

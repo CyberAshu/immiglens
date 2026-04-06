@@ -18,8 +18,8 @@ export function LandingFooter() {
             </p>
             <div className="flex items-center gap-3 text-gray-400 text-sm">
               <Mail size={16} />
-              <a href="mailto:support@lmiaevidencevault.com" className="hover:text-brand-gold transition-colors">
-                support@lmiaevidencevault.com
+              <a href="mailto:support@immiglens.ca" className="hover:text-brand-gold transition-colors">
+                support@immiglens.ca
               </a>
             </div>
           </div>
@@ -39,7 +39,7 @@ export function LandingFooter() {
             <ul className="space-y-3 text-sm text-gray-400">
               <li><Link to="/contact" className="hover:text-white transition-colors">Contact Us</Link></li>
               <li><Link to="/security" className="hover:text-white transition-colors">Security</Link></li>
-              <li><Link to="#" className="hover:text-white transition-colors">Blog</Link></li>
+
             </ul>
           </div>
 

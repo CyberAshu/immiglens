@@ -62,16 +62,15 @@ async def _maybe_send_position_limit_warning(
     if active_count < threshold or active_count >= tier.max_active_positions:
         return
 
-    # Dedupe: skip if we already sent a warning recently
+    # Dedupe: skip if we already sent a warning recently (idempotency via NotificationLog)
     cutoff = datetime.now(timezone.utc) - timedelta(days=_WARNING_COOLDOWN_DAYS)
     recent = (
         await db.execute(
             select(func.count())
             .select_from(NotificationLog)
             .where(
+                NotificationLog.user_id == user.id,
                 NotificationLog.event_type == NotificationEvent.POSITION_LIMIT_WARNING,
-                NotificationLog.trigger_id == user.id,
-                NotificationLog.trigger_type == "user",
                 NotificationLog.created_at >= cutoff,
             )
         )

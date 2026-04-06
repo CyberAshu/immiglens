@@ -344,6 +344,113 @@ function downloadCsv(content: string, filename: string) {
   }, 150)
 }
 
+// ── Searchable select ────────────────────────────────────────────────────────
+
+interface SelectOption { value: string; label: string }
+
+function SearchableSelect({
+  options,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+}: {
+  options: SelectOption[]
+  value: string
+  onChange: (val: string) => void
+  placeholder?: string
+  disabled?: boolean
+}) {
+  const [query, setQuery]     = useState('')
+  const [open, setOpen]       = useState(false)
+  const [focused, setFocused] = useState(-1)
+  const containerRef          = useRef<HTMLDivElement>(null)
+  const inputRef              = useRef<HTMLInputElement>(null)
+  const listRef               = useRef<HTMLUListElement>(null)
+
+  const selectedLabel = options.find(o => o.value === value)?.label ?? ''
+
+  const filtered = query
+    ? options.filter(o =>
+        o.label.toLowerCase().includes(query.toLowerCase()) ||
+        o.value.toLowerCase().includes(query.toLowerCase())
+      )
+    : options
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false); setQuery(''); setFocused(-1)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  useEffect(() => {
+    if (focused >= 0 && listRef.current) {
+      (listRef.current.children[focused] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' })
+    }
+  }, [focused])
+
+  function select(opt: SelectOption) {
+    onChange(opt.value); setOpen(false); setQuery(''); setFocused(-1)
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (!open) { if (e.key === 'ArrowDown') { setOpen(true); setFocused(0) } ; return }
+    if (e.key === 'Escape')    { setOpen(false); setQuery(''); setFocused(-1); return }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setFocused(f => Math.min(f + 1, filtered.length - 1)); return }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); setFocused(f => Math.max(f - 1, 0)); return }
+    if (e.key === 'Enter' && focused >= 0) { e.preventDefault(); select(filtered[focused]); return }
+  }
+
+  return (
+    <div ref={containerRef} className="audit-ss-wrap" onKeyDown={handleKeyDown}>
+      <input
+        ref={inputRef}
+        className="audit-filter-control"
+        style={{ cursor: open ? 'text' : 'pointer' }}
+        value={open ? query : selectedLabel}
+        placeholder={placeholder ?? 'All'}
+        disabled={disabled}
+        autoComplete="off"
+        onChange={e => { setOpen(true); setQuery(e.target.value); setFocused(0) }}
+        onFocus={() => { setOpen(true); setQuery('') }}
+      />
+
+      {open && (
+        <ul ref={listRef} className="audit-ss-dropdown" role="listbox">
+          {filtered.length === 0 ? (
+            <li className="audit-ss-no-results">No matches</li>
+          ) : filtered.map((opt, idx) => (
+            <li
+              key={opt.value}
+              role="option"
+              aria-selected={opt.value === value}
+              className={[
+                'audit-ss-option',
+                opt.value === value ? 'audit-ss-option--active'  : '',
+                idx === focused     ? 'audit-ss-option--focused' : '',
+              ].filter(Boolean).join(' ')}
+              onMouseDown={e => { e.preventDefault(); select(opt) }}
+              onMouseEnter={() => setFocused(idx)}
+            >
+              {opt.label}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {!open && value && (
+        <button className="audit-filter-clear-btn" onClick={() => onChange('')} title="Clear filter">
+          <X size={11} strokeWidth={2.5} />
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function AuditLogs() {
@@ -519,28 +626,19 @@ export default function AuditLogs() {
               Employer
             </label>
             <div className="audit-filter-select-wrap">
-              <select
-                className="audit-filter-control"
-                value={selectedEmployerId}
-                onChange={e => setSelectedEmployerId(e.target.value === '' ? '' : Number(e.target.value))}
+              <SearchableSelect
+                options={[
+                  { value: '', label: loadingEmployers ? 'Loading…' : 'All Employers' },
+                  ...employerList.map(emp => ({
+                    value: String(emp.id),
+                    label: emp.business_name + (emp.is_active ? '' : ' (inactive)'),
+                  }))
+                ]}
+                value={selectedEmployerId === '' ? '' : String(selectedEmployerId)}
+                onChange={v => setSelectedEmployerId(v === '' ? '' : Number(v))}
+                placeholder="All Employers"
                 disabled={loadingEmployers}
-              >
-                <option value="">{loadingEmployers ? 'Loading…' : 'All Employers'}</option>
-                {employerList.map(emp => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.business_name}{emp.is_active ? '' : ' (inactive)'}
-                  </option>
-                ))}
-              </select>
-              {selectedEmployerId !== '' && (
-                <button
-                  className="audit-filter-clear-btn"
-                  onClick={() => setSelectedEmployerId('')}
-                  title="Clear employer filter"
-                >
-                  <X size={11} strokeWidth={2.5} />
-                </button>
-              )}
+              />
             </div>
           </div>
 
@@ -617,24 +715,12 @@ export default function AuditLogs() {
               Action
             </label>
             <div className="audit-filter-select-wrap">
-              <select
-                className="audit-filter-control"
+              <SearchableSelect
+                options={ACTION_FILTER_OPTIONS}
                 value={action}
-                onChange={e => setAction(e.target.value)}
-              >
-                {ACTION_FILTER_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-              {action && (
-                <button
-                  className="audit-filter-clear-btn"
-                  onClick={() => setAction('')}
-                  title="Clear action filter"
-                >
-                  <X size={11} strokeWidth={2.5} />
-                </button>
-              )}
+                onChange={setAction}
+                placeholder="All Actions"
+              />
             </div>
           </div>
 

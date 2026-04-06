@@ -552,7 +552,7 @@ async def _handle_checkout_completed(data: dict, db: AsyncSession) -> None:
         # Amount from tier price
         tier_price = tier_obj.price_per_month if tier_obj else None
         if tier_price and is_annual:
-            amount_str = f"${tier_price * 10:.2f} CAD"  # annual = 10 months
+            amount_str = f"${tier_price * 12 * 0.8:.2f} CAD"  # annual = 20% off monthly × 12
         elif tier_price:
             amount_str = f"${tier_price:.2f} CAD"
         else:

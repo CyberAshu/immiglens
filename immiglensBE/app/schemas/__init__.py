@@ -8,8 +8,7 @@ from app.schemas.admin import AdminGlobalStats, AdminUserRecord
 from app.schemas.subscription import SubscriptionTierOut, UsageSummary
 from app.schemas.audit_log import AuditLogOut
 from app.schemas.notification import (
-    NotificationPreferenceCreate, NotificationPreferenceUpdate,
-    NotificationPreferenceOut, NotificationLogOut,
+    NotificationSettingsOut, NotificationSettingsUpdate, NotificationLogOut,
 )
 from app.schemas.organization import (
     OrganizationCreate, OrganizationOut,
@@ -28,8 +27,7 @@ __all__ = [
     "AdminGlobalStats", "AdminUserRecord",
     "SubscriptionTierOut", "UsageSummary",
     "AuditLogOut",
-    "NotificationPreferenceCreate", "NotificationPreferenceUpdate",
-    "NotificationPreferenceOut", "NotificationLogOut",
+    "NotificationSettingsOut", "NotificationSettingsUpdate", "NotificationLogOut",
     "OrganizationCreate", "OrganizationOut",
     "OrgMembershipOut", "InviteRequest", "OrgInvitationOut",
     "PostingSnapshotOut", "ChangeHistoryItem",

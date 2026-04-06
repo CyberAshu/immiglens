@@ -2,6 +2,10 @@ import { FAQAccordion, CTABand } from './LandingUI'
 
 const faqs = [
   {
+    q: 'Are ImmigLens reports accepted by the ESDC/LMIA officers?',
+    a: 'ImmigLens generates timestamped PDF reports that document your recruitment activity. The reports are designed to satisfy ESDC advertising proof requirements by providing dated screenshots, job posting URLs, and platform-level detail. While ESDC does not officially certify any third-party software, employers and immigration consultants have used these reports to support LMIA applications. We recommend consulting your immigration professional to confirm suitability for your specific case.',
+  },
+  {
     q: 'How does the automated capture work?',
     a: 'Once you set a schedule, our servers securely navigate to your provided job posting URLs at the specified intervals. We render the full page, take a high-resolution screenshot, apply a secure server timestamp, and save it directly to that position\'s folder in your Vault.',
   },
@@ -23,7 +27,7 @@ const faqs = [
   },
   {
     q: 'How are plan limits calculated?',
-    a: 'Limits are based purely on "Active" job positions. A position is active if it is currently tracking and scheduled for screenshots. Draft, paused, or archived positions do not count towards your billing limit.',
+    a: 'Limits are based on "Active" job positions — those currently tracking and scheduled for screenshots. Paused or archived positions do not count. You can choose and upgrade your plan directly from the Billing section in your account dashboard at any time.',
   },
   {
     q: 'Is annual billing available immediately?',
@@ -51,7 +55,7 @@ export function LandingFAQ() {
           Frequently Asked Questions
         </h1>
         <p className="text-xl text-brand-charcoal/70 max-w-2xl mx-auto">
-          Everything you need to know about LMIA Vault, automation, and compliance.
+          Everything you need to know about ImmigLens, automation, and compliance.
         </p>
       </section>
 

@@ -1,6 +1,7 @@
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone, time as dt_time
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -25,6 +26,27 @@ from app.services.screenshot import capture
 
 scheduler = AsyncIOScheduler()
 logger = logging.getLogger(__name__)
+
+_CST = ZoneInfo("America/Chicago")
+
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _noon_cst_as_utc(d: date) -> datetime:
+    return datetime.combine(d, dt_time(12, 0)).replace(tzinfo=_CST).astimezone(timezone.utc)
+
+
+def _cst_date_str(dt_utc: datetime) -> str:
+    return dt_utc.astimezone(_CST).date().isoformat()
+
+
+def _cst_day_utc_window() -> tuple[datetime, datetime]:
+    today_cst = datetime.now(_CST).date()
+    start = datetime.combine(today_cst, dt_time(0, 0)).replace(tzinfo=_CST).astimezone(timezone.utc)
+    end   = datetime.combine(today_cst + timedelta(days=1), dt_time(0, 0)).replace(tzinfo=_CST).astimezone(timezone.utc)
+    return start, end
 
 
 async def pause_rounds_for_user(db: AsyncSession, emp_ids: list[int]) -> None:
@@ -257,11 +279,9 @@ async def schedule_rounds_for_position(
     position: JobPosition,
     not_before: datetime | None = None,
 ) -> None:
-    start = datetime.combine(position.start_date, datetime.min.time()).replace(
-        tzinfo=timezone.utc
-    )
+    start = _noon_cst_as_utc(position.start_date)
     if position.end_date is not None:
-        end = datetime.combine(position.end_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+        end = _noon_cst_as_utc(position.end_date)
     else:
         end = start + timedelta(days=settings.RECRUITMENT_PERIOD_DAYS)
     freq = timedelta(days=position.capture_frequency_days)
@@ -281,24 +301,13 @@ async def schedule_rounds_for_position(
         )
     )
     existing_dates: set[str] = {
-        row[0].date().isoformat() for row in existing_result.fetchall()
+        _cst_date_str(row[0]) for row in existing_result.fetchall()
     }
 
-    # ── Posting-date capture ──────────────────────────────────────────────────
-    # On initial creation (not_before is None): always create one scheduled
-    # capture for today so the user gets a same-day snapshot regardless of
-    # whether start_date is today or a future date.
-    # - 1-hour gap rule preserved: run_at = now + 1h
-    # - today_str is added to existing_dates so the main loop skips today,
-    #   preventing a duplicate when start_date == today.
-    now_utc = datetime.now(timezone.utc)
+    now_utc = _now_utc()
     if not_before is None:
-        today_str = now_utc.date().isoformat()
-        # Fresh DB query covering ALL statuses — safer than the pre-populated
-        # existing_dates which is blind to rounds flushed-but-not-committed by
-        # a concurrent call and does not include rounds created mid-transaction.
-        today_start = datetime.combine(now_utc.date(), datetime.min.time()).replace(tzinfo=timezone.utc)
-        today_end   = today_start + timedelta(days=1)
+        today_str = _cst_date_str(now_utc)
+        today_start, today_end = _cst_day_utc_window()
         same_day_exists = (
             await db.execute(
                 select(CaptureRound.id).where(
@@ -324,13 +333,11 @@ async def schedule_rounds_for_position(
                 id=f"capture_round_{posting_round.id}",
                 replace_existing=True,
             )
-            # Mark today covered so the main loop skips start_date = today
             existing_dates.add(today_str)
-    # ─────────────────────────────────────────────────────────────────────────
 
     scheduled_at = start
     while scheduled_at <= end:
-        date_str = scheduled_at.date().isoformat()
+        date_str = _cst_date_str(scheduled_at)
         if date_str in existing_dates:
             scheduled_at += freq
             continue
@@ -342,7 +349,7 @@ async def schedule_rounds_for_position(
         db.add(round_)
         await db.flush()
 
-        run_at = max(scheduled_at, datetime.now(timezone.utc) + timedelta(hours=1))
+        run_at = max(scheduled_at, _now_utc() + timedelta(hours=1))
         scheduler.add_job(
             _run_capture_round,
             trigger=DateTrigger(run_date=run_at),

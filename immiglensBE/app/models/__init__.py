@@ -6,7 +6,7 @@ from app.models.capture import CaptureRound, CaptureResult, CaptureStatus, Resul
 from app.models.report import ReportDocument
 from app.models.subscription import SubscriptionTier
 from app.models.audit_log import AuditLog
-from app.models.notification import NotificationPreference, NotificationLog, NotificationEvent, NotificationChannel, NotifStatus
+from app.models.notification import NotificationLog, NotificationEvent, NotifStatus
 from app.models.organization import Organization, OrgMembership, OrgInvitation, OrgRole
 from app.models.change_detection import PostingSnapshot
 from app.models.report_config import ReportConfig
@@ -28,10 +28,8 @@ __all__ = [
     "ReportDocument",
     "SubscriptionTier",
     "AuditLog",
-    "NotificationPreference",
     "NotificationLog",
     "NotificationEvent",
-    "NotificationChannel",
     "NotifStatus",
     "Organization",
     "OrgMembership",
