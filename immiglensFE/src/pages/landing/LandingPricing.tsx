@@ -51,7 +51,7 @@ function TierCard({ tier, isHighlighted, isAnnual, isLoggedIn, hasActiveTier, be
       // New subscriber — go through onboarding checkout
       setLoading(true)
       try {
-        const { url } = await billing.createCheckout(tier.id, true)
+        const { url } = await billing.createCheckout(tier.id, true, isAnnual)
         window.location.href = url
       } catch (e) {
         alert((e as Error).message)
@@ -124,9 +124,9 @@ function TierCard({ tier, isHighlighted, isAnnual, isLoggedIn, hasActiveTier, be
               )}
               <span className="text-brand-charcoal/60 font-medium">/mo</span>
             </div>
-            {isAnnual && monthlyPrice != null && monthlyPrice > 0 && (
+            {isAnnual && monthlyPrice != null && monthlyPrice > 0 && displayPrice != null && (
               <p className="text-brand-charcoal/50 text-sm mt-1">
-                ${Math.floor(monthlyPrice * 0.8 * 12)} billed annually
+                ${displayPrice * 12} billed annually
               </p>
             )}
             {!isAnnual && monthlyPrice != null && monthlyPrice > 0 && (
@@ -136,9 +136,9 @@ function TierCard({ tier, isHighlighted, isAnnual, isLoggedIn, hasActiveTier, be
         ) : (
           <span className="text-2xl font-bold text-brand-navy">Contact Sales</span>
         )}
-        {isAnnual && monthlyPrice != null && monthlyPrice > 0 && (
+        {isAnnual && monthlyPrice != null && monthlyPrice > 0 && displayPrice != null && (
           <div className="mt-2 bg-green-50 text-green-700 text-xs font-semibold px-3 py-1.5 rounded-lg w-fit border border-green-200">
-            Save ${Math.floor(monthlyPrice * 12 * 0.2)} / year
+            Save ${monthlyPrice * 12 - displayPrice * 12} / year
           </div>
         )}
       </div>

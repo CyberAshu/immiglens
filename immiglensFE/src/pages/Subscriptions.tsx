@@ -298,10 +298,10 @@ export default function Subscriptions() {
                         <span className="sp-plan-price-period">/mo</span>
                       </div>
 
-                      {isAnnual && rawPrice != null && rawPrice > 0 ? (
+                      {isAnnual && rawPrice != null && rawPrice > 0 && dispPrice != null ? (
                         <div className="sp-plan-billing-note">
-                          ${Math.floor(rawPrice * 0.8 * 12)} billed annually
-                          <span className="sp-plan-save-pill">Save ${Math.floor(rawPrice * 12 * 0.2)}</span>
+                          ${dispPrice * 12} billed annually
+                          <span className="sp-plan-save-pill">Save ${rawPrice * 12 - dispPrice * 12}</span>
                         </div>
                       ) : rawPrice != null && rawPrice > 0 ? (
                         <div className="sp-plan-billing-note">billed monthly</div>

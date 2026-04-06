@@ -140,8 +140,8 @@ function PlanCard({ tier, isSelected, isAnnual, hasBillingAccount, isPopular, on
         </div>
       )}
 
-      {isAnnual && rawMonthly != null && rawMonthly > 0 && (
-        <div className="ob-plan-billing-note">${Math.floor(rawMonthly * 0.8 * 12)}/yr · save 20%</div>
+      {isAnnual && rawMonthly != null && rawMonthly > 0 && monthlyDisplay != null && (
+        <div className="ob-plan-billing-note">${monthlyDisplay * 12}/yr · save 20%</div>
       )}
       {!isAnnual && rawMonthly != null && rawMonthly > 0 && (
         <div className="ob-plan-billing-note">billed monthly</div>
