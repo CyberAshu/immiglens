@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
     # Daily job: expire paid tiers and deactivate positions
     scheduler.add_job(
         _expire_subscriptions_job,
-        trigger=CronTrigger(hour=0, minute=5, timezone="UTC"),
+        trigger=CronTrigger(hour=12, minute=0, timezone="America/Chicago"),
         id="expire_subscriptions",
         replace_existing=True,
     )
