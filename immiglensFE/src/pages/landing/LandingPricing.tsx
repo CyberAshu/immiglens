@@ -190,7 +190,7 @@ function TierCard({ tier, isHighlighted, isAnnual, isLoggedIn, hasActiveTier, be
 const faqItems = [
   {
     q: 'How does the free trial work?',
-    a: 'Every paid plan includes a 14-day free trial. You\'ll need to enter a card to start — you won\'t be charged until the trial ends. Cancel anytime from your billing portal before the 14 days are up.',
+    a: 'Every paid plan includes a 14-day free trial — no credit card required. You get full access to all features during the trial. PDF exports will include a "Trial Export" watermark until you upgrade. Cancel anytime from your account.',
   },
   {
     q: 'What is an active posting?',
@@ -202,7 +202,7 @@ const faqItems = [
   },
   {
     q: 'How is my plan assigned?',
-    a: 'Plans are assigned by the platform administrator after registration. Contact support to discuss which plan fits your needs.',
+    a: 'After registration, you can choose your plan from your account dashboard. Log in and go to the Billing section to select, upgrade, or change your plan at any time.',
   },
   {
     q: 'What is the trial exports watermark?',
@@ -210,7 +210,7 @@ const faqItems = [
   },
   {
     q: 'Can I switch plans later?',
-    a: 'Yes, plans can be upgraded or changed by contacting the platform administrator. Your existing data is always preserved.',
+    a: 'Yes, you can upgrade or downgrade anytime from the Billing section in your dashboard. Your existing data is always preserved.',
   },
 ]
 
@@ -251,7 +251,7 @@ export function LandingPricing() {
           Simple, Transparent Plans
         </h1>
         <p className="text-xl text-brand-charcoal/70 mb-8 max-w-2xl mx-auto">
-          Start with a 14-day free trial on any plan. Card required — cancel anytime before the trial ends.
+          Start with a 14-day free trial on any plan. No credit card required — cancel anytime.
         </p>
 
         {/* Active promotion scarcity banner */}

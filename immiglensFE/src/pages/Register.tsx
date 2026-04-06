@@ -217,11 +217,11 @@ export default function Register() {
               <input type="checkbox" checked={acceptAll} onChange={e => setAcceptAll(e.target.checked)} />
               <span>
                 I accept the{' '}
-                <Link to="/legal" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>Terms of Service</Link>
+                <Link to="/legal?tab=terms" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>Terms of Service</Link>
                 {', '}
-                <Link to="/legal" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>Privacy Policy</Link>
+                <Link to="/legal?tab=privacy" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>Privacy Policy</Link>
                 {' & '}
-                <Link to="/legal" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>Acceptable Use Policy</Link>
+                <Link to="/legal?tab=terms" target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>Acceptable Use Policy</Link>
               </span>
             </label>
 

@@ -55,7 +55,7 @@ export function LandingHowItWorks() {
         <div className="absolute inset-0 bg-white/5 pattern-dots pointer-events-none" />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
           <h1 className="text-4xl md:text-6xl font-extrabold mb-6 tracking-tight">
-            How LMIA Vault Works
+            How ImmigLens Works
           </h1>
           <p className="text-xl text-white/80 leading-relaxed mb-8">
             From pasting a link to downloading a compliance-ready PDF, see how automation replaces

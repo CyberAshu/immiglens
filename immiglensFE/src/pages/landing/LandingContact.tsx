@@ -29,10 +29,10 @@ export function LandingContact() {
                   <div>
                     <p className="font-semibold text-white/90">Email Us</p>
                     <a
-                      href="mailto:hello@lmiavault.com"
+                      href="mailto:info@immiglens.ca"
                       className="text-lg hover:text-brand-gold transition-colors"
                     >
-                      hello@lmiavault.com
+                      info@immiglens.ca
                     </a>
                   </div>
                 </div>
@@ -74,7 +74,8 @@ export function LandingContact() {
                 </div>
                 <h3 className="text-3xl font-bold text-brand-navy">Message Sent!</h3>
                 <p className="text-lg text-brand-charcoal/70 max-w-md">
-                  Thank you for reaching out. A member of our team will get back to you shortly.
+                  Thank you for reaching out. A member of our team will get back to you within 24 business hours. In the meantime, you can{' '}
+                  <a href="/how-it-works" className="text-brand-navy font-semibold underline hover:text-brand-gold transition-colors">see how ImmigLens works</a>.
                 </p>
                 <button
                   onClick={() => setSubmitted(false)}

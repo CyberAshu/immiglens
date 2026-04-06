@@ -3,7 +3,6 @@ import { NavLink, Link } from 'react-router-dom'
 import { ShieldCheck, Menu, X } from 'lucide-react'
 
 const navLinks = [
-  { label: 'Product', path: '/' },
   { label: 'How it works', path: '/how-it-works' },
   { label: 'Pricing', path: '/pricing' },
   { label: 'Security', path: '/security' },
