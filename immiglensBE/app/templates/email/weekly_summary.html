@@ -1,6 +1,6 @@
 {% extends "email/base.html" %}
 
-{% block title %}Your ImmigLens week in review &mdash; {{ week_start }} to {{ week_end }}{% endblock %}
+{% block title %}Your ImmigLens week in review . {{ week_start }} to {{ week_end }}{% endblock %}
 {% block preheader %}{{ stats.total_runs }} capture runs &middot; {{ stats.screenshots }} new screenshots &middot; {{ stats.active_positions }} active positions.{% endblock %}
 
 {% block content %}
@@ -163,7 +163,7 @@
       <p style="margin:0 0 10px;font-size:11px;font-weight:700;color:#374151;letter-spacing:0.5px;text-transform:uppercase;">Disclaimer &amp; Important Information</p>
 
       <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">About This Digest</p>
-      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">This weekly summary is sent every Monday morning and covers activity from the prior calendar week (Monday 00:00 UTC to Sunday 23:59 UTC). Data shown reflects the state of your ImmigLens account at the time of report generation. Activity that occurred after the generation time will appear in next week&rsquo;s digest. Weekly summaries are sent regardless of whether any activity occurred &mdash; a digest showing zero captures may indicate a misconfiguration worth investigating.</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">This weekly summary is sent every Monday morning and covers activity from the prior calendar week (Monday 00:00 UTC to Sunday 23:59 UTC). Data shown reflects the state of your ImmigLens account at the time of report generation. Activity that occurred after the generation time will appear in next week&rsquo;s digest. Weekly summaries are sent regardless of whether any activity occurred . a digest showing zero captures may indicate a misconfiguration worth investigating.</p>
 
       <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Data Accuracy</p>
       <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">The statistics in this digest are drawn from ImmigLens&rsquo;s internal capture and evidence logs. While ImmigLens strives for accuracy in all reported figures, minor discrepancies may occur due to time zone differences, in-progress capture runs at the time of report generation, or edge cases in error classification. For authoritative evidence records, always refer to the Evidence Timeline in your ImmigLens dashboard rather than the digest figures.</p>

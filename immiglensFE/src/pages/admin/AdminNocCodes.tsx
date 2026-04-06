@@ -102,7 +102,7 @@ export default function AdminNocCodes() {
           <h1>NOC Codes</h1>
           {counts && (
             <p className="sub-text">
-              {counts.active} active codes &mdash; NOC 2021 V1.0
+              {counts.active} active codes . NOC 2021 V1.0
             </p>
           )}
         </div>

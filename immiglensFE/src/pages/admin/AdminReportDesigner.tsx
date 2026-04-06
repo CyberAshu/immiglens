@@ -505,7 +505,7 @@ export default function AdminReportDesigner() {
                 sandbox="allow-same-origin"
               />
               <p className="rd-preview-note">
-                Sample preview with placeholder data &mdash; actual names and dates will differ.
+                Sample preview with placeholder data . actual names and dates will differ.
               </p>
             </div>
           ) : (
