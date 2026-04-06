@@ -1,6 +1,6 @@
 {% extends "email/base.html" %}
 
-{% block title %}&#9888; Capture failed &mdash; {{ position_title }}{% endblock %}
+{% block title %}&#9888; Capture failed . {{ position_title }}{% endblock %}
 {% block preheader %}A scheduled capture for {{ position_title }} did not complete. No screenshots were captured.{% endblock %}
 {% block content %}
 <p style="margin:0 0 20px;font-size:16px;font-weight:600;color:#111827;">Hi {{ first_name }},</p>
@@ -65,27 +65,27 @@
 <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
   <tr>
     <td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;" valign="top">
-      &bull;&nbsp; <strong>Page returned 404 (Not Found)</strong> &mdash; the posting URL may have been removed or the URL has changed. Update the source URL in your capture job to point to the current live posting
+      &bull;&nbsp; <strong>Page returned 404 (Not Found)</strong> . the posting URL may have been removed or the URL has changed. Update the source URL in your capture job to point to the current live posting
     </td>
   </tr>
   <tr>
     <td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;" valign="top">
-      &bull;&nbsp; <strong>Login wall detected</strong> &mdash; the page requires authentication to access. ImmigLens can only capture publicly accessible pages. Move advertising to publicly accessible platforms or add a screenshot manually
+      &bull;&nbsp; <strong>Login wall detected</strong> . the page requires authentication to access. ImmigLens can only capture publicly accessible pages. Move advertising to publicly accessible platforms or add a screenshot manually
     </td>
   </tr>
   <tr>
     <td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;" valign="top">
-      &bull;&nbsp; <strong>Connection timeout</strong> &mdash; the source website was temporarily unreachable. ImmigLens will retry automatically. No action needed unless retries also fail
+      &bull;&nbsp; <strong>Connection timeout</strong> . the source website was temporarily unreachable. ImmigLens will retry automatically. No action needed unless retries also fail
     </td>
   </tr>
   <tr>
     <td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;" valign="top">
-      &bull;&nbsp; <strong>Page content not detected</strong> &mdash; the capture ran but the page appeared blank or returned a redirect. Review the source URL to confirm it still displays the job posting
+      &bull;&nbsp; <strong>Page content not detected</strong> . the capture ran but the page appeared blank or returned a redirect. Review the source URL to confirm it still displays the job posting
     </td>
   </tr>
   <tr>
     <td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;" valign="top">
-      &bull;&nbsp; <strong>Rate limiting / bot detection</strong> &mdash; some platforms block automated access. Contact <a href="mailto:support@immiglens.ca" style="color:#374151;">support@immiglens.ca</a> if this affects a platform you rely on
+      &bull;&nbsp; <strong>Rate limiting / bot detection</strong> . some platforms block automated access. Contact <a href="mailto:support@immiglens.ca" style="color:#374151;">support@immiglens.ca</a> if this affects a platform you rely on
     </td>
   </tr>
 </table>

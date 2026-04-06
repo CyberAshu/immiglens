@@ -1,6 +1,6 @@
 {% extends "email/base.html" %}
 
-{% block title %}&#9888; Action required: payment failed &mdash; ImmigLens{% endblock %}
+{% block title %}&#9888; Action required: payment failed . ImmigLens{% endblock %}
 {% block preheader %}We were unable to process your payment. Update your payment method to avoid service interruption.{% endblock %}
 {% block content %}
 <p style="margin:0 0 20px;font-size:16px;font-weight:600;color:#111827;">Hi {{ first_name }},</p>
@@ -44,7 +44,7 @@
   </tr>
   <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;">Account status</td>
-    <td style="padding:10px 16px;font-size:13px;color:#b91c1c;font-weight:500;">Active &mdash; restricted (new positions cannot be created)</td>
+    <td style="padding:10px 16px;font-size:13px;color:#b91c1c;font-weight:500;">Active . restricted (new positions cannot be created)</td>
   </tr>
 </table>
 
@@ -52,7 +52,7 @@
        style="background-color:#fff7ed;border:1px solid #fed7aa;border-radius:6px;margin:0 0 20px;">
   <tr>
     <td style="padding:12px 16px;font-size:13px;color:#9a3412;line-height:1.65;">
-      <strong>Action required &mdash; update your payment method.</strong> Your account remains accessible
+      <strong>Action required . update your payment method.</strong> Your account remains accessible
       during the grace period, but the creation of new Job Positions has been disabled until payment
       is resolved. All existing positions, capture schedules, evidence, and reports remain fully
       accessible and unaffected.
@@ -83,7 +83,7 @@
 
 <p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">How to resolve this</p>
 <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
-  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; Update your payment method from Billing Settings &mdash; the retry will then proceed automatically</td></tr>
+  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; Update your payment method from Billing Settings . the retry will then proceed automatically</td></tr>
   <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; If your card has expired, replace it with a new card or add an alternative payment method</td></tr>
   <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; If you believe this is a bank-side error, contact your card issuer to authorize the charge</td></tr>
   <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; If you need to discuss your subscription, reply to this email or contact <a href="mailto:info@immiglens.ca" style="color:#374151;">info@immiglens.ca</a></td></tr>
@@ -112,7 +112,7 @@
       <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens provides a grace period following a payment failure, during which existing account functionality remains available (with the restriction on new position creation noted above). This grace period is provided as a courtesy and does not constitute a waiver of payment obligations. ImmigLens reserves the right to modify the grace period duration for accounts with a history of repeated payment failures.</p>
 
       <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Account Suspension</p>
-      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">If payment is not resolved by the end of the grace period, your account will be suspended. During suspension: all capture schedules are paused, the dashboard becomes read-only, new reports cannot be generated, and access to new features is restricted. Suspended accounts are not deleted immediately &mdash; your data is retained for 30 days from the date of suspension, provided a subscription is not reactivated. After 30 days, data may be permanently and irreversibly deleted. ImmigLens will send reminder notifications before data deletion occurs.</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">If payment is not resolved by the end of the grace period, your account will be suspended. During suspension: all capture schedules are paused, the dashboard becomes read-only, new reports cannot be generated, and access to new features is restricted. Suspended accounts are not deleted immediately . your data is retained for 30 days from the date of suspension, provided a subscription is not reactivated. After 30 days, data may be permanently and irreversibly deleted. ImmigLens will send reminder notifications before data deletion occurs.</p>
 
       <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Retry Schedule</p>
       <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens automatically retries failed payments on a scheduled basis. {{ retries_remaining }} retries remain for this billing cycle. If all retries fail, the subscription is cancelled and the account suspended. To stop the retry cycle and prevent further decline fees from your bank, update your payment method or cancel your subscription from Billing Settings.</p>

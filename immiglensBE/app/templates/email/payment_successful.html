@@ -1,12 +1,12 @@
 ﻿{% extends "email/base.html" %}
 
-{% block title %}Payment received &mdash; ImmigLens &middot; {{ invoice_number }}{% endblock %}
+{% block title %}Payment received . ImmigLens &middot; {{ invoice_number }}{% endblock %}
 {% block preheader %}Payment received. Your ImmigLens subscription is active and in good standing.{% endblock %}
 {% block content %}
 <p style="margin:0 0 20px;font-size:16px;font-weight:600;color:#111827;">Hi {{ first_name }},</p>
 
 <p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.7;">
-  Your payment has been received and processed successfully. Thank you &mdash; your ImmigLens
+  Your payment has been received and processed successfully. Thank you . your ImmigLens
   subscription is active and in good standing.
 </p>
 
@@ -106,13 +106,13 @@
       <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">This payment was charged to the payment method on file for your ImmigLens account. The amount charged reflects the plan selected at the time of billing, plus applicable Canadian federal and provincial taxes. Tax amounts are calculated based on the billing address on file. If your billing address is incorrect, update it in Billing Settings and contact <a href="mailto:info@immiglens.ca" style="color:#6b7280;">info@immiglens.ca</a> to request a corrected invoice.</p>
 
       <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Taxes &amp; GST/HST</p>
-      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens charges applicable Goods and Services Tax (GST) and/or Harmonized Sales Tax (HST) based on your province of billing. If you are a GST/HST-registered business, your input tax credit (ITC) eligibility depends on your own tax situation &mdash; consult your accountant or tax advisor. ImmigLens&rsquo;s GST/HST registration number is available on your invoice. Invoices include the applicable tax breakdown and are formatted for Canadian business expense purposes.</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens charges applicable Goods and Services Tax (GST) and/or Harmonized Sales Tax (HST) based on your province of billing. If you are a GST/HST-registered business, your input tax credit (ITC) eligibility depends on your own tax situation . consult your accountant or tax advisor. ImmigLens&rsquo;s GST/HST registration number is available on your invoice. Invoices include the applicable tax breakdown and are formatted for Canadian business expense purposes.</p>
 
       <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Refund Policy</p>
       <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens subscriptions are billed in advance for the billing period. Payments are generally non-refundable once a billing period has begun, except in cases of duplicate charges, system errors, or as required by applicable consumer protection legislation. If you believe you have been charged in error, contact <a href="mailto:info@immiglens.ca" style="color:#6b7280;">info@immiglens.ca</a> within 30 days of the charge date with your Transaction ID and a description of the issue. ImmigLens reviews all billing disputes within 5 business days.</p>
 
       <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Subscription Auto-Renewal</p>
-      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">Your ImmigLens subscription renews automatically at the end of each billing period using the payment method on file. You will receive a renewal reminder email before each renewal. To cancel auto-renewal, go to Billing Settings &rarr; Cancel Subscription. Cancellation takes effect at the end of the current billing period &mdash; you retain full access until then. No partial-period refunds are issued upon cancellation.</p>
+      <p style="margin:0 0 12px;font-size:11px;color:#6b7280;line-height:1.65;">Your ImmigLens subscription renews automatically at the end of each billing period using the payment method on file. You will receive a renewal reminder email before each renewal. To cancel auto-renewal, go to Billing Settings &rarr; Cancel Subscription. Cancellation takes effect at the end of the current billing period . you retain full access until then. No partial-period refunds are issued upon cancellation.</p>
 
       <p style="margin:0 0 4px;font-size:11px;font-weight:600;color:#374151;">Billing Security</p>
       <p style="margin:0 0 0;font-size:11px;color:#6b7280;line-height:1.65;">ImmigLens does not store your full card details. All payment processing is handled by Stripe, which is PCI DSS Level 1 compliant. ImmigLens stores only the last four digits of your card number and the expiry date for identification purposes. If you suspect fraudulent use of your payment method, contact your card issuer immediately and then notify us at <a href="mailto:support@immiglens.ca" style="color:#6b7280;">support@immiglens.ca</a>.</p>
