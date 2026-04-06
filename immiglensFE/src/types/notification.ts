@@ -1,20 +1,18 @@
-export type NotificationEvent = 'capture_complete' | 'capture_failed' | 'posting_changed' | 'round_started'
-export type NotificationChannel = 'email' | 'webhook'
+export type NotificationEvent =
+  | 'capture_complete'
+  | 'capture_failed'
+  | 'posting_changed'
+  | 'round_started'
+  | 'position_limit_warning'
+
 export type NotifStatus = 'pending' | 'sent' | 'failed'
 
-export interface NotificationPreference {
-  id: number
-  user_id: number
-  event_type: NotificationEvent
-  channel: NotificationChannel
-  destination: string
-  is_active: boolean
-  created_at: string
+export interface NotificationSettings {
+  notification_email: string | null
 }
 
 export interface NotificationLog {
   id: number
-  preference_id: number
   event_type: NotificationEvent | null
   trigger_id: number | null
   trigger_type: string | null

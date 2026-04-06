@@ -39,105 +39,85 @@ os.environ.setdefault("FRONTEND_URL", "https://app.immiglens.ca")
 class TestNotificationServiceGuards:
     """Plain-text email must never fire for events that have HTML templates."""
 
-    def _make_pref(self, channel_value: str, destination: str):
-        from app.models.notification import NotificationChannel, NotifStatus, NotificationLog
-        pref = MagicMock()
-        pref.channel = MagicMock()
-        pref.channel.__eq__ = lambda self, other: str(self) == str(other)
-        # Use the actual enum values
-        from app.models.notification import NotificationChannel as NC
-        pref.channel = NC(channel_value)
-        pref.destination = destination
-        pref.id = 1
-        return pref
-
-    @pytest.mark.asyncio
-    async def test_round_started_email_is_blocked(self, caplog):
-        """ROUND_STARTED must never send a plain-text email to the user."""
-        from app.models.notification import NotificationEvent
+    async def _dispatch(self, event, skip_email: bool):
+        """Helper: run dispatch_event with a minimal fake DB session."""
+        from app.models.notification import NotificationEvent, NotifStatus
         from app.services import notification_service
-
-        send_email_mock = AsyncMock()
-        with patch("app.services.notification_service.send_email", send_email_mock):
-            await notification_service._deliver_email(
-                "test@example.com",
-                NotificationEvent.ROUND_STARTED,
-                {"round_id": 1, "position": "Test Role"},
-            )
-
-        send_email_mock.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_capture_complete_email_is_blocked(self):
-        """CAPTURE_COMPLETE must never send a plain-text email."""
-        from app.models.notification import NotificationEvent
-        from app.services import notification_service
-
-        send_email_mock = AsyncMock()
-        with patch("app.services.notification_service.send_email", send_email_mock):
-            await notification_service._deliver_email(
-                "test@example.com",
-                NotificationEvent.CAPTURE_COMPLETE,
-                {"round_id": 1, "position": "Test Role"},
-            )
-
-        send_email_mock.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_capture_failed_email_is_blocked(self):
-        """CAPTURE_FAILED must never send a plain-text email."""
-        from app.models.notification import NotificationEvent
-        from app.services import notification_service
-
-        send_email_mock = AsyncMock()
-        with patch("app.services.notification_service.send_email", send_email_mock):
-            await notification_service._deliver_email(
-                "test@example.com",
-                NotificationEvent.CAPTURE_FAILED,
-                {"round_id": 1, "error": "timeout"},
-            )
-
-        send_email_mock.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_posting_changed_email_is_blocked(self):
-        """POSTING_CHANGED must never send a plain-text email."""
-        from app.models.notification import NotificationEvent
-        from app.services import notification_service
-
-        send_email_mock = AsyncMock()
-        with patch("app.services.notification_service.send_email", send_email_mock):
-            await notification_service._deliver_email(
-                "test@example.com",
-                NotificationEvent.POSTING_CHANGED,
-                {"posting_url": "https://example.com", "change_summary": "Title changed"},
-            )
-
-        send_email_mock.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_dispatch_event_skip_email_true_blocks_email_channel(self):
-        """dispatch_event with skip_email=True must not call send_email even if a
-        user has an EMAIL preference registered for the event."""
         from sqlalchemy.ext.asyncio import AsyncSession
-        from app.models.notification import (
-            NotificationChannel, NotificationEvent, NotificationLog, NotifStatus
-        )
-        from app.services import notification_service
-
-        # Build a fake EMAIL preference for ROUND_STARTED
-        fake_pref = MagicMock()
-        fake_pref.channel = NotificationChannel.EMAIL
-        fake_pref.destination = "user@example.com"
-        fake_pref.id = 1
 
         fake_log = MagicMock()
         fake_log.status = NotifStatus.PENDING
 
         db = AsyncMock(spec=AsyncSession)
-        db.execute = AsyncMock(return_value=MagicMock(scalars=MagicMock(
-            return_value=MagicMock(all=MagicMock(return_value=[fake_pref]))
-        )))
+        db.add = MagicMock()
+        db.flush = AsyncMock()
+        db.commit = AsyncMock()
+
+        send_email_mock = AsyncMock()
+        with patch("app.services.notification_service.send_email", send_email_mock):
+            with patch("app.services.notification_service.NotificationLog", return_value=fake_log):
+                await notification_service.dispatch_event(
+                    db,
+                    user_id=1,
+                    event=event,
+                    context={"round_id": 1, "position": "Test Role"},
+                    skip_email=skip_email,
+                )
+        return send_email_mock, fake_log
+
+    @pytest.mark.asyncio
+    async def test_round_started_skip_email_blocks_send(self):
+        """ROUND_STARTED with skip_email=True must never call send_email."""
+        from app.models.notification import NotificationEvent, NotifStatus
+        send_mock, log = await self._dispatch(NotificationEvent.ROUND_STARTED, skip_email=True)
+        send_mock.assert_not_called()
+        assert log.status == NotifStatus.SENT
+
+    @pytest.mark.asyncio
+    async def test_capture_complete_skip_email_blocks_send(self):
+        """CAPTURE_COMPLETE with skip_email=True must never call send_email."""
+        from app.models.notification import NotificationEvent, NotifStatus
+        send_mock, log = await self._dispatch(NotificationEvent.CAPTURE_COMPLETE, skip_email=True)
+        send_mock.assert_not_called()
+        assert log.status == NotifStatus.SENT
+
+    @pytest.mark.asyncio
+    async def test_capture_failed_skip_email_blocks_send(self):
+        """CAPTURE_FAILED with skip_email=True must never call send_email."""
+        from app.models.notification import NotificationEvent, NotifStatus
+        send_mock, log = await self._dispatch(NotificationEvent.CAPTURE_FAILED, skip_email=True)
+        send_mock.assert_not_called()
+        assert log.status == NotifStatus.SENT
+
+    @pytest.mark.asyncio
+    async def test_posting_changed_skip_email_blocks_send(self):
+        """POSTING_CHANGED with skip_email=True must never call send_email."""
+        from app.models.notification import NotificationEvent, NotifStatus
+        send_mock, log = await self._dispatch(NotificationEvent.POSTING_CHANGED, skip_email=True)
+        send_mock.assert_not_called()
+        assert log.status == NotifStatus.SENT
+
+    @pytest.mark.asyncio
+    async def test_html_event_without_skip_email_blocks_send_and_logs_failure(self):
+        """Calling dispatch_event with skip_email=False for an HTML-managed event
+        must NOT send email and must mark the log as FAILED (programmer error guard)."""
+        from app.models.notification import NotificationEvent, NotifStatus
+        send_mock, log = await self._dispatch(NotificationEvent.CAPTURE_COMPLETE, skip_email=False)
+        send_mock.assert_not_called()
+        assert log.status == NotifStatus.FAILED
+
+    @pytest.mark.asyncio
+    async def test_dispatch_event_skip_email_true_blocks_email_channel(self):
+        """dispatch_event with skip_email=True must not call send_email.
+        The log entry must still be written and marked SENT."""
+        from sqlalchemy.ext.asyncio import AsyncSession
+        from app.models.notification import NotificationEvent, NotifStatus
+        from app.services import notification_service
+
+        fake_log = MagicMock()
+        fake_log.status = NotifStatus.PENDING
+
+        db = AsyncMock(spec=AsyncSession)
         db.add = MagicMock()
         db.flush = AsyncMock()
         db.commit = AsyncMock()
@@ -154,6 +134,7 @@ class TestNotificationServiceGuards:
                 )
 
         send_email_mock.assert_not_called()
+        assert fake_log.status == NotifStatus.SENT
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -425,28 +406,17 @@ class TestRogueEmailRegression:
     async def test_no_capture_round_started_subject_ever_sent(self):
         """Simulate the exact scenario that was producing the rogue email.
 
-        A user has an EMAIL NotificationPreference for ROUND_STARTED.
-        dispatch_event is now called with skip_email=True.
-        send_email must NEVER be called.
+        ROUND_STARTED is dispatched with skip_email=True.
+        send_email must NEVER be called regardless of the notification architecture.
         """
-        from app.models.notification import (
-            NotificationChannel, NotificationEvent, NotifStatus
-        )
+        from app.models.notification import NotificationEvent, NotifStatus
         from app.services import notification_service
         from sqlalchemy.ext.asyncio import AsyncSession
-
-        fake_pref = MagicMock()
-        fake_pref.channel = NotificationChannel.EMAIL
-        fake_pref.destination = "cyberayushji@gmail.com"
-        fake_pref.id = 99
 
         fake_log = MagicMock()
         fake_log.status = NotifStatus.PENDING
 
         db = AsyncMock(spec=AsyncSession)
-        db.execute = AsyncMock(return_value=MagicMock(scalars=MagicMock(
-            return_value=MagicMock(all=MagicMock(return_value=[fake_pref]))
-        )))
         db.add = MagicMock()
         db.flush = AsyncMock()
         db.commit = AsyncMock()

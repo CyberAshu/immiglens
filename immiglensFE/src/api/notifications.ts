@@ -1,16 +1,19 @@
 import { request } from './client'
-import type { NotificationLog, NotificationPreference } from '../types'
-import type { NotificationChannel, NotificationEvent } from '../types'
+import type { NotificationLog, NotificationSettings } from '../types'
 
 export const notifications = {
-  listPreferences:   ()                                              => request<NotificationPreference[]>('/api/notifications/preferences'),
-  createPreference:  (data: { event_type: NotificationEvent; channel: NotificationChannel; destination: string }) =>
-    request<NotificationPreference>('/api/notifications/preferences', { method: 'POST', body: JSON.stringify(data) }),
-  togglePreference:  (id: number, is_active: boolean)               =>
-    request<NotificationPreference>(`/api/notifications/preferences/${id}`, { method: 'PATCH', body: JSON.stringify({ is_active }) }),
-  deletePreference:  (id: number)                                    =>
-    request<void>(`/api/notifications/preferences/${id}`, { method: 'DELETE' }),
-  listLogs:          ()                                              => request<NotificationLog[]>('/api/notifications/logs'),
-  unreadCount:       ()                                              => request<{ count: number }>('/api/notifications/logs/unread-count'),
-  markAllRead:       ()                                              => request<void>('/api/notifications/logs/mark-all-read', { method: 'POST' }),
+  getSettings:   () =>
+    request<NotificationSettings>('/api/notifications/settings'),
+  updateSettings: (notification_email: string | null) =>
+    request<NotificationSettings>('/api/notifications/settings', {
+      method: 'PATCH',
+      body: JSON.stringify({ notification_email }),
+    }),
+  listRecent:    (limit = 8) =>
+    request<NotificationLog[]>(`/api/notifications/logs/recent?limit=${limit}`),
+  listLogs:      () => request<NotificationLog[]>('/api/notifications/logs'),
+  unreadCount:   () => request<{ count: number }>('/api/notifications/logs/unread-count'),
+  markRead:      (id: number) =>
+    request<void>(`/api/notifications/logs/${id}/read`, { method: 'PATCH' }),
+  markAllRead:   () => request<void>('/api/notifications/logs/mark-all-read', { method: 'POST' }),
 }
