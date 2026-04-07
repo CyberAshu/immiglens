@@ -95,9 +95,6 @@ export default function Layout() {
                 <button className="nav-dropdown-item" onClick={() => navigate('/plan')}>
                   <CreditCard size={14} strokeWidth={2} /> My Plan
                 </button>
-                <button className="nav-dropdown-item" onClick={() => navigate('/activity')}>
-                  <ClipboardList size={14} strokeWidth={2} /> Activity Log
-                </button>
                 <div className="nav-dropdown-divider" />
                 <button className="nav-dropdown-item nav-dropdown-item--logout" onClick={handleLogout}>
                   <LogOut size={14} strokeWidth={2} /> Logout
