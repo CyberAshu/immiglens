@@ -301,7 +301,7 @@ async def schedule_rounds_for_position(
         )
     )
     existing_dates: set[str] = {
-        row[0].date().isoformat() for row in existing_result.fetchall()
+        _cst_date_str(row[0]) for row in existing_result.fetchall()
     }
 
     now_utc = _now_utc()
@@ -332,11 +332,11 @@ async def schedule_rounds_for_position(
                 id=f"capture_round_{posting_round.id}",
                 replace_existing=True,
             )
-            existing_dates.add(run_at.date().isoformat())
+            existing_dates.add(_cst_date_str(run_at))
 
     scheduled_at = start
     while scheduled_at <= end:
-        date_str = scheduled_at.date().isoformat()
+        date_str = _cst_date_str(scheduled_at)
         if date_str in existing_dates:
             scheduled_at += freq
             continue

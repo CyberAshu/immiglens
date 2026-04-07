@@ -212,6 +212,12 @@ def upgrade() -> None:
     op.create_index(op.f("ix_capture_rounds_job_position_id"), "capture_rounds", ["job_position_id"])
     op.create_index(op.f("ix_capture_rounds_scheduled_at"), "capture_rounds", ["scheduled_at"])
     op.create_index(op.f("ix_capture_rounds_status"), "capture_rounds", ["status"])
+    # One capture per CST/CDT business day per position.
+    op.execute(
+        "CREATE UNIQUE INDEX uq_capture_round_position_day "
+        "ON capture_rounds "
+        "(job_position_id, (DATE(scheduled_at AT TIME ZONE 'America/Chicago')))"
+    )
 
     # ── 9. capture_results ───────────────────────────────────────────────
     op.create_table(
