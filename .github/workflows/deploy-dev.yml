@@ -38,12 +38,14 @@ jobs:
           username: ${{ secrets.DEV_EC2_USER }}
           key: ${{ secrets.DEV_EC2_SSH_KEY }}
           script: |
+            set -e
             cd /app/immiglens
             git pull origin dev
 
             cd /app/immiglens/immiglensBE
             .venv/bin/pip install -r requirements.txt --quiet
 
+            # set -e above ensures the service is NOT restarted if migration fails.
             PYTHONPATH=/app/immiglens/immiglensBE .venv/bin/alembic upgrade head
 
             sudo systemctl restart immiglens

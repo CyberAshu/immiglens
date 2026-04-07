@@ -39,6 +39,7 @@ jobs:
           username: ${{ secrets.PROD_EC2_USER }}
           key: ${{ secrets.PROD_EC2_SSH_KEY }}
           script: |
+            set -e
             cd /app/immiglens
             git pull origin main
 
@@ -48,6 +49,7 @@ jobs:
 
             # Run Alembic migrations BEFORE restarting the service.
             # alembic upgrade head is idempotent — safe to run on every deploy.
+            # set -e above ensures the service is NOT restarted if migration fails.
             PYTHONPATH=/app/immiglens/immiglensBE .venv/bin/alembic upgrade head
 
             # Restart backend
