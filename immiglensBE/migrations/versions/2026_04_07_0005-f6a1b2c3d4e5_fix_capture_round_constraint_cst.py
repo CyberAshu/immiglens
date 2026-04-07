@@ -35,6 +35,34 @@ def upgrade() -> None:
     # so this is safe to run on fresh installs that never had the UTC version).
     op.execute("DROP INDEX IF EXISTS uq_capture_round_position_day")
 
+    # Remove duplicate capture_rounds that would violate the new CST constraint.
+    # For each (job_position_id, CST date) group keep the single "best" row:
+    #   priority: COMPLETED > RUNNING > PENDING > FAILED, then highest id wins.
+    op.execute(
+        """
+        DELETE FROM capture_rounds
+        WHERE id IN (
+            SELECT id FROM (
+                SELECT id,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY job_position_id,
+                                        DATE(scheduled_at AT TIME ZONE 'America/Chicago')
+                           ORDER BY
+                               CASE status
+                                   WHEN 'COMPLETED' THEN 1
+                                   WHEN 'RUNNING'   THEN 2
+                                   WHEN 'PENDING'   THEN 3
+                                   ELSE                  4
+                               END,
+                               id DESC
+                       ) AS rn
+                FROM capture_rounds
+            ) ranked
+            WHERE rn > 1
+        )
+        """
+    )
+
     # Recreate using CST/CDT so uniqueness aligns with the business-day definition.
     op.execute(
         "CREATE UNIQUE INDEX uq_capture_round_position_day "
