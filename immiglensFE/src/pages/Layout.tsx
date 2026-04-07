@@ -119,6 +119,9 @@ export default function Layout() {
             <NavLink to="/employers" className={navCls}>
               <Building2 size={15} strokeWidth={2} />Employers
             </NavLink>
+            <NavLink to="/activity" className={navCls}>
+              <ClipboardList size={15} strokeWidth={2} />Activity Log
+            </NavLink>
           </nav>
 
           {user?.is_admin && (
