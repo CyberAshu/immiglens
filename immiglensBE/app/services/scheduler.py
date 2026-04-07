@@ -301,12 +301,11 @@ async def schedule_rounds_for_position(
         )
     )
     existing_dates: set[str] = {
-        _cst_date_str(row[0]) for row in existing_result.fetchall()
+        row[0].date().isoformat() for row in existing_result.fetchall()
     }
 
     now_utc = _now_utc()
     if not_before is None:
-        today_str = _cst_date_str(now_utc)
         today_start, today_end = _cst_day_utc_window()
         same_day_exists = (
             await db.execute(
@@ -333,11 +332,11 @@ async def schedule_rounds_for_position(
                 id=f"capture_round_{posting_round.id}",
                 replace_existing=True,
             )
-            existing_dates.add(today_str)
+            existing_dates.add(run_at.date().isoformat())
 
     scheduled_at = start
     while scheduled_at <= end:
-        date_str = _cst_date_str(scheduled_at)
+        date_str = scheduled_at.date().isoformat()
         if date_str in existing_dates:
             scheduled_at += freq
             continue
