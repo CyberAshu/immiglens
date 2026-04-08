@@ -228,11 +228,15 @@ async def toggle_position(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Toggle is_active for a position. Activating is subject to tier position limit."""
+    """Toggle is_active for a position. Activating is subject to tier position limit and plan capture frequency."""
     position = await _get_position_or_404(employer_id, position_id, current_user, db)
     was_inactive = not position.is_active
     if was_inactive:
         await check_position_reactivate_limit(db, current_user, exclude_id=position_id)
+        # Block reactivation when the position's capture frequency is incompatible
+        # with the user's current plan (e.g. after a downgrade). The user must first
+        # update their frequency to a value allowed by the plan before reactivating.
+        await check_capture_frequency(db, current_user, position.capture_frequency_days)
     position.is_active = not position.is_active
     # On deactivation cascade: mark all child URLs inactive too
     if not position.is_active:
