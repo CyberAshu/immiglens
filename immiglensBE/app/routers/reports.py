@@ -212,35 +212,7 @@ async def generate_report(
         from app.core.config import settings
         generated_at = datetime.now(timezone.utc).strftime("%B %d, %Y at %H:%M UTC")
         request_date = generated_at
-        # Build source list and counts from sorted_rounds
-        _sources: list[str] = [u.url for u in (position.job_urls or [])]
-        _screenshot_count = sum(len(r.results) for r in sorted_rounds)
-        _successful = sum(1 for r in sorted_rounds if r.status == CaptureStatus.COMPLETED)
-        _failed = sum(1 for r in sorted_rounds if r.status == CaptureStatus.FAILED)
-        _partial = 0  # CaptureStatus has no PARTIAL value
-        _ad_start = min((r.captured_at for r in sorted_rounds if getattr(r, 'captured_at', None)), default=None)
-        _ad_end = max((r.captured_at for r in sorted_rounds if getattr(r, 'captured_at', None)), default=None)
-        await send_report_ready_email(
-            current_user.email,
-            current_user.full_name or "there",
-            position.job_title,
-            position.noc_code or "N/A",
-            employer.business_name,
-            generated_at,
-            download_url=f"{settings.FRONTEND_URL}/employers/{employer_id}/positions/{position_id}/reports",
-            ad_start=_ad_start.strftime("%B %d, %Y") if _ad_start else "N/A",
-            ad_end=_ad_end.strftime("%B %d, %Y") if _ad_end else "N/A",
-            screenshot_count=_screenshot_count,
-            source_count=len(_sources),
-            sources=_sources,
-            capture_count=len(sorted_rounds),
-            successful_count=_successful,
-            failed_count=_failed,
-            partial_count=_partial,
-            report_id=position_id,
-            requested_by=current_user.full_name or current_user.email,
-            request_date=request_date,
-        )
+        pass  # report_ready email disabled
     except Exception:
         logger.warning("report_ready email failed for user_id=%s", current_user.id)
 

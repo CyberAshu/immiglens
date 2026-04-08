@@ -1,14 +1,12 @@
 {% extends "email/base.html" %}
 
-{% block title %}LMIA evidence report ready . {{ position_title }}{% endblock %}
-{% block preheader %}Your evidence report for {{ position_title }} has been generated and is ready to download.{% endblock %}
+{% block title %}Your LMIA report is ready . {{ position_title }}{% endblock %}
+{% block preheader %}Your LMIA evidence report for {{ position_title }} is ready. Open ImmigLens to get it.{% endblock %}
 {% block content %}
 <p style="margin:0 0 20px;font-size:16px;font-weight:600;color:#111827;">Hi {{ first_name }},</p>
 
 <p style="margin:0 0 20px;font-size:14px;color:#374151;line-height:1.7;">
-  Your LMIA evidence report for the position below has been generated and is ready to download.
-  This report compiles all captured screenshots, timestamps, source metadata, and capture logs
-  into a single, formatted PDF document.
+  Your LMIA evidence report for the position below is ready. Open ImmigLens to access it.
 </p>
 
 {# Info table #}
@@ -31,77 +29,22 @@
     <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ ad_start }} &ndash; {{ ad_end }}</td>
   </tr>
   <tr>
-    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Total evidence items</td>
-    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ screenshot_count }} screenshots across {{ source_count }} advertising sources</td>
-  </tr>
-  <tr>
-    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Sources included</td>
-    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ sources | join(' &middot; ') }}</td>
-  </tr>
-  <tr>
-    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Captures included</td>
-    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ capture_count }} capture runs ({{ successful_count }} successful &middot; {{ failed_count }} failed &middot; {{ partial_count }} partial)</td>
-  </tr>
-  <tr>
-    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Report generated</td>
-    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">{{ generated_at }}</td>
-  </tr>
-  <tr>
     <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;border-bottom:1px solid #EAE8E3;">Report ID</td>
     <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;border-bottom:1px solid #EAE8E3;">#{{ report_id }}</td>
   </tr>
-  {% if file_size is defined and file_size %}
-  <tr>
-    <td style="padding:10px 16px;width:42%;font-size:13px;color:#6b7280;">File size</td>
-    <td style="padding:10px 16px;font-size:13px;color:#1E2329;font-weight:500;">{{ file_size }}</td>
-  </tr>
-  {% endif %}
 </table>
 
-<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
+<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 24px;">
   <tr>
     <td style="background-color:#0B1F3B;border-radius:6px;">
-      <a href="{{ download_url }}"
+      <a href="{{ position_url }}"
          style="display:inline-block;padding:11px 22px;color:#ffffff;font-size:14px;font-weight:600;
                 text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
-        Download Evidence Report (PDF) &rarr;
+        Open in ImmigLens &rarr;
       </a>
     </td>
   </tr>
 </table>
-
-<p style="margin:0 0 20px;font-size:13px;color:#6b7280;line-height:1.7;">
-  If the download link expires, you can regenerate the report at any time from the position&rsquo;s
-  evidence timeline at no additional charge. Previously generated reports are also accessible in
-  your Reports Archive.
-</p>
-
-<p style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151;">What is included in this report</p>
-<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 20px;">
-  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>Cover page</strong> . position details, employer information, advertising period, and LMIA reference fields</td></tr>
-  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>Evidence Summary</strong> . total captures, sources, date range coverage, and completeness assessment</td></tr>
-  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>Source-by-source breakdown</strong> . each advertising platform listed separately with capture dates and screenshot thumbnails</td></tr>
-  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>Screenshot pages</strong> . full-resolution screenshots with overlaid timestamp, source URL, capture ID, and SHA-256 hash</td></tr>
-  <tr><td style="padding:4px 0;font-size:13px;color:#374151;line-height:1.65;">&bull;&nbsp; <strong>Capture log</strong> . a full record of every capture run, including status (success / partial / failed) and error details where applicable</td></tr>
-</table>
-
-<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
-       style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;margin:0 0 20px;">
-  <tr>
-    <td style="padding:12px 16px;font-size:13px;color:#14532d;line-height:1.65;">
-      <strong>Before submitting to ESDC</strong> . review the report carefully before including it in
-      your LMIA package. Verify that all required advertising sources are present, the coverage dates
-      match your advertising period, and there are no unexplained gaps in the evidence. If evidence is
-      missing, return to the Evidence Timeline to add manual screenshots before regenerating the report.
-    </td>
-  </tr>
-</table>
-
-<p style="margin:0 0 24px;font-size:13px;color:#6b7280;line-height:1.7;">
-  This report was requested by <strong>{{ requested_by }}</strong> on <strong>{{ request_date }}</strong>.
-  You can regenerate this report at any time . each regeneration produces a new Report ID and
-  reflects any evidence added since the last generation.
-</p>
 
 <p style="margin:0 0 24px;font-size:13px;color:#374151;line-height:1.7;">
   Warm regards,<br>
