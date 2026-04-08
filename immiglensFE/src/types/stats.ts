@@ -30,6 +30,7 @@ export interface DashboardStats {
   pending_rounds: number
   total_screenshots: number
   failed_screenshots: number
+  failed_rounds: number  // FAILED rounds with 0 CaptureResult rows
   capture_breakdown: CaptureBreakdownItem[]
   employer_breakdown: EmployerBreakdownItem[]
   rounds_timeline: RoundTimelineItem[]

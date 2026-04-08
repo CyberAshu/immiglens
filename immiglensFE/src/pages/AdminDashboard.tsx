@@ -159,8 +159,8 @@ export default function AdminDashboard() {
   if (loading) return <div className="loading">Loading admin data…</div>
 
   const adminCount  = users.filter(u => u.is_admin).length
-  const successRate = stats && (stats.total_screenshots + stats.failed_screenshots) > 0
-    ? Math.round(stats.total_screenshots / (stats.total_screenshots + stats.failed_screenshots) * 100)
+  const successRate = stats && (stats.total_screenshots + stats.failed_screenshots + stats.failed_rounds) > 0
+    ? Math.round(stats.total_screenshots / (stats.total_screenshots + stats.failed_screenshots + stats.failed_rounds) * 100)
     : null
 
   const kpiCards = stats ? [
@@ -174,7 +174,7 @@ export default function AdminDashboard() {
     { label: 'Success Rate',    value: successRate !== null ? `${successRate}%` : '—',
       accent: successRate !== null && successRate < 80 ? '#ef4444' : '#22c55e',
       warn:   successRate !== null && successRate < 80 },
-    { label: 'Failed Captures', value: stats.failed_screenshots,accent: '#ef4444', warn: stats.failed_screenshots > 0 },
+    { label: 'Failed Captures', value: stats.failed_screenshots + stats.failed_rounds, accent: '#ef4444', warn: (stats.failed_screenshots + stats.failed_rounds) > 0 },
   ] : []
 
   const capturePieData = stats ? [

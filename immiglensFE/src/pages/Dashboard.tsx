@@ -135,7 +135,7 @@ export default function Dashboard() {
   const greeting  = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
   const dateStr   = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })
 
-  const captureTotal = (statsData?.total_screenshots ?? 0) + (statsData?.failed_screenshots ?? 0)
+  const captureTotal = (statsData?.total_screenshots ?? 0) + (statsData?.failed_screenshots ?? 0) + (statsData?.failed_rounds ?? 0)
   const successRate  = captureTotal > 0
     ? Math.round((statsData!.total_screenshots / captureTotal) * 100)
     : null

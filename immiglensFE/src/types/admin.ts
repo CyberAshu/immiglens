@@ -11,6 +11,8 @@ export interface AdminGlobalStats {
   pending_rounds: number
   total_screenshots: number
   failed_screenshots: number
+  /** Rounds that failed before any CaptureResult was created (pre-loop crash / empty URLs). */
+  failed_rounds: number
 }
 
 export interface AdminUserRecord {

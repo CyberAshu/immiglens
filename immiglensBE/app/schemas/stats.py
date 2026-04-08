@@ -33,6 +33,7 @@ class DashboardStats(BaseModel):
     pending_rounds: int
     total_screenshots: int
     failed_screenshots: int
+    failed_rounds: int  # FAILED rounds with 0 CaptureResult rows — invisible to failed_screenshots
     capture_breakdown: list[CaptureBreakdownItem]
     employer_breakdown: list[EmployerBreakdownItem]
     rounds_timeline: list[RoundTimelineItem]

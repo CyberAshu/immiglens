@@ -60,6 +60,21 @@ async def admin_stats(
     pending_rounds   = await count(select(func.count()).select_from(CaptureRound).where(CaptureRound.status == "pending"))
     total_screenshots  = await count(select(func.count()).select_from(CaptureResult).where(CaptureResult.status == ResultStatus.DONE))
     failed_screenshots = await count(select(func.count()).select_from(CaptureResult).where(CaptureResult.status == ResultStatus.FAILED))
+    # Rounds that failed with 0 CaptureResult rows (pre-loop crash, empty-URL guard,
+    # server restart). These never contribute to failed_screenshots because no
+    # CaptureResult was created — they make the success rate look artificially high.
+    from sqlalchemy import exists as sa_exists
+    failed_rounds = await count(
+        select(func.count()).select_from(CaptureRound)
+        .where(
+            CaptureRound.status == "failed",
+            ~sa_exists(
+                select(CaptureResult.id).where(
+                    CaptureResult.capture_round_id == CaptureRound.id
+                )
+            ),
+        )
+    )
 
     return AdminGlobalStats(
         total_users=total_users,
@@ -74,6 +89,7 @@ async def admin_stats(
         pending_rounds=pending_rounds,
         total_screenshots=total_screenshots,
         failed_screenshots=failed_screenshots,
+        failed_rounds=failed_rounds,
     )
 
 

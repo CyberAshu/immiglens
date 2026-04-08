@@ -76,6 +76,15 @@ async def get_stats(
     failed_screenshots  = sum(1 for r in result_rows if r.status == ResultStatus.FAILED)
     pending_screenshots = sum(1 for r in result_rows if r.status == ResultStatus.PENDING)
 
+    # Rounds that failed before producing any CaptureResult (pre-loop crash, no active URLs).
+    # These are invisible to failed_screenshots but must count against the success rate.
+    rounds_with_results = {r.capture_round_id for r in result_rows}
+    failed_rounds = sum(
+        1 for r in round_rows
+        if (r.status == CaptureStatus.FAILED or getattr(r.status, 'value', r.status) == 'failed')
+        and r.id not in rounds_with_results
+    )
+
     # ── Donut breakdown ──────────────────────────────
     capture_breakdown = [
         CaptureBreakdownItem(name="Successful", value=total_screenshots,   color="#22c55e"),
@@ -144,6 +153,7 @@ async def get_stats(
         pending_rounds=pending_rounds,
         total_screenshots=total_screenshots,
         failed_screenshots=failed_screenshots,
+        failed_rounds=failed_rounds,
         capture_breakdown=capture_breakdown,
         employer_breakdown=employer_breakdown,
         rounds_timeline=rounds_timeline,

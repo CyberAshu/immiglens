@@ -17,6 +17,10 @@ class AdminGlobalStats(BaseModel):
     pending_rounds: int
     total_screenshots: int
     failed_screenshots: int
+    # Rounds that failed before producing any CaptureResult (pre-loop crash,
+    # no active URLs, server restart). These are invisible to failed_screenshots
+    # but must be counted in the success rate denominator.
+    failed_rounds: int
 
 
 class AdminUserRecord(BaseModel):
