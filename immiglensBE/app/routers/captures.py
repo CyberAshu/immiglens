@@ -122,6 +122,7 @@ async def recapture_single_result(
     position_id: int,
     round_id: int,
     result_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -151,6 +152,20 @@ async def recapture_single_result(
         raise HTTPException(status_code=404, detail="Capture result not found.")
 
     await recapture_result(result_id)
+
+    await audit(
+        db,
+        action=AuditAction.CAPTURE_TRIGGERED,
+        entity_type=AuditEntity.CAPTURE_ROUND,
+        actor_id=current_user.id,
+        entity_id=round_id,
+        employer_id=employer_id,
+        position_id=position_id,
+        description=f'User recaptured result #{result_id} in round #{round_id}',
+        new_data={"result_id": result_id, "round_id": round_id, "recaptured": True},
+        request=request,
+    )
+    await db.commit()
 
     result2 = await db.execute(
         select(CaptureRound)
