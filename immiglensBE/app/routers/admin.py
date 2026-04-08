@@ -534,10 +534,16 @@ async def admin_list_problematic_captures(
     _: User = Depends(require_admin),
 ):
     """Return failed, stuck-running, and overdue-pending capture rounds across all users."""
-    from datetime import datetime, timezone
+    from datetime import datetime, timezone, timedelta
     from app.models.capture import CaptureStatus
 
     now = datetime.now(timezone.utc)
+    # A RUNNING round is only considered "stuck" (and therefore problematic) once
+    # it has been in RUNNING state longer than STUCK_ROUND_TIMEOUT_MINUTES. This
+    # prevents actively-processing captures from appearing in the problem list and
+    # being accidentally killed by Recover All.
+    from app.core.config import settings as _settings
+    stuck_cutoff = now - timedelta(minutes=_settings.STUCK_ROUND_TIMEOUT_MINUTES)
 
     # Aggregate subqueries — computed once, joined in, not looped
     total_sq = (
@@ -590,7 +596,11 @@ async def admin_list_problematic_captures(
         .outerjoin(error_sq, CaptureRound.id == error_sq.c.round_id)
         .where(
             (CaptureRound.status == CaptureStatus.FAILED)
-            | (CaptureRound.status == CaptureStatus.RUNNING)
+            | (
+                # RUNNING is only problematic once it has been stuck for > timeout
+                (CaptureRound.status == CaptureStatus.RUNNING)
+                & (CaptureRound.updated_at <= stuck_cutoff)
+            )
             | (
                 (CaptureRound.status == CaptureStatus.PENDING)
                 & (CaptureRound.scheduled_at <= now)  # overdue only, not future
@@ -607,6 +617,7 @@ async def admin_list_problematic_captures(
             status=round_.status.value,
             scheduled_at=round_.scheduled_at,
             captured_at=round_.captured_at,
+            updated_at=round_.updated_at,
             position_title=position.job_title,
             employer_name=employer.business_name,
             user_email=user.email,
@@ -699,17 +710,25 @@ async def admin_recover_all_captures(
     current_user: User = Depends(require_admin),
 ):
     """Admin: reset ALL stuck rounds (RUNNING + overdue PENDING + FAILED) and re-queue them."""
-    from datetime import datetime, timezone
+    from datetime import datetime, timezone, timedelta
     from app.models.capture import CaptureStatus
     from app.services.scheduler import force_run_capture_round
+    from app.core.config import settings as _settings
     import asyncio
 
     now = datetime.now(timezone.utc)
+    # Only treat RUNNING rounds as stuck (and eligible for recovery) once they have
+    # exceeded the configured timeout, measured from updated_at (actual state-change
+    # time). This prevents Recover All from killing a round that just started.
+    stuck_cutoff = now - timedelta(minutes=_settings.STUCK_ROUND_TIMEOUT_MINUTES)
 
     result = await db.execute(
         select(CaptureRound).where(
             (CaptureRound.status == CaptureStatus.FAILED)
-            | (CaptureRound.status == CaptureStatus.RUNNING)
+            | (
+                (CaptureRound.status == CaptureStatus.RUNNING)
+                & (CaptureRound.updated_at <= stuck_cutoff)
+            )
             | (
                 (CaptureRound.status == CaptureStatus.PENDING)
                 & (CaptureRound.scheduled_at <= now)
