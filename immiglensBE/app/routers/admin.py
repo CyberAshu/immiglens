@@ -605,6 +605,13 @@ async def admin_list_problematic_captures(
                 (CaptureRound.status == CaptureStatus.PENDING)
                 & (CaptureRound.scheduled_at <= now)  # overdue only, not future
             )
+            | (
+                # Partial failure: round completed but some individual URL captures failed.
+                # These reduce the success rate metric but are invisible without this clause
+                # because the round status is COMPLETED (not FAILED).
+                (CaptureRound.status == CaptureStatus.COMPLETED)
+                & (failed_sq.c.failed > 0)
+            )
         )
         .order_by(CaptureRound.scheduled_at.desc())
         .limit(500)

@@ -564,7 +564,9 @@ async def recapture_result(result_id: int) -> None:
         )
         round_ = round_res.scalar_one_or_none()
         if round_ and all(r.status in (ResultStatus.DONE, ResultStatus.FAILED) for r in round_.results):
-            round_.status = CaptureStatus.COMPLETED
+            # If every result is FAILED (none succeeded), mark round as FAILED.
+            _all_failed = all(r.status == ResultStatus.FAILED for r in round_.results)
+            round_.status = CaptureStatus.FAILED if _all_failed else CaptureStatus.COMPLETED
             await db.commit()
 
         # ── Notifications use pre-extracted local variables (no ORM expiry risk)
@@ -837,16 +839,17 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
         logger.exception("Capture round %s failed", round_.id)
         return
 
-    round_.status = CaptureStatus.COMPLETED
+    # If every attempted URL failed gracefully (no Python exception), the round
+    # itself is FAILED. Partial failures (some succeeded, some failed) remain COMPLETED.
+    all_urls_failed = bool(snapshots) and len(failed_results) == len(snapshots)
+    round_.status = CaptureStatus.FAILED if all_urls_failed else CaptureStatus.COMPLETED
     round_.captured_at = datetime.now(timezone.utc)
     await db.commit()
 
     # ── Per-URL failure notifications ─────────────────────────────────────────
-    # These fire for individual URLs that failed inside an otherwise-completed
-    # round (e.g. bot-blocked pages, storage upload errors). The round still
-    # counts as COMPLETED because at least some URLs succeeded (or all failed
-    # gracefully). Each failed URL gets a CAPTURE_FAILED notification log entry
-    # and a failure email so the user is always informed.
+    # Fire for each failed URL regardless of whether the round is FAILED (all URLs
+    # failed) or COMPLETED (partial failure). Each failed URL gets a CAPTURE_FAILED
+    # notification and email so the user is always informed of specific broken URLs.
     if user_id is not None and failed_results:
         _user_for_fail = await db.get(User, user_id)
         _ls_fail = (await db.execute(
@@ -900,7 +903,8 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                     pass
 
     # ── Dispatch notifications ────────────────────────────────────────────────
-    if user_id is not None:
+    # Skip CAPTURE_COMPLETE when all URLs failed — the round is FAILED, not completed.
+    if user_id is not None and not all_urls_failed:
         try:
             await dispatch_event(
                 db, user_id=user_id,
@@ -935,7 +939,9 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
 
     # ── Transactional HTML email: capture completed ────────────────────────────
     # Sent directly to the account owner regardless of notification preferences.
-    if user_id is not None:
+    # Skipped when all URLs failed (all_urls_failed=True) — per-URL failure emails
+    # already notified the user; sending a completion email would be misleading.
+    if user_id is not None and not all_urls_failed:
         try:
             _user = await db.get(User, user_id)
             if _user:
