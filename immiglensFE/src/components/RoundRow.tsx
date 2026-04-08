@@ -29,6 +29,12 @@ export function RoundRow({
     return new Date(iso).toLocaleString('en-CA', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   }
 
+  const activeUrlCount = urls.filter(u => u.is_active).length
+  const canRun = !running && activeUrlCount > 0
+  const noUrlTitle = activeUrlCount === 0
+    ? (urls.length === 0 ? 'Add job board URLs first' : 'All job board URLs are deactivated — activate at least one first')
+    : undefined
+
   const date = fmtDate(round.scheduled_at)
 
   return (
@@ -48,8 +54,8 @@ export function RoundRow({
             <button
               className="btn-ghost btn-sm"
               onClick={e => { e.stopPropagation(); onRun() }}
-              disabled={running || urls.length === 0}
-              title={urls.length === 0 ? 'Add job board URLs first' : undefined}
+              disabled={!canRun}
+              title={noUrlTitle}
             >
               {running ? 'Running…' : 'Capture Now'}
             </button>
@@ -58,8 +64,8 @@ export function RoundRow({
             <button
               className="btn-ghost btn-sm"
               onClick={e => { e.stopPropagation(); onRun() }}
-              disabled={running || urls.length === 0}
-              title={urls.length === 0 ? 'Add job board URLs first' : 'Re-run this failed capture'}
+              disabled={!canRun}
+              title={noUrlTitle ?? 'Re-run this failed capture'}
             >
               {running ? 'Running…' : 'Re-run Capture'}
             </button>
@@ -71,17 +77,17 @@ export function RoundRow({
       {expanded && (
         <div className="round-results">
           {round.results.length === 0 ? (
-            round.status === 'completed' ? (
+            round.status === 'failed' ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <p className="empty-inline" style={{ color: '#f59e0b' }}>
-                  ⚠️ Capture ran but no job board URLs were linked at the time — no screenshots were taken.
+                <p className="empty-inline" style={{ color: '#ef4444' }}>
+                  ⚠️ Capture failed — no screenshots were taken. Check that at least one job board URL is active.
                 </p>
                 <button
                   className="btn-ghost btn-sm"
                   style={{ alignSelf: 'flex-start' }}
                   onClick={() => onRun()}
-                  disabled={running || urls.length === 0}
-                  title={urls.length === 0 ? 'Add job board URLs first' : 'Re-run this capture'}
+                  disabled={!canRun}
+                  title={noUrlTitle ?? 'Re-run this capture'}
                 >
                   {running ? 'Running…' : 'Re-run Capture'}
                 </button>

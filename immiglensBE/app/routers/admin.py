@@ -607,10 +607,16 @@ async def admin_list_problematic_captures(
             )
             | (
                 # Partial failure: round completed but some individual URL captures failed.
-                # These reduce the success rate metric but are invisible without this clause
-                # because the round status is COMPLETED (not FAILED).
                 (CaptureRound.status == CaptureStatus.COMPLETED)
                 & (failed_sq.c.failed > 0)
+            )
+            | (
+                # Ghost completion: round is COMPLETED but has zero results.
+                # Caused by captures that ran when no active URLs were configured
+                # (pre-fix). These should have been FAILED — surface them so admins
+                # can see the gap. The backfill SQL above converts them permanently.
+                (CaptureRound.status == CaptureStatus.COMPLETED)
+                & (func.coalesce(total_sq.c.total, 0) == 0)
             )
         )
         .order_by(CaptureRound.scheduled_at.desc())

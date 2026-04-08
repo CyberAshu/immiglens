@@ -18,10 +18,11 @@ function isStuck(r: AdminCaptureRound): boolean {
   return r.total_results === 0 && diffMs > STUCK_THRESHOLD_MS
 }
 
-function classify(r: AdminCaptureRound): 'stuck' | 'failed' | 'partial' | 'running' | 'overdue' {
+function classify(r: AdminCaptureRound): 'stuck' | 'failed' | 'partial' | 'ghost' | 'running' | 'overdue' {
   if (isStuck(r)) return 'stuck'
   if (r.status === 'failed') return 'failed'
   if (r.status === 'running') return 'running'
+  if (r.status === 'completed' && r.total_results === 0) return 'ghost'
   if (r.status === 'completed' && r.failed_results > 0) return 'partial'
   return 'overdue'
 }
@@ -30,6 +31,7 @@ const STATUS_CONFIG = {
   stuck:   { label: 'Stuck',   cls: 'badge--danger',   icon: <AlertTriangle size={10} /> },
   failed:  { label: 'Failed',  cls: 'badge--danger',   icon: <AlertTriangle size={10} /> },
   partial: { label: 'Partial', cls: 'badge--warning',  icon: <AlertTriangle size={10} /> },
+  ghost:   { label: 'Empty',   cls: 'badge--warning',  icon: <AlertTriangle size={10} /> },
   running: { label: 'Running', cls: 'badge--warning',  icon: <Loader2 size={10} className="spin" /> },
   overdue: { label: 'Overdue', cls: 'badge--info',     icon: <Clock size={10} /> },
 } as const
@@ -66,6 +68,7 @@ function errorText(r: AdminCaptureRound): string {
   if (r.error_sample) return r.error_sample
   if (isStuck(r)) return 'Stuck in RUNNING — no captures executed'
   if (r.status === 'failed' && r.total_results === 0) return 'Failed before any URL was captured (server crash / restart)'
+  if (r.status === 'completed' && r.total_results === 0) return 'Completed with no results — no active job board URLs at capture time (historical)'
   if (r.status === 'completed' && r.failed_results > 0) return `${r.failed_results} of ${r.total_results} URL(s) failed`
   if (r.status === 'pending') return 'Never started — APScheduler job missing'
   return ''
@@ -323,12 +326,14 @@ export default function AdminCaptures() {
   const stuckRounds   = rounds.filter(r => classify(r) === 'stuck')
   const failedRounds  = rounds.filter(r => classify(r) === 'failed')
   const partialRounds = rounds.filter(r => classify(r) === 'partial')
+  const ghostRounds   = rounds.filter(r => classify(r) === 'ghost')
   const runningRounds = rounds.filter(r => classify(r) === 'running')
   const overdueRounds = rounds.filter(r => classify(r) === 'overdue')
 
   const stuckCount   = stuckRounds.length
   const failedCount  = failedRounds.length
   const partialCount = partialRounds.length
+  const ghostCount   = ghostRounds.length
   const runningCount = runningRounds.length
   const overdueCount = overdueRounds.length
 
@@ -381,6 +386,11 @@ export default function AdminCaptures() {
         {partialCount > 0 && (
           <span className="badge badge--warning" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
             <AlertTriangle size={11} /> {partialCount} Partial
+          </span>
+        )}
+        {ghostCount > 0 && (
+          <span className="badge badge--warning" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+            <AlertTriangle size={11} /> {ghostCount} Empty
           </span>
         )}
         {runningCount > 0 && (
@@ -472,6 +482,16 @@ export default function AdminCaptures() {
             count={partialCount}
             accent="var(--color-warning, #f59e0b)"
             rounds={partialRounds}
+            retrying={retrying}
+            expandedErrors={expandedErrors}
+            onRetry={handleRetry}
+            onToggleError={toggleError}
+          />
+          <CaptureSection
+            title="Empty Completions (historical)"
+            count={ghostCount}
+            accent="var(--color-warning, #f59e0b)"
+            rounds={ghostRounds}
             retrying={retrying}
             expandedErrors={expandedErrors}
             onRetry={handleRetry}

@@ -754,10 +754,46 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
 
     snapshots: list[tuple] = []
     failed_results: list[CaptureResult] = []
+    active_urls = [p for p in round_.job_position.job_urls if p.is_active]
+
+    # Guard: if no active URLs, fail immediately rather than silently completing.
+    # This can happen when all URLs are deactivated after a round was scheduled.
+    if not active_urls:
+        round_.status = CaptureStatus.FAILED
+        await db.commit()
+        if user_id is not None:
+            try:
+                _user = await db.get(User, user_id)
+                if _user:
+                    _ls = (await db.execute(
+                        select(CaptureRound.captured_at).where(
+                            CaptureRound.job_position_id == round_.job_position_id,
+                            CaptureRound.status == CaptureStatus.COMPLETED,
+                        ).order_by(CaptureRound.captured_at.desc()).limit(1)
+                    )).scalar_one_or_none()
+                    await send_capture_failed_email(
+                        to=_user.email,
+                        first_name=_user.full_name.split()[0] if _user.full_name else "there",
+                        position_title=_position_title,
+                        noc_code=round_.job_position.noc_code,
+                        attempted_at=datetime.now(timezone.utc).strftime("%b %d, %Y at %H:%M UTC"),
+                        error="No active job board URLs configured for this position. Add or activate at least one URL.",
+                        affected_sources=[],
+                        capture_id=round_.id,
+                        last_successful=_ls.strftime("%b %d, %Y") if _ls else "—",
+                        retry_at=None,
+                        fix_url=f"{settings.FRONTEND_URL}/employers/{_position_employer_id}/positions/{_position_id}",
+                    )
+            except Exception:
+                pass
+        logger.warning(
+            "Capture round %s FAILED — position %s has no active job board URLs",
+            round_.id, _position_id,
+        )
+        return
+
     try:
-        for posting in round_.job_position.job_urls:
-            if not posting.is_active:
-                continue  # skip deactivated URLs
+        for posting in active_urls:
             screenshot_result = await capture(posting.url)
             capture_result = CaptureResult(
                 capture_round_id=round_.id,
