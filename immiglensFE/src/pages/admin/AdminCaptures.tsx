@@ -4,11 +4,17 @@ import { admin } from '../../api/admin'
 import { useConfirm } from '../../components/ConfirmModal'
 import type { AdminCaptureRound } from '../../types'
 
-// A round is "stuck" if it has been running for more than 30 minutes with 0/0 results
+// Match the backend STUCK_ROUND_TIMEOUT_MINUTES setting (60 min).
+// A round stuck in RUNNING state for > 60 min with no results is considered stuck.
+// We use updated_at (the actual time the status changed to RUNNING), NOT scheduled_at
+// (the original scheduling time). For old force-retried rounds, scheduled_at could be
+// days ago, making every active capture appear stuck the moment it starts.
+const STUCK_THRESHOLD_MS = 60 * 60 * 1000
+
 function isStuck(r: AdminCaptureRound): boolean {
   if (r.status !== 'running') return false
-  const diffMs = Date.now() - new Date(r.scheduled_at).getTime()
-  return r.total_results === 0 && diffMs > 30 * 60 * 1000
+  const diffMs = Date.now() - new Date(r.updated_at).getTime()
+  return r.total_results === 0 && diffMs > STUCK_THRESHOLD_MS
 }
 
 function statusBadge(r: AdminCaptureRound) {

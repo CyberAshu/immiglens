@@ -93,6 +93,7 @@ class AdminCaptureRoundRecord(BaseModel):
     status: str
     scheduled_at: datetime
     captured_at: Optional[datetime] = None
+    updated_at: datetime          # actual time status last changed; used for stuck detection
     position_title: str
     employer_name: str
     user_email: str
