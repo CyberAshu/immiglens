@@ -213,14 +213,21 @@ export default function PositionDetail() {
         <div>
           <h1>
             {position.job_title}
-            {!position.is_active && (
+            {!position.is_active && planData && position.capture_frequency_days < planData.tier.min_capture_frequency_days ? (
+              <span style={{
+                marginLeft: '0.75rem', fontSize: '0.75rem', fontWeight: 700,
+                background: '#fef3c7', color: '#92400e',
+                border: '1px solid #fde68a', borderRadius: 6,
+                padding: '2px 8px', verticalAlign: 'middle',
+              }}>Plan Mismatch</span>
+            ) : !position.is_active ? (
               <span style={{
                 marginLeft: '0.75rem', fontSize: '0.75rem', fontWeight: 700,
                 background: '#fee2e2', color: '#b91c1c',
                 border: '1px solid #fecaca', borderRadius: 6,
                 padding: '2px 8px', verticalAlign: 'middle',
               }}>Deactivated</span>
-            )}
+            ) : null}
           </h1>
           <p className="sub-text">
             NOC {position.noc_code} · {position.num_positions} position(s) · Start: {position.start_date}
@@ -241,7 +248,21 @@ export default function PositionDetail() {
           {generatingReport ? 'Generating…' : 'Preview & Download Report'}
         </button>
       </div>
-      {!position.is_active && (
+      {!position.is_active && planData && position.capture_frequency_days < planData.tier.min_capture_frequency_days ? (
+        <div style={{
+          background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 10,
+          padding: '0.85rem 1.1rem', marginBottom: '1.25rem',
+          display: 'flex', alignItems: 'flex-start', gap: '0.6rem',
+        }}>
+          <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>⚠️</span>
+          <span style={{ fontSize: '0.9rem', color: '#92400e', fontWeight: 500 }}>
+            <strong>Plan Mismatch — cannot reactivate.</strong> This position captures every{' '}
+            <strong>{position.capture_frequency_days} day(s)</strong>, but your current plan requires a
+            minimum of <strong>{planData.tier.min_capture_frequency_days} day(s)</strong> between captures.
+            Edit the position's capture frequency to ≥ {planData.tier.min_capture_frequency_days} days, then reactivate.
+          </span>
+        </div>
+      ) : !position.is_active ? (
         <div style={{
           background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 10,
           padding: '0.85rem 1.1rem', marginBottom: '1.25rem',
@@ -252,7 +273,7 @@ export default function PositionDetail() {
             This position is <strong>deactivated</strong>. Use the ▶ toggle to re-activate it, or upgrade your plan if the limit has been reached.
           </span>
         </div>
-      )}
+      ) : null}
 
       {reportGenError && <p className="error-msg">{reportGenError}</p>}
 
