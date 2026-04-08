@@ -391,32 +391,55 @@ export default function EmployerDetail() {
               </tr>
             </thead>
             <tbody>
-              {sortedPositions.map(pos => (
+              {sortedPositions.map(pos => {
+                const freqMismatch = !pos.is_active && pos.capture_frequency_days < minFreq
+                return (
                 <tr key={pos.id} style={!pos.is_active ? { opacity: 0.55 } : undefined}>
                   <td>
                     <Link to={`/employers/${id}/positions/${pos.id}`} className="table-link">{pos.job_title}</Link>
-                    {!pos.is_active && (
+                    {!pos.is_active && freqMismatch ? (
+                      <span
+                        title={`Your current plan requires ≥ ${minFreq} days between captures. This position uses ${pos.capture_frequency_days} days. Update the frequency before re-activating.`}
+                        style={{
+                          marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 700,
+                          background: '#fef3c7', color: '#92400e',
+                          border: '1px solid #fde68a', borderRadius: 6,
+                          padding: '1px 6px', verticalAlign: 'middle', cursor: 'help',
+                        }}
+                      >Plan Mismatch</span>
+                    ) : !pos.is_active ? (
                       <span style={{
                         marginLeft: '0.5rem', fontSize: '0.7rem', fontWeight: 700,
                         background: '#fee2e2', color: '#b91c1c',
                         border: '1px solid #fecaca', borderRadius: 6,
                         padding: '1px 6px', verticalAlign: 'middle',
                       }}>Deactivated</span>
-                    )}
+                    ) : null}
                   </td>
                   <td>{pos.noc_code}</td>
                   <td>{pos.num_positions}</td>
                   <td>{pos.start_date}</td>
                   <td>{pos.end_date ?? <span style={{ color: '#9ca3af' }}>+28 days</span>}</td>
                   <td>{pos.job_urls.length}</td>
-                  <td>Every {pos.capture_frequency_days} days</td>
+                  <td>
+                    Every {pos.capture_frequency_days} days
+                    {freqMismatch && (
+                      <span style={{ marginLeft: '0.4rem', fontSize: '0.7rem', color: '#92400e' }}>
+                        (min {minFreq})
+                      </span>
+                    )}
+                  </td>
                   <td>
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
                       <button
-                        className={pos.is_active ? 'btn-icon-warning' : 'btn-icon-success'}
+                        className={pos.is_active ? 'btn-icon-warning' : freqMismatch ? 'btn-icon-danger' : 'btn-icon-success'}
                         onClick={() => handleTogglePosition(pos)}
                         disabled={togglingPositionId === pos.id}
-                        title={pos.is_active ? 'Deactivate position' : 'Activate position'}
+                        title={pos.is_active
+                          ? 'Deactivate position'
+                          : freqMismatch
+                            ? `Cannot activate: capture frequency (${pos.capture_frequency_days}d) is below your plan minimum (${minFreq}d). Edit the position to fix frequency first.`
+                            : 'Activate position'}
                       >
                         {togglingPositionId === pos.id ? '…' : pos.is_active ? '⏸' : '▶'}
                       </button>
@@ -437,7 +460,8 @@ export default function EmployerDetail() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

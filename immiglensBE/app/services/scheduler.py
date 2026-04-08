@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import date, datetime, timedelta, timezone, time as dt_time
 from pathlib import Path
@@ -28,6 +29,16 @@ scheduler = AsyncIOScheduler()
 logger = logging.getLogger(__name__)
 
 _CST = ZoneInfo("America/Chicago")
+
+# ── Per-round idempotency locks ───────────────────────────────────────────────
+# Prevents concurrent executions of force_run_capture_round for the same round_id.
+# dict[round_id → asyncio.Lock]; entries are cleaned up when no task is waiting.
+_round_locks: dict[int, asyncio.Lock] = {}
+
+# ── In-flight recovery tracking ───────────────────────────────────────────────
+# Tracks round IDs that are currently being recovered by recover_stuck_rounds so
+# the next cron interval does not re-detect them as stuck and trigger a duplicate.
+_recovering_round_ids: set[int] = set()
 
 
 def _now_utc() -> datetime:
@@ -383,8 +394,121 @@ async def reschedule_rounds_for_position(db: AsyncSession, position: JobPosition
     await schedule_rounds_for_position(db, position, not_before=datetime.now(timezone.utc))
 
 
+async def reschedule_rounds_on_frequency_change(
+    db: AsyncSession, position: JobPosition
+) -> None:
+    """Reschedule capture rounds after a capture_frequency_days change.
+
+    Unlike a plain reschedule (which starts from now), this function anchors the new
+    schedule from the last successful capture so the user's evidence timeline stays
+    consistent:
+
+        next_capture = last_completed_captured_at + new_frequency_days
+
+    If that computed time is already in the past (e.g. user just downgraded from
+    weekly→daily and the last capture was 3 days ago), an immediate catch-up capture
+    is scheduled (now + 1 h) and the rest of the schedule continues from there.
+
+    If there has never been a completed capture, falls back to the standard
+    reschedule-from-now logic (schedule_rounds_for_position with not_before=now).
+    """
+    now = datetime.now(timezone.utc)
+
+    # ── 1. Cancel all pending/failed rounds for this position ─────────────────
+    cancellable = (
+        await db.execute(
+            select(CaptureRound).where(
+                CaptureRound.job_position_id == position.id,
+                CaptureRound.status.in_([CaptureStatus.PENDING, CaptureStatus.FAILED]),
+            )
+        )
+    ).scalars().all()
+
+    for round_ in cancellable:
+        try:
+            scheduler.remove_job(f"capture_round_{round_.id}")
+        except Exception:
+            pass
+        await db.delete(round_)
+
+    await db.flush()
+
+    # ── 2. Find the most recent completed capture ─────────────────────────────
+    last_captured_at: datetime | None = (
+        await db.execute(
+            select(CaptureRound.captured_at)
+            .where(
+                CaptureRound.job_position_id == position.id,
+                CaptureRound.status == CaptureStatus.COMPLETED,
+                CaptureRound.captured_at.isnot(None),
+            )
+            .order_by(CaptureRound.captured_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    if last_captured_at is None:
+        # No successful capture yet — fall back to standard scheduling from now
+        logger.info(
+            "reschedule_on_frequency_change: no prior completed round for position %s "
+            "— falling back to schedule from now",
+            position.id,
+        )
+        await schedule_rounds_for_position(db, position, not_before=now)
+        return
+
+    # ── 3. Compute next scheduled time anchored from last successful capture ──
+    freq = timedelta(days=position.capture_frequency_days)
+    next_at = last_captured_at + freq
+
+    # If the computed next time is already past (frequency was shortened), fire
+    # an immediate catch-up round (now + 1 h) and let schedule_rounds_for_position
+    # continue the regular cadence from that point.
+    if next_at <= now:
+        immediate_at = now + timedelta(hours=1)
+        immediate_round = CaptureRound(
+            job_position_id=position.id,
+            scheduled_at=immediate_at,
+            status=CaptureStatus.PENDING,
+        )
+        db.add(immediate_round)
+        await db.flush()
+        scheduler.add_job(
+            _run_capture_round,
+            trigger=DateTrigger(run_date=immediate_at),
+            args=[immediate_round.id],
+            id=f"capture_round_{immediate_round.id}",
+            replace_existing=True,
+        )
+        logger.info(
+            "reschedule_on_frequency_change: position %s — next_at %s is in the past "
+            "(freq=%d days from last=%s). Catch-up round #%s scheduled at %s.",
+            position.id, next_at.isoformat(), position.capture_frequency_days,
+            last_captured_at.isoformat(), immediate_round.id, immediate_at.isoformat(),
+        )
+        # Continue regular schedule from the catch-up time
+        not_before = immediate_at
+    else:
+        not_before = next_at
+        logger.info(
+            "reschedule_on_frequency_change: position %s — next scheduled at %s "
+            "(freq=%d days from last=%s).",
+            position.id, next_at.isoformat(), position.capture_frequency_days,
+            last_captured_at.isoformat(),
+        )
+
+    # ── 4. Build the regular cadence from next_at onward ─────────────────────
+    await schedule_rounds_for_position(db, position, not_before=not_before)
+
+
 async def recapture_result(result_id: int) -> None:
-    """Re-run the screenshot for a single capture result and record a new snapshot."""
+    """Re-run the screenshot for a single capture result and record a new snapshot.
+
+    IMPORTANT: All ORM relationship data is extracted into plain local variables
+    BEFORE the first await db.commit(), because commit() triggers expire_on_commit
+    which invalidates all attribute access on async sessions (raises MissingGreenlet
+    on subsequent relationship access without an explicit await db.refresh()).
+    """
     async with AsyncSessionLocal() as db:
         res = await db.execute(
             select(CaptureResult)
@@ -402,7 +526,20 @@ async def recapture_result(result_id: int) -> None:
         if result is None:
             return
 
-        screenshot_result = await capture(result.url)
+        # ── Extract all relationship data BEFORE any commit ────────────────
+        # After commit(), expire_on_commit invalidates ORM attributes; accessing
+        # relationships on an expired async-session instance raises MissingGreenlet.
+        capture_round_id: int = result.capture_round_id
+        result_url: str = result.url
+        position    = result.capture_round.job_position
+        position_id: int = position.id
+        employer_id: int = position.employer_id
+        position_title: str = position.job_title
+        noc_code: str = position.noc_code
+        user_id: int | None = getattr(getattr(position, "employer", None), "user_id", None)
+
+        # ── Run the capture ────────────────────────────────────────────────
+        screenshot_result = await capture(result_url)
 
         result.status = ResultStatus(screenshot_result.status.value)
         result.screenshot_path = None
@@ -410,15 +547,19 @@ async def recapture_result(result_id: int) -> None:
         result.page_pdf_url = screenshot_result.page_pdf_url
         result.error = screenshot_result.error
         result.duration_ms = screenshot_result.duration_ms
-        await db.flush()
 
+        # Save scalar result values before commit expires them
+        new_status: ResultStatus = result.status
+        result_error: str | None = result.error
+
+        await db.flush()
         await record_snapshot(db, result)
         await db.commit()
 
-        # If all results for the round are now done/failed, mark round completed
+        # ── Round completion check — safe re-query after commit ────────────
         round_res = await db.execute(
             select(CaptureRound)
-            .where(CaptureRound.id == result.capture_round_id)
+            .where(CaptureRound.id == capture_round_id)
             .options(selectinload(CaptureRound.results))
         )
         round_ = round_res.scalar_one_or_none()
@@ -426,17 +567,15 @@ async def recapture_result(result_id: int) -> None:
             round_.status = CaptureStatus.COMPLETED
             await db.commit()
 
-        # ── Notifications & email for failed recaptures ───────────────────────
-        if result.status != ResultStatus.FAILED:
+        # ── Notifications use pre-extracted local variables (no ORM expiry risk)
+        if new_status != ResultStatus.FAILED:
             return
 
-        position = result.capture_round.job_position
-        user_id: int | None = getattr(getattr(position, "employer", None), "user_id", None)
         if user_id is None:
             emp_res = await db.execute(
                 select(Employer.user_id)
                 .join(JobPosition, Employer.id == JobPosition.employer_id)
-                .where(JobPosition.id == position.id)
+                .where(JobPosition.id == position_id)
             )
             user_id = emp_res.scalar_one_or_none()
 
@@ -449,11 +588,11 @@ async def recapture_result(result_id: int) -> None:
                 user_id=user_id,
                 event=NotificationEvent.CAPTURE_FAILED,
                 context={
-                    "round_id": result.capture_round_id,
+                    "round_id": capture_round_id,
                     "result_id": result_id,
-                    "url": result.url,
-                    "error": result.error,
-                    "position": position.job_title,
+                    "url": result_url,
+                    "error": result_error,
+                    "position": position_title,
                 },
                 trigger_id=result_id,
                 trigger_type="capture_result",
@@ -468,7 +607,7 @@ async def recapture_result(result_id: int) -> None:
                 _ls = (await db.execute(
                     select(CaptureRound.captured_at)
                     .where(
-                        CaptureRound.job_position_id == position.id,
+                        CaptureRound.job_position_id == position_id,
                         CaptureRound.status == CaptureStatus.COMPLETED,
                     )
                     .order_by(CaptureRound.captured_at.desc())
@@ -477,17 +616,17 @@ async def recapture_result(result_id: int) -> None:
                 await send_capture_failed_email(
                     to=_user.email,
                     first_name=_user.full_name.split()[0] if _user.full_name else "there",
-                    position_title=position.job_title,
-                    noc_code=position.noc_code,
+                    position_title=position_title,
+                    noc_code=noc_code,
                     attempted_at=datetime.now(timezone.utc).strftime("%b %d, %Y at %H:%M UTC"),
-                    error=result.error or "Unknown error",
-                    affected_sources=[result.url],
-                    capture_id=result.capture_round_id,
+                    error=result_error or "Unknown error",
+                    affected_sources=[result_url],
+                    capture_id=capture_round_id,
                     last_successful=_ls.strftime("%b %d, %Y") if _ls else "\u2014",
                     retry_at=None,
                     fix_url=(
                         f"{settings.FRONTEND_URL}/employers/"
-                        f"{position.employer_id}/positions/{position.id}"
+                        f"{employer_id}/positions/{position_id}"
                     ),
                 )
         except Exception:
@@ -517,40 +656,64 @@ async def _run_capture_round(round_id: int) -> None:
 
 
 async def force_run_capture_round(round_id: int) -> None:
-    """Re-run a round regardless of its current status, clearing previous results."""
+    """Re-run a round regardless of its current status, clearing previous results.
+
+    Uses a per-round asyncio.Lock to prevent concurrent duplicate executions when
+    multiple triggers fire for the same round (e.g. admin manual retry + cron recovery
+    arriving simultaneously). The second call acquires the lock only after the first
+    completes, making force_run idempotent under concurrent invocation.
+    """
     from sqlalchemy import delete as sa_delete
     from app.models.capture import CaptureResult as CaptureResultModel
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(CaptureRound)
-            .where(CaptureRound.id == round_id)
-            .options(
-                selectinload(CaptureRound.job_position).selectinload(JobPosition.job_urls)
-            )
-        )
-        round_ = result.scalar_one_or_none()
-        if round_ is None:
-            return
-        # Clear previous results so re-run starts fresh
-        await db.execute(sa_delete(CaptureResultModel).where(CaptureResultModel.capture_round_id == round_id))
-        round_.status = CaptureStatus.PENDING
-        round_.captured_at = None
-        await db.commit()
-        await db.refresh(round_)
-        # Reload with postings and employer
-        result2 = await db.execute(
-            select(CaptureRound)
-            .where(CaptureRound.id == round_id)
-            .options(
-                selectinload(CaptureRound.job_position).selectinload(JobPosition.job_urls),
-                selectinload(CaptureRound.job_position).selectinload(JobPosition.employer),
-            )
-        )
-        round_ = result2.scalar_one()
-        await _execute_round(db, round_)
+
+    # Lazily create a lock per round_id; clean up when no task is left waiting.
+    if round_id not in _round_locks:
+        _round_locks[round_id] = asyncio.Lock()
+
+    async with _round_locks[round_id]:
+        try:
+            async with AsyncSessionLocal() as db:
+                result = await db.execute(
+                    select(CaptureRound)
+                    .where(CaptureRound.id == round_id)
+                    .options(
+                        selectinload(CaptureRound.job_position).selectinload(JobPosition.job_urls)
+                    )
+                )
+                round_ = result.scalar_one_or_none()
+                if round_ is None:
+                    return
+                # Clear previous results so re-run starts fresh
+                await db.execute(sa_delete(CaptureResultModel).where(CaptureResultModel.capture_round_id == round_id))
+                round_.status = CaptureStatus.PENDING
+                round_.captured_at = None
+                await db.commit()
+                await db.refresh(round_)
+                # Reload with postings and employer
+                result2 = await db.execute(
+                    select(CaptureRound)
+                    .where(CaptureRound.id == round_id)
+                    .options(
+                        selectinload(CaptureRound.job_position).selectinload(JobPosition.job_urls),
+                        selectinload(CaptureRound.job_position).selectinload(JobPosition.employer),
+                    )
+                )
+                round_ = result2.scalar_one()
+                await _execute_round(db, round_)
+        finally:
+            # Release the lock entry if no other task is queued behind this one
+            lock = _round_locks.get(round_id)
+            if lock and not lock.locked():
+                _round_locks.pop(round_id, None)
 
 
 async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
+    # Cache position metadata before the first commit expires ORM state.
+    # These are plain scalar values read from the eagerly-loaded relationship.
+    _position_title: str = round_.job_position.job_title
+    _position_employer_id: int = round_.job_position.employer_id
+    _position_id: int = round_.job_position_id
+
     round_.status = CaptureStatus.RUNNING
     await db.commit()
 
@@ -653,7 +816,10 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                         capture_id=round_.id,
                         last_successful=_ls.strftime("%b %d, %Y") if _ls else "\u2014",
                         retry_at=None,
-                        fix_url=f"{settings.FRONTEND_URL}/positions/{round_.job_position_id}",
+                        fix_url=(
+                            f"{settings.FRONTEND_URL}/employers/"
+                            f"{_position_employer_id}/positions/{_position_id}"
+                        ),
                     )
             except Exception:
                 pass  # Never block capture flow for email errors
@@ -807,6 +973,11 @@ async def recover_stuck_rounds() -> None:
     A round stuck in RUNNING state means the server crashed mid-capture.
     We reset them to FAILED and immediately re-trigger so they run without manual intervention.
     Runs every 30 minutes via APScheduler (registered in main.py lifespan).
+
+    Staleness is measured against updated_at (the time the round last changed state),
+    NOT scheduled_at. scheduled_at is the original scheduling time and never changes,
+    so old force-retried rounds would be immediately re-detected as stuck on the very
+    next cron interval, causing an infinite thrash loop.
     """
     timeout_minutes = settings.STUCK_ROUND_TIMEOUT_MINUTES
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=timeout_minutes)
@@ -816,7 +987,8 @@ async def recover_stuck_rounds() -> None:
             select(CaptureRound)
             .where(
                 CaptureRound.status == CaptureStatus.RUNNING,
-                CaptureRound.scheduled_at <= cutoff,
+                CaptureRound.updated_at <= cutoff,           # ← updated_at, not scheduled_at
+                ~CaptureRound.id.in_(_recovering_round_ids), # skip rounds already being recovered
             )
             .options(
                 selectinload(CaptureRound.job_position)
@@ -849,7 +1021,15 @@ async def recover_stuck_rounds() -> None:
             ),
         )
 
+    # Mark IDs as in-flight so the next cron run skips them
+    _recovering_round_ids.update(round_ids)
+
+    async def _recover_and_release(rid: int) -> None:
+        try:
+            await force_run_capture_round(rid)
+        finally:
+            _recovering_round_ids.discard(rid)
+
     # Auto-retry each recovered round outside the DB session
-    import asyncio
-    for round_id in round_ids:
-        asyncio.create_task(force_run_capture_round(round_id))
+    for rid in round_ids:
+        asyncio.create_task(_recover_and_release(rid))

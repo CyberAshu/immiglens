@@ -77,6 +77,8 @@ export interface AdminCaptureRound {
   status: string
   scheduled_at: string
   captured_at: string | null
+  /** ISO timestamp of when the round last changed status (RUNNING start time for active rounds). */
+  updated_at: string
   position_title: string
   employer_name: string
   user_email: string
