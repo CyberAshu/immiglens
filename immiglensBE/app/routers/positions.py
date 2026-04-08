@@ -20,7 +20,7 @@ from app.schemas.job import (
     JobUrlUpdate,
 )
 from app.core.permissions import check_active_position_limit, check_capture_frequency, check_url_limit, check_position_reactivate_limit, check_url_reactivate_limit
-from app.services.scheduler import schedule_rounds_for_position, reschedule_rounds_for_position, requeue_rounds_for_position
+from app.services.scheduler import schedule_rounds_for_position, reschedule_rounds_for_position, requeue_rounds_for_position, reschedule_rounds_on_frequency_change
 
 router = APIRouter(
     prefix="/api/employers/{employer_id}/positions",
@@ -151,6 +151,10 @@ async def update_position(
     new_data: dict = {}
     reschedule_fields = {"start_date", "end_date", "capture_frequency_days"}
     needs_reschedule = bool(updates.keys() & reschedule_fields)
+    frequency_changed = (
+        "capture_frequency_days" in updates
+        and updates["capture_frequency_days"] != position.capture_frequency_days
+    )
 
     for field, new_val in updates.items():
         old_val = getattr(position, field)
@@ -178,10 +182,14 @@ async def update_position(
     await db.refresh(position)
 
     if needs_reschedule:
-        # reschedule_rounds_for_position calls schedule_rounds_for_position which
-        # commits its own round records — this is a separate concern from the
-        # business+audit transaction above.
-        await reschedule_rounds_for_position(db, position)
+        if frequency_changed:
+            # Frequency change: anchor new schedule from last successful capture so the
+            # evidence timeline stays consistent. Falls back to schedule-from-now if
+            # there is no prior completed round.
+            await reschedule_rounds_on_frequency_change(db, position)
+        else:
+            # Date-range change only (start_date / end_date): reschedule from now.
+            await reschedule_rounds_for_position(db, position)
 
     return position
 
