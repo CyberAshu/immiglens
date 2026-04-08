@@ -754,6 +754,9 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
 
     snapshots: list[tuple] = []
     failed_results: list[CaptureResult] = []
+    # Track the URL being processed so we can record the error if an unexpected
+    # exception fires mid-loop (e.g. db.flush failure, record_snapshot crash).
+    _current_posting = None
     active_urls = [p for p in round_.job_position.job_urls if p.is_active]
 
     # Guard: if no active URLs, fail immediately rather than silently completing.
@@ -794,6 +797,7 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
 
     try:
         for posting in active_urls:
+            _current_posting = posting
             screenshot_result = await capture(posting.url)
             capture_result = CaptureResult(
                 capture_round_id=round_.id,
@@ -813,7 +817,22 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
             if screenshot_result.status.value == ResultStatus.FAILED.value:
                 failed_results.append(capture_result)
     except Exception as exc:
-        # Unexpected failure during capture loop — mark round FAILED and notify
+        # Unexpected failure during capture loop — mark round FAILED and notify.
+        # Try to save the exception as a CaptureResult for the URL that was being
+        # processed at the time. This populates error_sample in the admin API so
+        # the admin can see the actual error rather than a generic fallback message.
+        if _current_posting is not None:
+            try:
+                err_result = CaptureResult(
+                    capture_round_id=round_.id,
+                    job_url_id=_current_posting.id,
+                    url=_current_posting.url,
+                    status=ResultStatus.FAILED,
+                    error=f"Unexpected capture error: {exc}",
+                )
+                db.add(err_result)
+            except Exception:
+                pass  # session may be in error state — best-effort only
         round_.status = CaptureStatus.FAILED
         await db.commit()
         if user_id is not None:

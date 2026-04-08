@@ -656,11 +656,30 @@ async def admin_retry_capture_round(
 ):
     """Admin: force-retry a capture round regardless of its current status."""
     from app.services.scheduler import force_run_capture_round
+    from app.models.job_url import JobUrl
+    from sqlalchemy.orm import selectinload
     import asyncio
 
-    round_ = await db.get(CaptureRound, round_id)
+    result = await db.execute(
+        select(CaptureRound)
+        .where(CaptureRound.id == round_id)
+        .options(selectinload(CaptureRound.job_position).selectinload(JobPosition.job_urls))
+    )
+    round_ = result.scalar_one_or_none()
     if not round_:
         raise HTTPException(status_code=404, detail="Capture round not found.")
+
+    # Block retry when no active URLs — force_run would immediately fail the round
+    # again with 0 results, producing a misleading "server crash" error in the UI.
+    active_url_count = sum(1 for u in round_.job_position.job_urls if u.is_active)
+    if active_url_count == 0:
+        total_urls = len(round_.job_position.job_urls)
+        detail = (
+            "Position has no active job board URLs — cannot retry. "
+            + ("Add at least one job board URL first." if total_urls == 0
+               else f"{total_urls} URL(s) exist but all are deactivated. Activate at least one first.")
+        )
+        raise HTTPException(status_code=400, detail=detail)
 
     await audit(
         db,

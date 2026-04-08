@@ -98,10 +98,19 @@ async def capture(url: str, max_attempts: int = 2) -> ScreenshotResult:
 
     for attempt in range(1, max_attempts + 1):
         stem = _sanitize_filename(url)
-        png_fd, png_path_str = tempfile.mkstemp(suffix=".png")
-        os.close(png_fd)
-        pdf_fd, pdf_path_str = tempfile.mkstemp(suffix=".pdf")
-        os.close(pdf_fd)
+        try:
+            png_fd, png_path_str = tempfile.mkstemp(suffix=".png")
+            os.close(png_fd)
+            pdf_fd, pdf_path_str = tempfile.mkstemp(suffix=".pdf")
+            os.close(pdf_fd)
+        except OSError as exc:
+            last_result = ScreenshotResult(
+                url=url, status=URLStatus.FAILED,
+                error=f"Failed to create temporary capture file: {exc}",
+            )
+            if attempt < max_attempts:
+                await asyncio.sleep(3)
+            continue
         dest_png = Path(png_path_str)
         dest_pdf = Path(pdf_path_str)
 
