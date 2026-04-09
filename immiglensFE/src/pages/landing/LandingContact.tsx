@@ -1,8 +1,46 @@
 import { useState } from 'react'
 import { Mail, Clock, ShieldCheck, Send } from 'lucide-react'
+import { BASE } from '../../api/client'
 
 export function LandingContact() {
   const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [form, setForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    subject: 'General Inquiry',
+    message: '',
+  })
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitting(true)
+    setError(null)
+    try {
+      const res = await fetch(`${BASE}/api/contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          first_name: form.firstName,
+          last_name: form.lastName,
+          email: form.email,
+          subject: form.subject,
+          message: form.message,
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body?.detail ?? 'Failed to send message. Please try again.')
+      }
+      setSubmitted(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-brand-offwhite">
@@ -78,7 +116,10 @@ export function LandingContact() {
                   <a href="/how-it-works" className="text-brand-navy font-semibold underline hover:text-brand-gold transition-colors">see how ImmigLens works</a>.
                 </p>
                 <button
-                  onClick={() => setSubmitted(false)}
+                  onClick={() => {
+                    setSubmitted(false)
+                    setForm({ firstName: '', lastName: '', email: '', subject: 'General Inquiry', message: '' })
+                  }}
                   className="mt-4 text-brand-navy font-semibold hover:text-brand-gold transition-colors"
                 >
                   Send another message
@@ -86,10 +127,7 @@ export function LandingContact() {
               </div>
             ) : (
               <form
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  setSubmitted(true)
-                }}
+                onSubmit={handleSubmit}
                 className="space-y-6"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -102,6 +140,8 @@ export function LandingContact() {
                       id="firstName"
                       required
                       placeholder="Jane"
+                      value={form.firstName}
+                      onChange={e => setForm(p => ({ ...p, firstName: e.target.value }))}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/20 outline-none transition-all"
                     />
                   </div>
@@ -114,6 +154,8 @@ export function LandingContact() {
                       id="lastName"
                       required
                       placeholder="Doe"
+                      value={form.lastName}
+                      onChange={e => setForm(p => ({ ...p, lastName: e.target.value }))}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/20 outline-none transition-all"
                     />
                   </div>
@@ -128,6 +170,8 @@ export function LandingContact() {
                     id="email"
                     required
                     placeholder="jane@immigrationfirm.com"
+                    value={form.email}
+                    onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/20 outline-none transition-all"
                   />
                 </div>
@@ -138,6 +182,8 @@ export function LandingContact() {
                   </label>
                   <select
                     id="subject"
+                    value={form.subject}
+                    onChange={e => setForm(p => ({ ...p, subject: e.target.value }))}
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/20 outline-none transition-all bg-white"
                   >
                     <option>General Inquiry</option>
@@ -156,15 +202,22 @@ export function LandingContact() {
                     required
                     rows={5}
                     placeholder="How can we help you today?"
+                    value={form.message}
+                    onChange={e => setForm(p => ({ ...p, message: e.target.value }))}
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/20 outline-none transition-all resize-none"
                   />
                 </div>
 
+                {error && (
+                  <p className="text-sm text-red-600">{error}</p>
+                )}
+
                 <button
                   type="submit"
-                  className="w-full bg-brand-navy hover:bg-brand-charcoal text-white py-4 rounded-xl font-bold shadow-md transition-all flex items-center justify-center gap-2 mt-8"
+                  disabled={submitting}
+                  className="w-full bg-brand-navy hover:bg-brand-charcoal text-white py-4 rounded-xl font-bold shadow-md transition-all flex items-center justify-center gap-2 mt-8 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Send Message
+                  {submitting ? 'Sending…' : 'Send Message'}
                 </button>
               </form>
             )}
