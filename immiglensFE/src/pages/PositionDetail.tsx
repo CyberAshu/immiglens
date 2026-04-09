@@ -37,6 +37,7 @@ export default function PositionDetail() {
   const [earlyReportModal, setEarlyReportModal] = useState<{
     daysActive: number
     daysRemaining: number
+    minimumDays: number
   } | null>(null)
   const [earlyAcknowledged, setEarlyAcknowledged] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -184,9 +185,9 @@ export default function PositionDetail() {
       navigate(`/employers/${eId}/positions/${pId}/report-preview`)
     } catch (err: unknown) {
       // Check if backend returned an EARLY_REPORT 422
-      const detail = (err as { detail?: { code?: string; days_active?: number; days_remaining?: number } }).detail
+      const detail = (err as { detail?: { code?: string; days_active?: number; days_remaining?: number; minimum_days?: number } }).detail
       if (detail && typeof detail === 'object' && detail.code === 'EARLY_REPORT') {
-        setEarlyReportModal({ daysActive: detail.days_active!, daysRemaining: detail.days_remaining! })
+        setEarlyReportModal({ daysActive: detail.days_active!, daysRemaining: detail.days_remaining!, minimumDays: detail.minimum_days ?? 28 })
         setEarlyAcknowledged(false)
         setGeneratingReport(false)
         return
@@ -479,14 +480,14 @@ export default function PositionDetail() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
               <span style={{ fontSize: '1.5rem' }}>⚠️</span>
               <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#92400e' }}>
-                28-Day Minimum Not Met
+                {earlyReportModal.minimumDays === 56 ? '8-Week Minimum Not Met' : '28-Day Minimum Not Met'}
               </h2>
             </div>
             <p style={{ margin: '0 0 0.75rem', fontSize: '0.9rem', color: '#374151', lineHeight: 1.6 }}>
               This position has only been active for{' '}
               <strong>{earlyReportModal.daysActive} day(s)</strong>.{' '}
               ESDC requires job postings to remain active for a minimum of{' '}
-              <strong>28 days</strong> before a report is submitted.{' '}
+              <strong>{earlyReportModal.minimumDays === 56 ? '8 weeks (56 days)' : '28 days'}</strong> before a report is submitted.{' '}
               You are <strong>{earlyReportModal.daysRemaining} day(s)</strong> short of this requirement.
             </p>
             <p style={{ margin: '0 0 1.25rem', fontSize: '0.85rem', color: '#6b7280', lineHeight: 1.6 }}>
@@ -507,7 +508,7 @@ export default function PositionDetail() {
                 style={{ marginTop: 2, flexShrink: 0, width: 16, height: 16, cursor: 'pointer' }}
               />
               <span>
-                I understand this position does not meet the 28-day ESDC requirement.
+                I understand this position does not meet the {earlyReportModal.minimumDays === 56 ? '8-week' : '28-day'} ESDC requirement.
                 I acknowledge that generating this report early may result in a non-compliant submission,
                 and I accept full responsibility for this decision.
               </span>
@@ -520,7 +521,7 @@ export default function PositionDetail() {
                   background: '#fff', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500,
                 }}
               >
-                Cancel — Wait Until Day 28
+                Cancel — Wait Until {earlyReportModal.minimumDays === 56 ? 'Week 8' : 'Day 28'}
               </button>
               <button
                 onClick={handleEarlyReportConfirm}
