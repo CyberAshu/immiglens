@@ -563,6 +563,9 @@ async def reset_password(
     if not user:
         raise HTTPException(status_code=400, detail="Invalid or expired reset link.")
 
+    if verify_password(payload.new_password, user.hashed_password):
+        raise HTTPException(status_code=422, detail="New password must differ from your current password.")
+
     user.hashed_password = hash_password(payload.new_password)
 
     await db.execute(
