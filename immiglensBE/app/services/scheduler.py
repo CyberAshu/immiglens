@@ -710,11 +710,11 @@ async def force_run_capture_round(round_id: int) -> None:
 
 
 async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
-    # Cache position metadata before the first commit expires ORM state.
-    # These are plain scalar values read from the eagerly-loaded relationship.
     _position_title: str = round_.job_position.job_title
     _position_employer_id: int = round_.job_position.employer_id
     _position_id: int = round_.job_position_id
+    _noc_code: str = round_.job_position.noc_code or "N/A"
+    _capture_frequency_days: int = round_.job_position.capture_frequency_days
 
     round_.status = CaptureStatus.RUNNING
     await db.commit()
@@ -742,7 +742,7 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                 event=NotificationEvent.ROUND_STARTED,
                 context={
                     "round_id": round_.id,
-                    "position": round_.job_position.job_title,
+                    "position": _position_title,
                     "scheduled_at": round_.scheduled_at.isoformat(),
                 },
                 trigger_id=round_.id,
@@ -778,7 +778,7 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                         to=_user.email,
                         first_name=_user.full_name.split()[0] if _user.full_name else "there",
                         position_title=_position_title,
-                        noc_code=round_.job_position.noc_code,
+                        noc_code=_noc_code,
                         attempted_at=datetime.now(timezone.utc).strftime("%b %d, %Y at %H:%M UTC"),
                         error="No active job board URLs configured for this position. Add or activate at least one URL.",
                         affected_sources=[],
@@ -842,7 +842,7 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                     event=NotificationEvent.CAPTURE_FAILED,
                     context={
                         "round_id": round_.id,
-                        "position": round_.job_position.job_title,
+                        "position": _position_title,
                         "error": str(exc),
                     },
                     trigger_id=round_.id,
@@ -855,7 +855,7 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
             try:
                 _user = await db.get(User, user_id)
                 if _user:
-                    _sources = [u.url for u in round_.job_position.job_urls if u.is_active]
+                    _sources = [u.url for u in active_urls]
                     _ls = (await db.execute(
                         select(CaptureRound.captured_at).where(
                             CaptureRound.job_position_id == round_.job_position_id,
@@ -865,8 +865,8 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                     await send_capture_failed_email(
                         to=_user.email,
                         first_name=_user.full_name.split()[0] if _user.full_name else "there",
-                        position_title=round_.job_position.job_title,
-                        noc_code=round_.job_position.noc_code,
+                        position_title=_position_title,
+                        noc_code=_noc_code,
                         attempted_at=datetime.now(timezone.utc).strftime("%b %d, %Y at %H:%M UTC"),
                         error=str(exc),
                         affected_sources=_sources,
@@ -885,7 +885,7 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
             subject=f"Capture round {round_.id} FAILED",
             body=(
                 f"Capture round {round_.id} failed unexpectedly.\n\n"
-                f"Position : {round_.job_position.job_title}\n"
+                f"Position : {_position_title}\n"
                 f"Round ID : {round_.id}\n"
                 f"Error    : {exc}\n"
                 f"Time     : {datetime.now(timezone.utc).isoformat()}\n"
@@ -928,7 +928,7 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                         "result_id": failed_result.id,
                         "url": failed_result.url,
                         "error": failed_result.error,
-                        "position": round_.job_position.job_title,
+                        "position": _position_title,
                     },
                     trigger_id=failed_result.id,
                     trigger_type="capture_result",
@@ -941,8 +941,8 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                     await send_capture_failed_email(
                         to=_user_for_fail.email,
                         first_name=_user_for_fail.full_name.split()[0] if _user_for_fail.full_name else "there",
-                        position_title=round_.job_position.job_title,
-                        noc_code=round_.job_position.noc_code,
+                        position_title=_position_title,
+                        noc_code=_noc_code,
                         attempted_at=datetime.now(timezone.utc).strftime("%b %d, %Y at %H:%M UTC"),
                         error=failed_result.error or "Unknown error",
                         affected_sources=[failed_result.url],
@@ -951,7 +951,7 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                         retry_at=None,
                         fix_url=(
                             f"{settings.FRONTEND_URL}/employers/"
-                            f"{round_.job_position.employer_id}/positions/{round_.job_position_id}"
+                            f"{_position_employer_id}/positions/{_position_id}"
                         ),
                     )
                 except Exception:
@@ -966,7 +966,7 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                 event=NotificationEvent.CAPTURE_COMPLETE,
                 context={
                     "round_id": round_.id,
-                    "position": round_.job_position.job_title,
+                    "position": _position_title,
                     "completed_at": round_.captured_at.isoformat(),
                 },
                 trigger_id=round_.id,
@@ -1008,13 +1008,13 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                 )).scalar_one() or 0
                 _next_run = (
                     round_.scheduled_at
-                    + timedelta(days=round_.job_position.capture_frequency_days)
+                    + timedelta(days=_capture_frequency_days)
                 ).strftime("%b %d, %Y")
                 await send_capture_completed_email(
                     to=_user.email,
                     first_name=_user.full_name.split()[0] if _user.full_name else "there",
-                    position_title=round_.job_position.job_title,
-                    noc_code=round_.job_position.noc_code,
+                    position_title=_position_title,
+                    noc_code=_noc_code,
                     captured_at=round_.captured_at.strftime("%b %d, %Y at %H:%M UTC"),
                     screenshot_count=len(_sources),
                     source_count=len(set(_sources)),

@@ -599,6 +599,37 @@ async def send_plan_limit_email(
     )
 
 
+# ── Contact form ──────────────────────────────────────────────────────────────
+
+async def send_contact_email(
+    first_name: str,
+    last_name: str,
+    sender_email: str,
+    subject: str,
+    message: str,
+    recipient: str,
+) -> None:
+    html = render_email("contact.html", {
+        "first_name": first_name,
+        "last_name": last_name,
+        "sender_email": sender_email,
+        "subject": subject,
+        "message": message,
+    })
+    plain = (
+        f"New contact form submission\n\n"
+        f"From: {first_name} {last_name} <{sender_email}>\n"
+        f"Subject: {subject}\n\n"
+        f"Message:\n{message}"
+    )
+    await send_email(
+        recipient,
+        f"[Contact Form] {subject} — {first_name} {last_name}",
+        plain,
+        html,
+    )
+
+
 # ── 6.10 Position limit warning (80%) ────────────────────────────────────────
 
 async def send_position_limit_warning_email(

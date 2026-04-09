@@ -1,0 +1,60 @@
+{% extends "email/base.html" %}
+
+{% block title %}New Contact Form Submission — ImmigLens{% endblock %}
+{% block preheader %}New message from {{ first_name }} {{ last_name }}: {{ subject }}{% endblock %}
+
+{% block content %}
+<p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#374151;letter-spacing:0.4px;text-transform:uppercase;">
+  Contact Form Submission
+</p>
+<h1 style="margin:0 0 24px;font-size:22px;font-weight:700;color:#0B1F3B;line-height:1.3;">
+  New message received
+</h1>
+
+{# Sender details #}
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="background-color:#F6F4EF;border-radius:8px;margin:0 0 24px;">
+  <tr>
+    <td style="padding:16px 20px;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation">
+        <tr>
+          <td style="padding:4px 0;font-size:13px;color:#374151;"><strong>Name:</strong></td>
+          <td style="padding:4px 0;font-size:13px;color:#374151;">{{ first_name }} {{ last_name }}</td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;font-size:13px;color:#374151;"><strong>Email:</strong></td>
+          <td style="padding:4px 0;font-size:13px;color:#374151;">
+            <a href="mailto:{{ sender_email }}" style="color:#0B1F3B;text-decoration:none;">{{ sender_email }}</a>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:4px 0;font-size:13px;color:#374151;"><strong>Subject:</strong></td>
+          <td style="padding:4px 0;font-size:13px;color:#374151;">{{ subject }}</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+{# Message body #}
+<p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#374151;">Message</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation"
+       style="border-left:3px solid #C8A24A;margin:0 0 24px;">
+  <tr>
+    <td style="padding:12px 16px;font-size:13px;color:#374151;line-height:1.7;white-space:pre-wrap;">{{ message }}</td>
+  </tr>
+</table>
+
+{# Reply CTA #}
+<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 8px;">
+  <tr>
+    <td style="background-color:#0B1F3B;border-radius:6px;">
+      <a href="mailto:{{ sender_email }}"
+         style="display:inline-block;padding:12px 24px;color:#ffffff;font-size:14px;font-weight:600;
+                text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+        Reply to {{ first_name }} &rarr;
+      </a>
+    </td>
+  </tr>
+</table>
+{% endblock %}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowDownAZ, ArrowUpAZ, Pencil, Search, Trash2 } from 'lucide-react'
 import { employers as employersApi, positions as positionsApi, subscriptions as subscriptionsApi } from '../api'
 import { useConfirm } from '../components/ConfirmModal'
@@ -16,6 +16,8 @@ export default function EmployerDetail() {
   const [positionList, setPositionList] = useState<JobPosition[]>([])
   const [loading, setLoading] = useState(true)
   const [minFreq, setMinFreq] = useState(7)
+  const [activePositionsUsed, setActivePositionsUsed]     = useState(0)
+  const [maxActivePositions, setMaxActivePositions]       = useState(-1)
   const [isCustomFreq, setIsCustomFreq] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingPosition, setEditingPosition] = useState<JobPosition | null>(null)
@@ -29,6 +31,7 @@ export default function EmployerDetail() {
   const [sortKey, setSortKey] = useState<'job_title' | 'start_date' | 'created_at'>('created_at')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [error, setError] = useState<string | null>(null)
+  const navigate = useNavigate()
   const { toast, showToast, clearToast } = useToast()
   const { confirmModal, askConfirm }      = useConfirm()
 
@@ -39,6 +42,8 @@ export default function EmployerDetail() {
         setPositionList(pos)
         const freq = usage?.tier.min_capture_frequency_days ?? 7
         setMinFreq(freq)
+        setActivePositionsUsed(usage?.active_positions_used ?? 0)
+        setMaxActivePositions(usage?.tier.max_active_positions ?? -1)
         setIsCustomFreq(false)
         setForm(f => ({ ...f, capture_frequency_days: freq }))
       })
@@ -184,7 +189,21 @@ export default function EmployerDetail() {
         </div>
         <button
           className="btn-primary"
-          onClick={() => { setForm(EMPTY_FORM); setEditingPosition(null); setIsCustomFreq(false); setError(null); setShowForm(true) }}
+          onClick={async () => {
+            if (!employer.is_active) return
+            if (maxActivePositions !== -1 && activePositionsUsed >= maxActivePositions) {
+              const upgrade = await askConfirm({
+                title: 'Active Position Limit Reached',
+                message: `You have reached your active position limit (${maxActivePositions}). Upgrade your plan to add more positions.`,
+                confirmLabel: 'Upgrade Plan',
+                cancelLabel: 'Close',
+                variant: 'primary',
+              })
+              if (upgrade) navigate('/subscriptions')
+              return
+            }
+            setForm(EMPTY_FORM); setEditingPosition(null); setIsCustomFreq(false); setError(null); setShowForm(true)
+          }}
           disabled={!employer.is_active}
           title={!employer.is_active ? 'Activate this employer to add positions' : undefined}
         >

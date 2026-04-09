@@ -155,10 +155,11 @@ async def generate_report(
     emp_result = await db.execute(select(Employer).where(Employer.id == employer_id))
     employer = emp_result.scalar_one()
 
-    # ── 28-day ESDC minimum active period check ───────────────────────────
+    # ── ESDC minimum active period check ──────────────────────────────────
+    # Low-wage stream requires 8 weeks (56 days); all others require 28 days
     today = date.today()
     days_active = (today - position.start_date).days
-    MINIMUM_DAYS = 28
+    MINIMUM_DAYS = 56 if position.wage_stream == "low-wage" else 28
     if days_active < MINIMUM_DAYS:
         days_remaining = MINIMUM_DAYS - days_active
         if not acknowledge_early:
@@ -168,6 +169,7 @@ async def generate_report(
                     "code": "EARLY_REPORT",
                     "days_active": days_active,
                     "days_remaining": days_remaining,
+                    "minimum_days": MINIMUM_DAYS,
                     "message": (
                         f"This position has only been active for {days_active} day(s). "
                         f"ESDC requires a minimum of {MINIMUM_DAYS} days. "
@@ -190,6 +192,7 @@ async def generate_report(
                 "acknowledged_at": datetime.now(timezone.utc).isoformat(),
                 "days_active": days_active,
                 "days_remaining": days_remaining,
+                "minimum_days": MINIMUM_DAYS,
             },
             request=request,
         )
