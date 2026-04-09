@@ -130,11 +130,28 @@ async def get_or_create_customer(user: "User", db) -> str:
     """Return the user's Stripe customer_id, creating one if it doesn't exist yet.
 
     Persists the id back to the database.
+
+    Guard against double-customer creation: if the DB commit failed on a previous
+    call after Stripe already created the customer, a second call would blindly
+    create another customer for the same user.  We search Stripe by user_id
+    metadata first and reuse any existing customer before creating a new one.
     """
     if user.stripe_customer_id:
         return user.stripe_customer_id
 
     client = _client()
+
+    # Search Stripe for an existing customer tagged with this user's ID.
+    # This is the safety net for DB commit failures on earlier calls.
+    search_result = client.customers.search(
+        params={"query": f"metadata['user_id']:'{user.id}'", "limit": 1}
+    )
+    if search_result.data:
+        customer_id = search_result.data[0].id
+        user.stripe_customer_id = customer_id
+        await db.commit()
+        return customer_id
+
     customer = client.customers.create(
         params={"email": user.email, "name": user.full_name,
                 "metadata": {"user_id": str(user.id)}}
@@ -170,6 +187,13 @@ async def create_checkout_session(
     annual_price_id: str | None = getattr(tier, "stripe_annual_price_id", None)
     if is_annual and annual_price_id:
         price_id = annual_price_id
+    elif is_annual and not annual_price_id:
+        # Annual billing was requested but no annual price is configured on this tier.
+        # Silently falling back to monthly would misbill the user — raise explicitly.
+        raise ValueError(
+            f"Tier '{tier.name}' does not have an annual price configured. "
+            "Please contact support or select monthly billing."
+        )
     elif tier.stripe_price_id:
         price_id = tier.stripe_price_id
     else:
@@ -266,25 +290,31 @@ def update_subscription_price(
     annual_price_id: str | None = getattr(new_tier, "stripe_annual_price_id", None)
     if is_annual and annual_price_id:
         price_id = annual_price_id
+    elif is_annual and not annual_price_id:
+        raise ValueError(
+            f"Tier '{new_tier.name}' does not have an annual price configured. "
+            "Please contact support or select monthly billing."
+        )
     elif new_tier.stripe_price_id:
         price_id = new_tier.stripe_price_id
     else:
         raise ValueError(f"Tier '{new_tier.name}' has no Stripe price configured.")
 
-    # Find first active (or trialing) subscription for this customer
-    subs = client.subscriptions.list(
-        params={"customer": customer_id, "status": "active", "limit": 1}
-    )
-    if not subs.data:
-        subs = client.subscriptions.list(
-            params={"customer": customer_id, "status": "trialing", "limit": 1}
+    sub = None
+    # Check active → trialing → past_due in priority order.
+    # past_due subscriptions are still modifiable and should not force a new checkout
+    # (which would create a duplicate subscription on the same customer).
+    for status_filter in ("active", "trialing", "past_due"):
+        result = client.subscriptions.list(
+            params={"customer": customer_id, "status": status_filter, "limit": 1}
         )
-    if not subs.data:
+        if result.data:
+            sub = result.data[0]
+            break
+    if sub is None:
         raise ValueError(
             "No active subscription found. Please use checkout to start a new subscription."
         )
-
-    sub = subs.data[0]
     sub_item_id = sub.items.data[0].id
     updated = client.subscriptions.update(
         sub.id,
@@ -299,3 +329,29 @@ def update_subscription_price(
         },
     )
     return updated
+
+
+def cancel_all_customer_subscriptions(customer_id: str) -> int:
+    """Cancel every active or trialing Stripe subscription for a customer.
+
+    Called when an admin deletes a tier that had subscribers, so those users are
+    not charged again after being moved to the free tier.
+
+    Returns the number of subscriptions cancelled.
+    """
+    client = _client()
+    cancelled = 0
+    for status_filter in ("active", "trialing", "past_due"):
+        page = client.subscriptions.list(
+            params={"customer": customer_id, "status": status_filter, "limit": 100}
+        )
+        for sub in page.data:
+            try:
+                client.subscriptions.cancel(sub.id)
+                cancelled += 1
+            except Exception:
+                log.warning(
+                    "cancel_all_customer_subscriptions: failed to cancel sub %s for customer %s",
+                    sub.id, customer_id,
+                )
+    return cancelled

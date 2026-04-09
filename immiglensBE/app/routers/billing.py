@@ -16,6 +16,7 @@ from app.core.audit_events import AuditAction, AuditEntity
 from app.core.config import settings
 from app.core.dependencies import get_current_user, get_db
 from app.core.permissions import deactivate_user_positions
+from app.models.audit_log import AuditLog
 from app.models.promotion import Promotion, PromotionRedemption
 from app.models.subscription import SubscriptionTier
 from app.models.user import User
@@ -170,7 +171,33 @@ async def sync_checkout(
     if session.payment_status not in ("paid", "no_payment_required"):
         return SyncCheckoutResponse(tier_id=current_user.tier_id, tier_expires_at=current_user.tier_expires_at)
 
+    # Security: verify this session belongs to the authenticated user.
+    # A session's customer must match the user's known customer_id (when set),
+    # OR the metadata must reference this user's ID.  Without this check any
+    # authenticated user could apply another user's completed session to their
+    # own account, escalating privileges and stealing stripe_customer_id.
+    customer_id = getattr(session, "customer", None)
     metadata_obj = getattr(session, "metadata", None)
+    session_user_id = getattr(metadata_obj, "user_id", None) if metadata_obj else None
+
+    if current_user.stripe_customer_id:
+        # Case 1: User already has a customer — verify the session belongs to them.
+        if customer_id != current_user.stripe_customer_id:
+            raise HTTPException(status_code=403, detail="Session does not belong to your account.")
+    else:
+        # Case 2: First-time user, no customer_id yet — verify via session metadata.
+        if session_user_id:
+            if int(session_user_id) != current_user.id:
+                raise HTTPException(status_code=403, detail="Session does not belong to your account.")
+        else:
+            # Neither customer_id nor metadata user_id can confirm ownership.
+            # Refuse rather than blindly storing an unverified customer_id — an
+            # attacker could steal another Stripe customer's identity this way.
+            raise HTTPException(
+                status_code=403,
+                detail="Session ownership cannot be verified. Please contact support.",
+            )
+
     tier_id_str = getattr(metadata_obj, "tier_id", None) if metadata_obj else None
     if not tier_id_str:
         return SyncCheckoutResponse(tier_id=current_user.tier_id, tier_expires_at=current_user.tier_expires_at)
@@ -190,7 +217,6 @@ async def sync_checkout(
             log.warning("sync-checkout: could not retrieve subscription %s", subscription_id)
 
     # Persist customer_id if not yet stored
-    customer_id = getattr(session, "customer", None)
     if not current_user.stripe_customer_id and customer_id:
         current_user.stripe_customer_id = customer_id
 
@@ -331,6 +357,7 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 
     event_type: str = event["type"]
     data = event["data"]["object"]
+    event_id: str = event.get("id", "") or ""
 
     # ── checkout.session.completed ────────────────────────────────────────────
     if event_type == "checkout.session.completed":
@@ -350,11 +377,11 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 
     # ── invoice.payment_failed ────────────────────────────────────────────────────
     elif event_type == "invoice.payment_failed":
-        await _handle_invoice_payment_failed(data, db)
+        await _handle_invoice_payment_failed(data, db, event_id=event_id)
 
     # ── invoice.paid ────────────────────────────────────────────────────────────
     elif event_type == "invoice.paid":
-        await _handle_invoice_paid(data, db)
+        await _handle_invoice_paid(data, db, event_id=event_id)
 
     return {"received": True}
 
@@ -364,6 +391,22 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 async def _find_user_by_customer(customer_id: str, db: AsyncSession) -> User | None:
     return (
         await db.execute(select(User).where(User.stripe_customer_id == customer_id))
+    ).scalar_one_or_none()
+
+
+async def _find_user_by_customer_for_update(customer_id: str, db: AsyncSession) -> User | None:
+    """Same as _find_user_by_customer but acquires a row-level write lock.
+
+    Use this in webhook handlers that modify tier_id / tier_expires_at so that
+    concurrent admin assignments (which also write these fields) are serialized
+    at the DB level, preventing TOCTOU overwrites of tier_admin_override.
+    """
+    return (
+        await db.execute(
+            select(User)
+            .where(User.stripe_customer_id == customer_id)
+            .with_for_update()
+        )
     ).scalar_one_or_none()
 
 def _get_period_end(sub: dict) -> int | None:
@@ -473,9 +516,14 @@ async def _handle_checkout_completed(data: dict, db: AsyncSession) -> None:
 
     user: User | None = None
     if user_id:
-        user = await db.get(User, int(user_id))
+        # Lock the user row by ID so concurrent admin assignments are serialized
+        user = (
+            await db.execute(
+                select(User).where(User.id == int(user_id)).with_for_update()
+            )
+        ).scalar_one_or_none()
     if user is None and customer_id:
-        user = await _find_user_by_customer(customer_id, db)
+        user = await _find_user_by_customer_for_update(customer_id, db)
 
     if user is None:
         log.error("checkout.session.completed: could not resolve user (customer=%s)", customer_id)
@@ -485,6 +533,12 @@ async def _handle_checkout_completed(data: dict, db: AsyncSession) -> None:
     if not user.stripe_customer_id and customer_id:
         user.stripe_customer_id = customer_id
 
+    # Clear any admin override: the user has now completed a real Stripe checkout
+    # so webhook events for this subscription should be trusted going forward.
+    if getattr(user, "tier_admin_override", False):
+        user.tier_admin_override = False
+        log.info("checkout.session.completed: cleared tier_admin_override for user %s", user.id)
+
     if tier_id:
         tier = await db.get(SubscriptionTier, int(tier_id))
         if tier and tier.is_active:
@@ -492,14 +546,26 @@ async def _handle_checkout_completed(data: dict, db: AsyncSession) -> None:
         elif tier:
             log.warning("checkout.session.completed: tier %s is inactive, not assigning to user %s", tier_id, user.id)
 
-    # Record promotion redemption now that payment is confirmed
+    # Record promotion redemption now that payment is confirmed.
+    # Guard against duplicate inserts when Stripe replays the event (at-least-once delivery).
     if promotion_id_str:
         try:
             promo = await db.get(Promotion, int(promotion_id_str))
             if promo:
-                db.add(PromotionRedemption(promotion_id=promo.id, user_id=user.id))
-                promo.redemptions_count += 1
-                log.info("checkout.session.completed: redemption recorded for promo %s user %s", promo.id, user.id)
+                existing = (
+                    await db.execute(
+                        select(PromotionRedemption).where(
+                            PromotionRedemption.promotion_id == promo.id,
+                            PromotionRedemption.user_id == user.id,
+                        )
+                    )
+                ).scalar_one_or_none()
+                if not existing:
+                    db.add(PromotionRedemption(promotion_id=promo.id, user_id=user.id))
+                    promo.redemptions_count += 1
+                    log.info("checkout.session.completed: redemption recorded for promo %s user %s", promo.id, user.id)
+                else:
+                    log.info("checkout.session.completed: duplicate webhook — redemption already exists for promo %s user %s", promo.id, user.id)
         except Exception:
             log.exception("Failed to record promotion redemption for promo_id=%s", promotion_id_str)
 
@@ -583,9 +649,22 @@ async def _handle_checkout_completed(data: dict, db: AsyncSession) -> None:
 
 async def _handle_subscription_updated(data: dict, db: AsyncSession) -> None:
     customer_id: str = getattr(data, "customer", "") or ""
-    user = await _find_user_by_customer(customer_id, db)
+    user = await _find_user_by_customer_for_update(customer_id, db)
     if user is None:
         return
+
+    # If an admin has manually overridden this user's tier, do not let Stripe
+    # webhooks silently overwrite it.  The override is cleared when the user
+    # completes a new checkout (checkout.session.completed handler below).
+    if getattr(user, "tier_admin_override", False):
+        log.info(
+            "subscription.updated: skipping tier update for user %s (tier_admin_override=True)",
+            user.id,
+        )
+        return
+
+    # Capture old tier before any mutation so downgrade detection is accurate
+    old_tier_id = user.tier_id
 
     end_ts = _get_period_end(data)
     if end_ts:
@@ -621,6 +700,34 @@ async def _handle_subscription_updated(data: dict, db: AsyncSession) -> None:
                 if tier_row:
                     user.tier_id = tier_row.id
 
+    # Enforce downgrade: deactivate excess positions when the new tier is more
+    # restrictive than the old one.  This mirrors what change_plan does inline,
+    # but is also needed here for portal-initiated downgrades which bypass our API.
+    if user.tier_id != old_tier_id:
+        old_tier_obj = await db.get(SubscriptionTier, old_tier_id) if old_tier_id else None
+        new_tier_obj = await db.get(SubscriptionTier, user.tier_id) if user.tier_id else None
+        old_max = old_tier_obj.max_active_positions if old_tier_obj else -1
+
+        if new_tier_obj is not None:
+            new_max = new_tier_obj.max_active_positions
+        else:
+            # user.tier_id is None → resolve the actual free tier limit rather
+            # than using a hardcoded fallback that could be wrong for this tenant.
+            free_res = await db.execute(
+                select(SubscriptionTier).where(SubscriptionTier.name == "free").limit(1)
+            )
+            free_tier = free_res.scalar_one_or_none()
+            new_max = free_tier.max_active_positions if free_tier else 0
+
+        is_downgrade = new_max != -1 and (old_max == -1 or new_max < old_max)
+        if is_downgrade:
+            deactivated = await deactivate_user_positions(db, user)
+            log.info(
+                "subscription.updated: downgrade detected for user %s (old_tier=%s new_tier=%s) — "
+                "deactivated %d position(s)",
+                user.id, old_tier_id, user.tier_id, deactivated,
+            )
+
     await audit(
         db,
         action=AuditAction.SUBSCRIPTION_UPDATED,
@@ -638,13 +745,25 @@ async def _handle_subscription_updated(data: dict, db: AsyncSession) -> None:
 
 async def _handle_subscription_deleted(data: dict, db: AsyncSession) -> None:
     customer_id: str = getattr(data, "customer", "") or ""
-    user = await _find_user_by_customer(customer_id, db)
+    user = await _find_user_by_customer_for_update(customer_id, db)
     if user is None:
+        return
+
+    # Respect admin override — don't cancel the tier during webhook processing
+    # if an admin manually assigned it (e.g. complimentary access).
+    if getattr(user, "tier_admin_override", False):
+        log.info(
+            "subscription.deleted: skipping tier reset for user %s (tier_admin_override=True)",
+            user.id,
+        )
         return
 
     user.tier_id = None
     user.tier_expires_at = None
-    await db.flush()
+    # Deactivate all active positions — subscriber is now on the free tier.
+    # deactivate_user_positions flushes internally; caller (this function) owns commit.
+    deactivated = await deactivate_user_positions(db, user)
+    log.info("subscription.deleted: deactivated %d position(s) for user %s", deactivated, user.id)
     await audit(
         db,
         action=AuditAction.SUBSCRIPTION_CANCELLED,
@@ -653,7 +772,7 @@ async def _handle_subscription_deleted(data: dict, db: AsyncSession) -> None:
         actor_type="system",
         entity_id=str(user.id),
         entity_label=user.email,
-        description="Subscription cancelled via Stripe webhook",
+        description=f"Subscription cancelled via Stripe webhook ({deactivated} position(s) deactivated)",
         source="webhook",
     )
     await db.commit()
@@ -690,13 +809,31 @@ async def _handle_trial_will_end(data: dict, db: AsyncSession) -> None:
         log.exception("Failed to send trial_ending email to user %s", user.id)
 
 
-async def _handle_invoice_payment_failed(data: dict, db: AsyncSession) -> None:
+async def _handle_invoice_payment_failed(data: dict, db: AsyncSession, *, event_id: str = "") -> None:
     """5.2 Payment Failed / 6.5 Renewal Failed — distinguish by billing_reason."""
     customer_id: str = getattr(data, "customer", "") or ""
     user = await _find_user_by_customer(customer_id, db)
     if user is None:
         log.warning("invoice.payment_failed: no user found for customer %s", customer_id)
         return
+
+    # Idempotency guard: if we already processed this exact Stripe event, skip the
+    # email send.  Stripe retries up to 20 times — without this, every retry
+    # sends the user another failure notification.
+    already_processed = False
+    if event_id:
+        existing = (
+            await db.execute(
+                select(AuditLog).where(
+                    AuditLog.actor_id == user.id,
+                    AuditLog.action == AuditAction.PAYMENT_FAILED,
+                    AuditLog.metadata_["stripe_event_id"].astext == event_id,
+                ).limit(1)
+            )
+        ).scalar_one_or_none()
+        if existing:
+            log.info("invoice.payment_failed: already processed event %s for user %s", event_id, user.id)
+            already_processed = True
 
     amount_cents: int = getattr(data, "amount_due", 0) or 0
     amount = f"${amount_cents / 100:.2f} CAD"
@@ -719,68 +856,148 @@ async def _handle_invoice_payment_failed(data: dict, db: AsyncSession) -> None:
 
     billing_url = f"{settings.FRONTEND_URL}/billing"
 
-    try:
-        if billing_reason == "subscription_cycle":
-            # Renewal-specific email (6.5)
-            tier = await db.get(SubscriptionTier, user.tier_id) if user.tier_id else None
-            plan_name = tier.display_name if tier else "ImmigLens"
-            renewal_date = datetime.now(timezone.utc).strftime("%B %d, %Y")
-            await send_renewal_failed_email(
-                user.email,
-                user.full_name or "there",
-                plan_name,
-                renewal_date,
-                amount,
-                failure_reason,
-                grace_period_end,
-                retry_date,
-                retries_remaining,
-                billing_url,
-                card_brand=card_brand,
-                card_last4=card_last4,
-            )
-        else:
-            # First-payment failure email (5.2)
-            attempted_at = datetime.now(timezone.utc).strftime("%B %d, %Y at %H:%M UTC")
-            await send_payment_failed_email(
-                user.email,
-                user.full_name or "there",
-                amount,
-                attempted_at,
-                failure_reason,
-                grace_period_end,
-                retry_date,
-                retries_remaining,
-                billing_url,
-                card_brand=card_brand,
-                card_last4=card_last4,
-            )
-        log.info("invoice.payment_failed email sent to user %s (reason=%s)", user.id, billing_reason)
-    except Exception:
-        log.exception("Failed to send payment_failed email to user %s", user.id)
+    if not already_processed:
+        try:
+            if billing_reason == "subscription_cycle":
+                # Renewal-specific email (6.5)
+                tier = await db.get(SubscriptionTier, user.tier_id) if user.tier_id else None
+                plan_name = tier.display_name if tier else "ImmigLens"
+                renewal_date = datetime.now(timezone.utc).strftime("%B %d, %Y")
+                await send_renewal_failed_email(
+                    user.email,
+                    user.full_name or "there",
+                    plan_name,
+                    renewal_date,
+                    amount,
+                    failure_reason,
+                    grace_period_end,
+                    retry_date,
+                    retries_remaining,
+                    billing_url,
+                    card_brand=card_brand,
+                    card_last4=card_last4,
+                )
+            else:
+                # First-payment failure email (5.2)
+                attempted_at = datetime.now(timezone.utc).strftime("%B %d, %Y at %H:%M UTC")
+                await send_payment_failed_email(
+                    user.email,
+                    user.full_name or "there",
+                    amount,
+                    attempted_at,
+                    failure_reason,
+                    grace_period_end,
+                    retry_date,
+                    retries_remaining,
+                    billing_url,
+                    card_brand=card_brand,
+                    card_last4=card_last4,
+                )
+            log.info("invoice.payment_failed email sent to user %s (reason=%s)", user.id, billing_reason)
+        except Exception:
+            log.exception("Failed to send payment_failed email to user %s", user.id)
 
-    await audit(
-        db,
-        action=AuditAction.PAYMENT_FAILED,
-        entity_type=AuditEntity.USER,
-        actor_id=user.id,
-        actor_type="system",
-        entity_id=str(user.id),
-        entity_label=user.email,
-        metadata={"amount": amount, "billing_reason": billing_reason, "attempt_count": attempt_count, "failure_reason": failure_reason},
-        description=f"Payment failed: {failure_reason} (attempt {attempt_count})",
-        source="webhook",
-        status="failed",
-    )
+        await audit(
+            db,
+            action=AuditAction.PAYMENT_FAILED,
+            entity_type=AuditEntity.USER,
+            actor_id=user.id,
+            actor_type="system",
+            entity_id=str(user.id),
+            entity_label=user.email,
+            metadata={"amount": amount, "billing_reason": billing_reason, "attempt_count": attempt_count, "failure_reason": failure_reason, "stripe_event_id": event_id},
+            description=f"Payment failed: {failure_reason} (attempt {attempt_count})",
+            source="webhook",
+            status="failed",
+        )
+
     await db.commit()
 
 
-async def _handle_invoice_paid(data: dict, db: AsyncSession) -> None:
+async def _handle_invoice_paid(data: dict, db: AsyncSession, *, event_id: str = "") -> None:
     """5.1 Payment Successful — fired on invoice.paid for any successful charge."""
     customer_id: str = getattr(data, "customer", "") or ""
     user = await _find_user_by_customer(customer_id, db)
     if user is None:
         return
+
+    # Idempotency guard: Stripe retries webhooks up to 20x. Only send the receipt
+    # email once per Stripe event ID.  Tier refresh is always applied (idempotent).
+    already_processed = False
+    if event_id:
+        existing = (
+            await db.execute(
+                select(AuditLog).where(
+                    AuditLog.actor_id == user.id,
+                    AuditLog.action == AuditAction.PAYMENT_SUCCEEDED,
+                    AuditLog.metadata_["stripe_event_id"].astext == event_id,
+                ).limit(1)
+            )
+        ).scalar_one_or_none()
+        if existing:
+            log.info("invoice.paid: duplicate event %s for user %s — skipping email", event_id, user.id)
+            already_processed = True
+
+    # Refresh tier_expires_at from the subscription attached to this invoice.
+    # This is the definitive billing event — relying solely on subscription.updated
+    # to carry the new period_end means a delayed webhook would cause _get_tier to
+    # falsely expire the user immediately after a successful renewal.
+    # Skip if admin manually assigned the tier (tier_admin_override guard).
+    if not getattr(user, "tier_admin_override", False):
+        sub_id: str | None = getattr(data, "subscription", None)
+        if sub_id:
+            try:
+                client = stripe.StripeClient(settings.STRIPE_SECRET_KEY)
+                sub = client.subscriptions.retrieve(sub_id)
+                end_ts = _get_period_end(sub)
+                if end_ts:
+                    user.tier_expires_at = datetime.fromtimestamp(end_ts, tz=timezone.utc)
+                    log.info(
+                        "invoice.paid: refreshed tier_expires_at for user %s → %s",
+                        user.id, user.tier_expires_at,
+                    )
+                # Restore tier_id if _get_tier's expiry enforcement already cleared it
+                # during the webhook delivery window (brief period after period rollover
+                # before this event arrives).  Map subscription price → tier via metadata.
+                if user.tier_id is None:
+                    sub_meta = getattr(sub, "metadata", None)
+                    sub_tier_id = getattr(sub_meta, "tier_id", None) if sub_meta else None
+                    if sub_tier_id:
+                        tier_row = await db.get(SubscriptionTier, int(sub_tier_id))
+                        if tier_row and tier_row.is_active:
+                            user.tier_id = tier_row.id
+                            log.info(
+                                "invoice.paid: restored tier_id=%s for user %s after expiry clear",
+                                tier_row.id, user.id,
+                            )
+                    if user.tier_id is None:
+                        # Fallback: resolve tier by price_id on the subscription item
+                        try:
+                            items = sub.items.data if hasattr(sub, "items") else []
+                            if items:
+                                price_id_on_sub = getattr(getattr(items[0], "price", None), "id", None)
+                                if price_id_on_sub:
+                                    tier_row = (
+                                        await db.execute(
+                                            select(SubscriptionTier).where(
+                                                SubscriptionTier.stripe_price_id == price_id_on_sub,
+                                                SubscriptionTier.is_active.is_(True),
+                                            )
+                                        )
+                                    ).scalar_one_or_none()
+                                    if tier_row:
+                                        user.tier_id = tier_row.id
+                                        log.info(
+                                            "invoice.paid: restored tier_id=%s via price_id for user %s",
+                                            tier_row.id, user.id,
+                                        )
+                        except Exception:
+                            log.warning("invoice.paid: price-based tier restoration failed for user %s", user.id)
+            except Exception:
+                log.warning(
+                    "invoice.paid: could not refresh tier_expires_at for user %s (sub=%s)",
+                    user.id, sub_id,
+                )
 
     amount_cents: int = getattr(data, "amount_paid", 0) or 0
     amount = f"${amount_cents / 100:.2f} CAD"
@@ -803,48 +1020,51 @@ async def _handle_invoice_paid(data: dict, db: AsyncSession) -> None:
         user.tier_expires_at.strftime("%B %d, %Y") if user.tier_expires_at else "N/A"
     )
 
-    try:
-        tier_obj = await db.get(SubscriptionTier, user.tier_id) if user.tier_id else None
-        card_brand, card_last4 = _get_card_details(data)
-        subtotal, tax_amount, total_amount, tax_type = _get_invoice_tax(data)
-        await send_payment_successful_email(
-            user.email,
-            user.full_name or "there",
-            payment_date=datetime.now(timezone.utc).strftime("%B %d, %Y"),
-            subtotal=subtotal,
-            tax_amount=tax_amount,
-            tax_type=tax_type,
-            total_amount=total_amount,
-            card_brand=card_brand,
-            card_last4=card_last4,
-            plan_name=tier_obj.display_name if tier_obj else "ImmigLens",
-            billing_start=billing_start,
-            billing_end=billing_end,
-            transaction_id=getattr(data, "charge", invoice_number) or invoice_number,
-            invoice_number=invoice_number,
-            next_billing_date=next_billing_date,
-            next_amount=total_amount,
-            invoice_url=getattr(data, "hosted_invoice_url", f"{settings.FRONTEND_URL}/billing") or f"{settings.FRONTEND_URL}/billing",
-            position_limit=str(tier_obj.max_active_positions) if tier_obj else "N/A",
-            capture_limit="Unlimited",
-            storage_limit="N/A",
-            seat_limit="1",
-            support_tier="Standard",
-        )
-        log.info("invoice.paid email sent to user %s", user.id)
-    except Exception:
-        log.exception("Failed to send payment_successful email to user %s", user.id)
+    if not already_processed:
+        try:
+            tier_obj = await db.get(SubscriptionTier, user.tier_id) if user.tier_id else None
+            card_brand, card_last4 = _get_card_details(data)
+            subtotal, tax_amount, total_amount, tax_type = _get_invoice_tax(data)
+            await send_payment_successful_email(
+                user.email,
+                user.full_name or "there",
+                payment_date=datetime.now(timezone.utc).strftime("%B %d, %Y"),
+                subtotal=subtotal,
+                tax_amount=tax_amount,
+                tax_type=tax_type,
+                total_amount=total_amount,
+                card_brand=card_brand,
+                card_last4=card_last4,
+                plan_name=tier_obj.display_name if tier_obj else "ImmigLens",
+                billing_start=billing_start,
+                billing_end=billing_end,
+                transaction_id=getattr(data, "charge", invoice_number) or invoice_number,
+                invoice_number=invoice_number,
+                next_billing_date=next_billing_date,
+                next_amount=total_amount,
+                invoice_url=getattr(data, "hosted_invoice_url", f"{settings.FRONTEND_URL}/billing") or f"{settings.FRONTEND_URL}/billing",
+                position_limit=str(tier_obj.max_active_positions) if tier_obj else "N/A",
+                capture_limit="Unlimited",
+                storage_limit="N/A",
+                seat_limit="1",
+                support_tier="Standard",
+            )
+            log.info("invoice.paid email sent to user %s", user.id)
+        except Exception:
+            log.exception("Failed to send payment_successful email to user %s", user.id)
 
-    await audit(
-        db,
-        action=AuditAction.PAYMENT_SUCCEEDED,
-        entity_type=AuditEntity.USER,
-        actor_id=user.id,
-        actor_type="system",
-        entity_id=str(user.id),
-        entity_label=user.email,
-        metadata={"amount": amount, "invoice_number": invoice_number},
-        description=f"Payment succeeded: {amount} (invoice {invoice_number})",
-        source="webhook",
-    )
+        await audit(
+            db,
+            action=AuditAction.PAYMENT_SUCCEEDED,
+            entity_type=AuditEntity.USER,
+            actor_id=user.id,
+            actor_type="system",
+            entity_id=str(user.id),
+            entity_label=user.email,
+            metadata={"amount": amount, "invoice_number": invoice_number, "stripe_event_id": event_id},
+            description=f"Payment succeeded: {amount} (invoice {invoice_number})",
+            source="webhook",
+        )
+
+    # Always commit — tier refresh (period-end update) must persist even on replay.
     await db.commit()

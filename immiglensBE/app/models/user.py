@@ -50,6 +50,11 @@ class User(Base):
     notification_email: Mapped[Optional[str]] = mapped_column(
         String(255), nullable=True, default=None
     )
+    # When True, Stripe webhook handlers will not overwrite tier_id / tier_expires_at.
+    # Set by admin manual tier assignment; cleared when the user completes a new checkout.
+    tier_admin_override: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
 
     employers: Mapped[list["Employer"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

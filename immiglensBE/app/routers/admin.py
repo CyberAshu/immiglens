@@ -1,3 +1,6 @@
+import asyncio
+import functools
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -241,6 +244,9 @@ async def assign_tier(
     old_tier_id = user.tier_id
     user.tier_id = body.tier_id
     user.tier_expires_at = body.tier_expires_at
+    # Mark this as an admin override so Stripe webhooks don't silently overwrite it.
+    # Cleared automatically when the user completes a new checkout session.
+    user.tier_admin_override = True
 
     if is_downgrade:
         await deactivate_user_positions(db, user)
@@ -390,9 +396,27 @@ async def admin_create_tier(
     )).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=409, detail="Tier with this name already exists.")
-    tier = SubscriptionTier(**body.model_dump())
+    # Start the tier as inactive so it is invisible to users until Stripe is synced.
+    # We activate it only after Stripe confirms the product/price were created.
+    tier_data = body.model_dump()
+    tier_data["is_active"] = False
+    tier = SubscriptionTier(**tier_data)
     db.add(tier)
-    await db.flush()
+    await db.flush()  # obtain tier.id without committing
+
+    # Sync to Stripe BEFORE committing so we don't persist an uncheckable tier.
+    stripe_err: str | None = None
+    try:
+        product_id, price_id = stripe_service.create_product_and_price(tier)
+        tier.stripe_product_id = product_id
+        tier.stripe_price_id   = price_id
+        tier.is_active = True   # activate only after Stripe succeeds
+    except Exception as exc:  # noqa: BLE001
+        import logging as _log
+        stripe_err = str(exc)
+        _log.getLogger(__name__).warning("Stripe sync failed for new tier %s: %s", tier.name, exc)
+        # Tier remains is_active=False and stripe_product_id=None — admin can retry
+
     await audit(
         db,
         action=AuditAction.TIER_CREATED,
@@ -401,24 +425,12 @@ async def admin_create_tier(
         actor_type="admin",
         entity_id=tier.id,
         entity_label=tier.display_name,
-        description=f'Created subscription tier "{tier.display_name}"',
-        new_data={"name": tier.name, "display_name": tier.display_name},
+        description=f'Created subscription tier "{tier.display_name}"' + (f' (Stripe sync failed: {stripe_err})' if stripe_err else ''),
+        new_data={"name": tier.name, "display_name": tier.display_name, "stripe_synced": not bool(stripe_err)},
         request=request,
     )
     await db.commit()
     await db.refresh(tier)
-
-    # Sync to Stripe (best-effort; don't fail the whole request if Stripe is down)
-    try:
-        product_id, price_id = stripe_service.create_product_and_price(tier)
-        tier.stripe_product_id = product_id
-        tier.stripe_price_id   = price_id
-        await db.commit()
-        await db.refresh(tier)
-    except Exception as exc:  # noqa: BLE001
-        import logging
-        logging.getLogger(__name__).warning("Stripe sync failed for new tier %s: %s", tier.id, exc)
-
     return tier
 
 
@@ -440,6 +452,45 @@ async def admin_update_tier(
     old_name    = tier.display_name
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(tier, field, value)
+
+    # ── Stripe sync BEFORE committing DB ─────────────────────────────────────
+    # Doing the sync after commit can leave DB and Stripe permanently inconsistent
+    # if the Stripe call succeeds but the follow-up DB write fails (and vice-versa).
+    # Raise HTTP 503 on Stripe failure so the admin knows the update did not apply.
+    stripe_sync_note = ""
+    try:
+        if tier.stripe_product_id:
+            if tier.display_name != old_name:
+                stripe_service.update_product_name(tier.stripe_product_id, tier.display_name)
+            if tier.price_per_month != old_price:
+                # Step 1 – create new price (do this FIRST; safe to retry on failure)
+                new_price_id: str | None = None
+                if tier.price_per_month and tier.price_per_month > 0:
+                    new_price_id = stripe_service.create_new_price(
+                        tier.stripe_product_id, tier.id, tier.price_per_month
+                    )
+                # Step 2 – archive old price (best-effort; archived prices stay harmless)
+                if tier.stripe_price_id:
+                    try:
+                        stripe_service.archive_price(tier.stripe_price_id)
+                    except Exception as arch_exc:  # noqa: BLE001
+                        import logging as _log
+                        _log.getLogger(__name__).warning(
+                            "Could not archive old price %s for tier %s: %s",
+                            tier.stripe_price_id, tier.id, arch_exc,
+                        )
+                tier.stripe_price_id = new_price_id
+        else:
+            # Tier was created before Stripe was configured — sync now
+            product_id, price_id = stripe_service.create_product_and_price(tier)
+            tier.stripe_product_id = product_id
+            tier.stripe_price_id   = price_id
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status_code=503,
+            detail=f"Stripe sync failed; tier update was not saved: {exc}",
+        ) from exc
+
     await audit(
         db,
         action=AuditAction.TIER_UPDATED,
@@ -448,41 +499,13 @@ async def admin_update_tier(
         actor_type="admin",
         entity_id=tier.id,
         entity_label=tier.display_name,
-        description=f'Updated subscription tier "{tier.display_name}"',
+        description=f'Updated subscription tier "{tier.display_name}"{stripe_sync_note}',
         old_data=old,
         new_data={"display_name": tier.display_name},
         request=request,
     )
     await db.commit()
     await db.refresh(tier)
-
-    # Stripe sync (best-effort)
-    try:
-        if tier.stripe_product_id:
-            if tier.display_name != old_name:
-                stripe_service.update_product_name(tier.stripe_product_id, tier.display_name)
-            if tier.price_per_month != old_price:
-                if tier.stripe_price_id:
-                    stripe_service.archive_price(tier.stripe_price_id)
-                if tier.price_per_month and tier.price_per_month > 0:
-                    tier.stripe_price_id = stripe_service.create_new_price(
-                        tier.stripe_product_id, tier.id, tier.price_per_month
-                    )
-                else:
-                    tier.stripe_price_id = None
-                await db.commit()
-                await db.refresh(tier)
-        else:
-            # Tier was created before Stripe was configured (or has $0 price) — sync now
-            product_id, price_id = stripe_service.create_product_and_price(tier)
-            tier.stripe_product_id = product_id
-            tier.stripe_price_id   = price_id
-            await db.commit()
-            await db.refresh(tier)
-    except Exception as exc:  # noqa: BLE001
-        import logging
-        logging.getLogger(__name__).warning("Stripe sync failed for tier %s update: %s", tier.id, exc)
-
     return tier
 
 
@@ -507,9 +530,45 @@ async def admin_delete_tier(
     )).scalars().all()
 
     migrated_count = 0
+    cancelled_subs = 0
+    deactivated_positions = 0
+
+    # Cancel all Stripe subscriptions in parallel (Stripe SDK is sync → run_in_executor).
+    # Sequential cancellation with many users at ~500 ms/call would timeout the request;
+    # parallelising reduces wall-clock time to a single round-trip.
+    loop = asyncio.get_running_loop()
+
+    async def _cancel_stripe(u: User) -> int:
+        if not u.stripe_customer_id:
+            return 0
+        try:
+            return await loop.run_in_executor(
+                None,
+                functools.partial(
+                    stripe_service.cancel_all_customer_subscriptions,
+                    u.stripe_customer_id,
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001
+            import logging as _log
+            _log.getLogger(__name__).warning(
+                "admin_delete_tier: could not cancel Stripe sub for user %s: %s", u.id, exc
+            )
+            return 0
+
+    cancel_counts = await asyncio.gather(*[_cancel_stripe(u) for u in affected_users])
+    cancelled_subs = sum(cancel_counts)
+
+    # DB updates (sequential — shared SQLAlchemy async session is not thread-safe)
     for u in affected_users:
         u.tier_id = None          # revert to free
         u.tier_expires_at = None
+        # Explicitly deactivate positions here — do NOT rely on the
+        # customer.subscription.deleted webhook to do it.  That webhook may be
+        # blocked by tier_admin_override, delayed, or silently skipped on Stripe
+        # cancellation errors.  Position deactivation must be an admin action, not
+        # a webhook side effect.
+        deactivated_positions += await deactivate_user_positions(db, u)
         migrated_count += 1
 
     # ── 2. Soft-delete the tier ───────────────────────────────────────────────
@@ -522,9 +581,9 @@ async def admin_delete_tier(
         actor_type="admin",
         entity_id=tier.id,
         entity_label=tier.name,
-        description=f'Deactivated subscription tier "{tier.name}" ({migrated_count} user(s) migrated to free)',
+        description=f'Deactivated subscription tier "{tier.name}" ({migrated_count} user(s) migrated to free, {cancelled_subs} Stripe subscription(s) cancelled, {deactivated_positions} position(s) deactivated)',
         old_data={"is_active": True, "name": tier.name},
-        new_data={"is_active": False, "migrated_users": migrated_count},
+        new_data={"is_active": False, "migrated_users": migrated_count, "cancelled_subs": cancelled_subs, "deactivated_positions": deactivated_positions},
         request=request,
     )
     await db.commit()
@@ -539,7 +598,7 @@ async def admin_delete_tier(
         import logging
         logging.getLogger(__name__).warning("Stripe archive failed for tier %s: %s", tier.id, exc)
 
-    return {"detail": f"Tier '{tier.name}' deactivated. {migrated_count} user(s) migrated to free tier."}
+    return {"detail": f"Tier '{tier.name}' deactivated. {migrated_count} user(s) migrated to free tier. {cancelled_subs} Stripe subscription(s) cancelled. {deactivated_positions} position(s) deactivated."}
 
 
 # ── Capture round management ─────────────────────────────────

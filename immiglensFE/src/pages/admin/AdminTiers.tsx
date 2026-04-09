@@ -108,8 +108,8 @@ function TierCardV2({ tier, color, onEdit, onToggle, onDelete }: {
         >
           {tier.is_active ? <><EyeOff size={14} /> Hide</> : <><Eye size={14} /> Show</>}
         </button>
-        <button className="st-action-btn st-action-btn--danger" onClick={onDelete} title="Delete">
-          <Trash2 size={14} />
+        <button className="st-action-btn st-action-btn--danger" onClick={onDelete} title="Deactivate">
+          <Trash2 size={14} /> Deactivate
         </button>
       </div>
     </div>
@@ -317,19 +317,23 @@ export default function AdminTiers() {
   async function handleDelete(tier: SubscriptionTier) {
     const stripeNote = tier.stripe_product_id ? ' Stripe product and price will be archived.' : ''
     if (!await askConfirm({
-      title: 'Delete Tier',
-      message: `Delete "${tier.display_name}"? Existing subscribers keep access until their period ends.${stripeNote}`,
-      confirmLabel: 'Delete',
+      title: 'Deactivate Tier',
+      message: `Deactivate "${tier.display_name}"? All current subscribers will be immediately moved to the free tier and their Stripe subscriptions will be cancelled.${stripeNote}`,
+      confirmLabel: 'Deactivate',
       variant: 'danger',
     })) return
     try {
       const res = await admin.deactivateTier(tier.id)
-      setTiers(prev => prev.filter(t => t.id !== tier.id))
+      // The backend performs a soft-delete (is_active = false); the tier still
+      // exists in the admin list with an "Hidden" badge.  Update local state to
+      // reflect the new is_active value rather than removing the row — otherwise
+      // it disappears now and reappears on the next page load.
+      setTiers(prev => prev.map(t => t.id === tier.id ? { ...t, is_active: false } : t))
       setError('')
-      setSuccess(res?.detail || `Tier "${tier.display_name}" deleted.`)
+      setSuccess(res?.detail || `Tier "${tier.display_name}" deactivated.`)
       setTimeout(() => setSuccess(''), 5000)
     } catch (err: any) {
-      const msg = err?.detail || err?.message || 'Failed to delete tier.'
+      const msg = err?.detail || err?.message || 'Failed to deactivate tier.'
       setSuccess('')
       setError(msg)
     }

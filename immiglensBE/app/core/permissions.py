@@ -32,7 +32,25 @@ async def _get_tier(db: AsyncSession, user: User) -> SubscriptionTier:
     if user.tier_id:
         row = await db.get(SubscriptionTier, user.tier_id)
         if row:
-            return row
+            # Enforce expiry: if the tier has lapsed (Stripe webhook may be delayed or lost),
+            # treat the user as free and clear the stale fields.
+            #
+            # IMPORTANT: Stripe fires invoice.paid / subscription.updated asynchronously
+            # after the billing cycle rolls over.  At the exact moment of renewal
+            # (period_end = now), the stored tier_expires_at is technically past but
+            # the user HAS paid.  A grace period prevents falsely downgrading users
+            # in the webhook-delivery window without creating an unbounded access leak.
+            # 1-hour grace >> Stripe's typical delivery SLA (~seconds to ~minutes).
+            GRACE_MINUTES = 60
+            effective_expiry = user.tier_expires_at + timedelta(minutes=GRACE_MINUTES) if user.tier_expires_at else None
+            if effective_expiry and effective_expiry < datetime.now(timezone.utc):
+                user.tier_id = None
+                user.tier_expires_at = None
+                # flush() writes the reset to the DB within the current transaction so
+                # the next request doesn't re-evaluate the same expired state.
+                await db.flush()
+            else:
+                return row
     # Fall back to the "free" tier
     res = await db.execute(
         select(SubscriptionTier).where(SubscriptionTier.name == "free").limit(1)
