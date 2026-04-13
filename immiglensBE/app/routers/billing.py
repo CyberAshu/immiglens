@@ -27,7 +27,6 @@ from app.services.email_service import (
     send_payment_successful_email,
     send_renewal_failed_email,
     send_subscription_confirmed_email,
-    send_trial_ending_email,
 )
 
 log = logging.getLogger(__name__)
@@ -105,10 +104,6 @@ async def create_checkout(
             raise HTTPException(status_code=400, detail="Promo code is invalid or has expired.")
         coupon_id = promo.stripe_coupon_id
 
-    # Trial eligibility is a backend decision: only for first-time subscribers.
-    # settings.TRIAL_DAYS is the single source of truth — never sent by the client.
-    trial_days = settings.TRIAL_DAYS if not current_user.stripe_customer_id else 0
-
     # Embed promotion_id in metadata so the webhook can record the redemption
     # when Stripe confirms payment — not before.
     extra_metadata: dict = {}
@@ -118,7 +113,6 @@ async def create_checkout(
     try:
         url = await stripe_service.create_checkout_session(
             current_user, tier, db,
-            trial_days=trial_days,
             coupon_id=coupon_id,
             onboarding=body.onboarding,
             is_annual=body.is_annual,
@@ -167,7 +161,7 @@ async def sync_checkout(
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Stripe error: {exc}") from exc
 
-    # Only trust a completed, paid (or trial) session
+    # Only trust a completed, paid (or no-payment-required) session
     if session.payment_status not in ("paid", "no_payment_required"):
         return SyncCheckoutResponse(tier_id=current_user.tier_id, tier_expires_at=current_user.tier_expires_at)
 
@@ -370,10 +364,6 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     # ── customer.subscription.deleted ────────────────────────────────────────
     elif event_type == "customer.subscription.deleted":
         await _handle_subscription_deleted(data, db)
-
-    # ── customer.subscription.trial_will_end (3 days before trial ends) ──────
-    elif event_type == "customer.subscription.trial_will_end":
-        await _handle_trial_will_end(data, db)
 
     # ── invoice.payment_failed ────────────────────────────────────────────────────
     elif event_type == "invoice.payment_failed":
@@ -779,36 +769,6 @@ async def _handle_subscription_deleted(data: dict, db: AsyncSession) -> None:
     log.info("subscription.deleted: reverted user %s to free tier", user.id)
 
 
-async def _handle_trial_will_end(data: dict, db: AsyncSession) -> None:
-    """2.7 Trial Ending Reminder — fired 3 days before trial expiry."""
-    customer_id: str = getattr(data, "customer", "") or ""
-    user = await _find_user_by_customer(customer_id, db)
-    if user is None:
-        log.warning("trial_will_end: no user found for customer %s", customer_id)
-        return
-
-    trial_end_ts = getattr(data, "trial_end", None)
-    if trial_end_ts:
-        trial_end_dt = datetime.fromtimestamp(trial_end_ts, tz=timezone.utc)
-        days_remaining = max(0, (trial_end_dt - datetime.now(timezone.utc)).days)
-        trial_end_date = trial_end_dt.strftime("%B %d, %Y")
-    else:
-        days_remaining = 3
-        trial_end_date = "soon"
-
-    try:
-        await send_trial_ending_email(
-            user.email,
-            user.full_name or "there",
-            trial_end_date,
-            days_remaining,
-            f"{settings.FRONTEND_URL}/plans",
-        )
-        log.info("trial_will_end email sent to user %s", user.id)
-    except Exception:
-        log.exception("Failed to send trial_ending email to user %s", user.id)
-
-
 async def _handle_invoice_payment_failed(data: dict, db: AsyncSession, *, event_id: str = "") -> None:
     """5.2 Payment Failed / 6.5 Renewal Failed — distinguish by billing_reason."""
     customer_id: str = getattr(data, "customer", "") or ""
@@ -956,43 +916,6 @@ async def _handle_invoice_paid(data: dict, db: AsyncSession, *, event_id: str = 
                         "invoice.paid: refreshed tier_expires_at for user %s → %s",
                         user.id, user.tier_expires_at,
                     )
-                # Restore tier_id if _get_tier's expiry enforcement already cleared it
-                # during the webhook delivery window (brief period after period rollover
-                # before this event arrives).  Map subscription price → tier via metadata.
-                if user.tier_id is None:
-                    sub_meta = getattr(sub, "metadata", None)
-                    sub_tier_id = getattr(sub_meta, "tier_id", None) if sub_meta else None
-                    if sub_tier_id:
-                        tier_row = await db.get(SubscriptionTier, int(sub_tier_id))
-                        if tier_row and tier_row.is_active:
-                            user.tier_id = tier_row.id
-                            log.info(
-                                "invoice.paid: restored tier_id=%s for user %s after expiry clear",
-                                tier_row.id, user.id,
-                            )
-                    if user.tier_id is None:
-                        # Fallback: resolve tier by price_id on the subscription item
-                        try:
-                            items = sub.items.data if hasattr(sub, "items") else []
-                            if items:
-                                price_id_on_sub = getattr(getattr(items[0], "price", None), "id", None)
-                                if price_id_on_sub:
-                                    tier_row = (
-                                        await db.execute(
-                                            select(SubscriptionTier).where(
-                                                SubscriptionTier.stripe_price_id == price_id_on_sub,
-                                                SubscriptionTier.is_active.is_(True),
-                                            )
-                                        )
-                                    ).scalar_one_or_none()
-                                    if tier_row:
-                                        user.tier_id = tier_row.id
-                                        log.info(
-                                            "invoice.paid: restored tier_id=%s via price_id for user %s",
-                                            tier_row.id, user.id,
-                                        )
-                        except Exception:
-                            log.warning("invoice.paid: price-based tier restoration failed for user %s", user.id)
             except Exception:
                 log.warning(
                     "invoice.paid: could not refresh tier_expires_at for user %s (sub=%s)",

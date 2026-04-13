@@ -164,7 +164,6 @@ async def register(payload: RegisterRequest, request: Request, db: AsyncSession 
         await send_welcome_email(
             user.email,
             user.full_name or "there",
-            settings.TRIAL_DAYS,
         )
     except Exception:
         logger.warning("Welcome email failed for user_id=%s", user.id)

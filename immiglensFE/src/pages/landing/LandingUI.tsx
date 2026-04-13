@@ -123,7 +123,7 @@ export function PricingCard({
             : 'bg-white hover:bg-gray-50 text-brand-navy border-gray-200'
         }`}
       >
-        {limit === 'Custom' ? 'Contact Sales' : 'Start Free Trial'}
+        {limit === 'Custom' ? 'Contact Sales' : 'Get Started'}
       </Link>
 
       <div className="mt-auto">
@@ -160,7 +160,7 @@ export function ROICard() {
               to="/register"
               className="bg-brand-gold hover:bg-[#b38e3c] text-white px-8 py-4 rounded-xl font-semibold shadow-lg shadow-brand-gold/20 transition-all flex items-center justify-center gap-2 text-lg"
             >
-              Start Free Trial <ArrowRight size={20} />
+              Get Started <ArrowRight size={20} />
             </Link>
           </div>
         </div>
@@ -187,7 +187,7 @@ export function ROICard() {
               to="/register"
               className="bg-brand-gold hover:bg-[#b38e3c] text-white px-8 py-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
             >
-              Start Free Trial
+              Get Started
             </Link>
           </div>
           <p className="text-white/40 text-xs text-center mt-6">
@@ -213,7 +213,7 @@ export function CTABand() {
             to="/register"
             className="w-full sm:w-auto bg-brand-gold hover:bg-[#b38e3c] text-white px-8 py-4 rounded-xl font-semibold shadow-lg shadow-brand-gold/20 transition-all text-lg flex items-center justify-center gap-2"
           >
-            Start Free Trial <ArrowRight size={20} />
+            Get Started <ArrowRight size={20} />
           </Link>
           <Link
             to="/contact"

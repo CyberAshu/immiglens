@@ -153,7 +153,7 @@ function TierCard({ tier, isHighlighted, isAnnual, isLoggedIn, hasActiveTier, be
               : 'bg-white hover:bg-gray-50 text-brand-navy border-gray-200'
           }`}
         >
-          {loading ? 'Redirecting…' : hasActiveTier ? 'Manage Plan' : 'Start Free Trial'}
+          {loading ? 'Redirecting…' : hasActiveTier ? 'Manage Plan' : 'Subscribe Now'}
         </button>
       ) : (
         <Link
@@ -189,10 +189,6 @@ function TierCard({ tier, isHighlighted, isAnnual, isLoggedIn, hasActiveTier, be
 
 const faqItems = [
   {
-    q: 'How does the free trial work?',
-    a: 'Every paid plan includes a 14-day free trial — no credit card required. You get full access to all features during the trial. PDF exports will include a "Trial Export" watermark until you upgrade. Cancel anytime from your account.',
-  },
-  {
     q: 'What is an active posting?',
     a: 'An active posting is any job position currently being tracked and scheduled for screenshot captures. Draft, paused, or archived positions do not count towards your limit.',
   },
@@ -203,10 +199,6 @@ const faqItems = [
   {
     q: 'How is my plan assigned?',
     a: 'After registration, you can choose your plan from your account dashboard. Log in and go to the Billing section to select, upgrade, or change your plan at any time.',
-  },
-  {
-    q: 'What is the trial exports watermark?',
-    a: 'During your free trial, you have full access to all features. However, any PDF reports generated will contain a prominent "Trial Export" watermark. Upgrading removes this.',
   },
   {
     q: 'Can I switch plans later?',
@@ -251,7 +243,7 @@ export function LandingPricing() {
           Simple, Transparent Plans
         </h1>
         <p className="text-xl text-brand-charcoal/70 mb-8 max-w-2xl mx-auto">
-          Start with a 14-day free trial on any plan. No credit card required — cancel anytime.
+          Simple plans with no hidden fees. Cancel anytime.
         </p>
 
         {/* Active promotion scarcity banner */}

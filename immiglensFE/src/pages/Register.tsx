@@ -58,7 +58,7 @@ function LeftPanel() {
         </div>
         <div className="asl-trust">
           <span className="asl-trust-dot" />
-          <span className="asl-trust-text">14-day free trial · No credit card required to start</span>
+          <span className="asl-trust-text">Trusted by immigration consultants &amp; law firms across Canada</span>
         </div>
       </div>
     </div>

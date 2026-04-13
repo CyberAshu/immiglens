@@ -88,15 +88,14 @@ async def send_email(
 
 # ── 1.1 Welcome ───────────────────────────────────────────────────────────────
 
-async def send_welcome_email(to: str, first_name: str, trial_days: int) -> None:
+async def send_welcome_email(to: str, first_name: str) -> None:
     html = render_email("welcome.html", {
         "first_name": first_name,
-        "trial_days": trial_days,
         "dashboard_url": f"{settings.FRONTEND_URL}/dashboard",
     })
     plain = (
         f"Welcome to ImmigLens, {first_name}!\n\n"
-        f"Your account is ready. You have a {trial_days}-day free trial with full access.\n\n"
+        f"Your account is ready. Head to your dashboard to get started.\n\n"
         f"Get started: {settings.FRONTEND_URL}/dashboard\n\n"
         f"Questions? Reply to this email or contact support@immiglens.ca."
     )
@@ -526,40 +525,6 @@ async def send_renewal_failed_email(
     await send_email(
         to,
         "\u26a0 Subscription renewal failed \u2014 action required",
-        plain,
-        html,
-    )
-
-
-# ── 2.7 Trial ending ──────────────────────────────────────────────────────────
-
-async def send_trial_ending_email(
-    to: str,
-    first_name: str,
-    trial_end_date: str,
-    days_remaining: int,
-    subscribe_url: str,
-) -> None:
-    unsubscribe_url = (
-        f"{settings.FRONTEND_URL}/unsubscribe?email={to}&type=marketing"
-    )
-    html = render_email("trial_ending.html", {
-        "first_name": first_name,
-        "trial_end_date": trial_end_date,
-        "days_remaining": days_remaining,
-        "subscribe_url": subscribe_url,
-        "unsubscribe_url": unsubscribe_url,
-        "casl_marketing": True,
-    })
-    plain = (
-        f"Hi {first_name},\n\n"
-        f"Your ImmigLens free trial ends in {days_remaining} day(s) on {trial_end_date}.\n\n"
-        f"Subscribe to keep your captures running: {subscribe_url}\n\n"
-        f"To unsubscribe from marketing emails: {unsubscribe_url}"
-    )
-    await send_email(
-        to,
-        f"Your ImmigLens trial ends in {days_remaining} days \u2014 {first_name}",
         plain,
         html,
     )

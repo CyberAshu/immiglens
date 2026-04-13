@@ -53,9 +53,6 @@ class Settings(BaseSettings):
     SMTP_REPLY_TO: str = "support@immiglens.ca"
     SMTP_USE_TLS: bool = True
 
-    # ── Trial ─────────────────────────────────────────────────────────────────
-    TRIAL_DAYS: int = 14
-
     # ── Invitation token expiry ───────────────────────────────────────────────
     INVITATION_EXPIRE_HOURS: int = 72
 

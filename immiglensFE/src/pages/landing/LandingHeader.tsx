@@ -50,7 +50,7 @@ export function LandingHeader() {
               to="/register"
               className="bg-brand-gold hover:bg-[#b38e3c] text-white px-6 py-2.5 rounded-md text-sm font-medium shadow-sm transition-all inline-flex items-center justify-center"
             >
-              Start Free Trial
+              Get Started
             </Link>
           </div>
 
@@ -91,7 +91,7 @@ export function LandingHeader() {
                 onClick={() => setMobileOpen(false)}
                 className="w-full text-center py-3 bg-brand-gold hover:bg-[#b38e3c] text-white rounded-md font-medium shadow-sm"
               >
-                Start Free Trial
+                Get Started
               </Link>
             </div>
           </div>

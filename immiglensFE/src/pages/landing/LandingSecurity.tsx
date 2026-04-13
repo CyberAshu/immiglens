@@ -23,7 +23,7 @@ const sections = [
     icon: FileCheck,
     title: 'Retention & Portability',
     content:
-      'Your data belongs to you. You can export your evidence packages at any time, even on the free trial. We offer customizable data retention policies allowing you to automatically purge data after the required legal retention period has passed.',
+      'Your data belongs to you. You can export your evidence packages at any time. We offer customizable data retention policies allowing you to automatically purge data after the required legal retention period has passed.',
   },
 ]
 

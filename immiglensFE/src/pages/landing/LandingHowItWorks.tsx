@@ -42,8 +42,8 @@ const steps = [
     icon: Bell,
     title: 'Email Notifications',
     content:
-      "Stay informed without checking the dashboard. We'll alert you if a capture fails, when your trial is ending, or if you reach your plan limit.",
-    features: ['Failure Alerts', 'Plan Limits', 'Trial Reminders'],
+      "Stay informed without checking the dashboard. We'll alert you if a capture fails or if you reach your plan limit.",
+    features: ['Failure Alerts', 'Plan Limits', 'Billing Alerts'],
   },
 ]
 
@@ -143,7 +143,7 @@ export function LandingHowItWorks() {
               to="/register"
               className="bg-brand-gold hover:bg-[#b38e3c] text-white px-8 py-4 rounded-xl font-semibold shadow-lg transition-all text-lg flex items-center justify-center gap-2"
             >
-              Start Free Trial <ArrowRight size={20} />
+              Get Started <ArrowRight size={20} />
             </Link>
             <Link
               to="/pricing"
