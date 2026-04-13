@@ -14,6 +14,8 @@ class SubscriptionTierOut(BaseModel):
     price_per_month: Optional[float] = None
     stripe_product_id: Optional[str] = None
     stripe_price_id: Optional[str] = None
+    stripe_annual_price_id: Optional[str] = None
+    watermark_reports: bool
     is_active: bool
     created_at: datetime
 

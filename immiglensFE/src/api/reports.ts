@@ -31,7 +31,7 @@ export const reports = {
       { method: 'DELETE' },
     ),
 
-  generate: async (employerId: number, positionId: number, acknowledgeEarly = false): Promise<Blob> => {
+  generate: async (employerId: number, positionId: number, acknowledgeEarly = false): Promise<{ blob: Blob; watermarked: boolean }> => {
     const res = await fetch(
       `${BASE}/api/employers/${employerId}/positions/${positionId}/reports/generate`,
       {
@@ -48,7 +48,8 @@ export const reports = {
         : (body.detail as string) ?? `Server error: ${res.status}`
       ), { detail: (body as { detail?: unknown }).detail })
     }
-    return res.blob()
+    const watermarked = res.headers.get('X-Report-Watermarked') === 'true'
+    return { blob: await res.blob(), watermarked }
   },
 }
 

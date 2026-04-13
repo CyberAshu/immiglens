@@ -407,9 +407,10 @@ async def admin_create_tier(
     # Sync to Stripe BEFORE committing so we don't persist an uncheckable tier.
     stripe_err: str | None = None
     try:
-        product_id, price_id = stripe_service.create_product_and_price(tier)
-        tier.stripe_product_id = product_id
-        tier.stripe_price_id   = price_id
+        product_id, price_id, annual_price_id = stripe_service.create_product_and_price(tier)
+        tier.stripe_product_id      = product_id
+        tier.stripe_price_id        = price_id
+        tier.stripe_annual_price_id = annual_price_id
         tier.is_active = True   # activate only after Stripe succeeds
     except Exception as exc:  # noqa: BLE001
         import logging as _log
@@ -463,28 +464,44 @@ async def admin_update_tier(
             if tier.display_name != old_name:
                 stripe_service.update_product_name(tier.stripe_product_id, tier.display_name)
             if tier.price_per_month != old_price:
-                # Step 1 – create new price (do this FIRST; safe to retry on failure)
+                # Step 1 – create new monthly price (safe to retry on failure)
                 new_price_id: str | None = None
+                new_annual_price_id: str | None = None
                 if tier.price_per_month and tier.price_per_month > 0:
                     new_price_id = stripe_service.create_new_price(
                         tier.stripe_product_id, tier.id, tier.price_per_month
                     )
-                # Step 2 – archive old price (best-effort; archived prices stay harmless)
+                    # Step 1b – auto-create matching annual price (20% off × 12)
+                    new_annual_price_id = stripe_service.create_new_annual_price(
+                        tier.stripe_product_id, tier.id, tier.price_per_month
+                    )
+                # Step 2 – archive old prices (best-effort)
                 if tier.stripe_price_id:
                     try:
                         stripe_service.archive_price(tier.stripe_price_id)
                     except Exception as arch_exc:  # noqa: BLE001
                         import logging as _log
                         _log.getLogger(__name__).warning(
-                            "Could not archive old price %s for tier %s: %s",
+                            "Could not archive old monthly price %s for tier %s: %s",
                             tier.stripe_price_id, tier.id, arch_exc,
                         )
-                tier.stripe_price_id = new_price_id
+                if tier.stripe_annual_price_id:
+                    try:
+                        stripe_service.archive_price(tier.stripe_annual_price_id)
+                    except Exception as arch_exc:  # noqa: BLE001
+                        import logging as _log
+                        _log.getLogger(__name__).warning(
+                            "Could not archive old annual price %s for tier %s: %s",
+                            tier.stripe_annual_price_id, tier.id, arch_exc,
+                        )
+                tier.stripe_price_id        = new_price_id
+                tier.stripe_annual_price_id = new_annual_price_id
         else:
             # Tier was created before Stripe was configured — sync now
-            product_id, price_id = stripe_service.create_product_and_price(tier)
-            tier.stripe_product_id = product_id
-            tier.stripe_price_id   = price_id
+            product_id, price_id, annual_price_id = stripe_service.create_product_and_price(tier)
+            tier.stripe_product_id      = product_id
+            tier.stripe_price_id        = price_id
+            tier.stripe_annual_price_id = annual_price_id
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(
             status_code=503,

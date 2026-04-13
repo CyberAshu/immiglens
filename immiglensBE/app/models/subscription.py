@@ -28,6 +28,8 @@ class SubscriptionTier(Base):
     price_per_month: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=None)
     stripe_product_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, default=None)
     stripe_price_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, default=None)
+    stripe_annual_price_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, default=None)
+    watermark_reports: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true"
     )

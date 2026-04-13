@@ -38,8 +38,8 @@ export default function Subscriptions() {
   const [error, setError]         = useState<string | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState<number | null>(null)
   const [portalLoading, setPortalLoading]     = useState(false)
-  const [isAnnual, setIsAnnual]   = useState(false)
   const [bannerPromo, setBannerPromo] = useState<ActivePromotion | null>(null)
+  const [isAnnual, setIsAnnual]   = useState(false)
 
   // Promo code
   const [promoOpen, setPromoOpen]               = useState(false)
@@ -205,6 +205,8 @@ export default function Subscriptions() {
         </div>
       )}
 
+
+
       {/* ── Active promotion banner ─────────────── */}
       {bannerPromo && bannerPromo.remaining !== 0 && (
         <div className="sp-promo-banner">
@@ -230,7 +232,7 @@ export default function Subscriptions() {
             const isCurrent = tier.id === currentTier.id
             const isPopular = !isCurrent && popularTier?.id === tier.id
             const rawPrice  = tier.price_per_month
-            const dispPrice = rawPrice != null && isAnnual ? Math.floor(rawPrice * 0.8) : rawPrice
+            const dispPrice = rawPrice != null && isAnnual && tier.stripe_annual_price_id ? Math.floor(rawPrice * 0.8) : rawPrice
             const showDisc  = !!(activeDiscount && dispPrice != null && !isCurrent && tier.stripe_price_id)
             const finalPrice = showDisc && activeDiscount && dispPrice != null
               ? activeDiscount.discount_type === 'percent'
@@ -298,7 +300,7 @@ export default function Subscriptions() {
                         <span className="sp-plan-price-period">/mo</span>
                       </div>
 
-                      {isAnnual && rawPrice != null && rawPrice > 0 && dispPrice != null ? (
+                      {isAnnual && tier.stripe_annual_price_id && rawPrice != null && rawPrice > 0 && dispPrice != null ? (
                         <div className="sp-plan-billing-note">
                           ${dispPrice * 12} billed annually
                           <span className="sp-plan-save-pill">Save ${rawPrice * 12 - dispPrice * 12}</span>

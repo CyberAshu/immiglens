@@ -13,6 +13,7 @@ from app.core.audit import audit
 from app.core.audit_events import AuditAction, AuditEntity
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
+from app.core.permissions import _get_tier
 from app.models.capture import CaptureRound, CaptureStatus
 from app.models.employer import Employer
 from app.models.job_position import JobPosition
@@ -200,6 +201,9 @@ async def generate_report(
 
     sorted_rounds = sorted(position.capture_rounds, key=lambda r: r.scheduled_at)
 
+    tier = await _get_tier(db, current_user)
+    is_watermarked = tier.watermark_reports
+
     cfg_row = (await db.execute(select(ReportConfig).limit(1))).scalar_one_or_none()
     report_config = cfg_row.config if cfg_row else DEFAULT_CONFIG
 
@@ -209,6 +213,7 @@ async def generate_report(
         capture_rounds=sorted_rounds,
         report_documents=position.report_documents,
         config=report_config,
+        watermark=is_watermarked,
     )
 
     try:
@@ -233,6 +238,7 @@ async def generate_report(
             "position_title": position.job_title,
             "employer": employer.business_name,
             "capture_rounds": len(sorted_rounds),
+            "watermarked": is_watermarked,
         },
         request=request,
     )
@@ -245,5 +251,8 @@ async def generate_report(
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{pdf_filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{pdf_filename}"',
+            "X-Report-Watermarked": str(is_watermarked).lower(),
+        },
     )

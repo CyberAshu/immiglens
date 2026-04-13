@@ -57,6 +57,7 @@ export interface TierCreate {
   max_captures_per_month: number
   min_capture_frequency_days: number
   price_per_month: number | null
+  watermark_reports: boolean
 }
 
 export interface TierUpdate {
@@ -67,6 +68,7 @@ export interface TierUpdate {
   min_capture_frequency_days?: number
   price_per_month?: number | null
   is_active?: boolean
+  watermark_reports?: boolean
 }
 
 export interface AssignTierRequest {

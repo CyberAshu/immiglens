@@ -20,6 +20,53 @@ from app.models.report import ReportDocument
 _template_dir = Path(__file__).parent.parent / "templates"
 _jinja_env = Environment(loader=FileSystemLoader(str(_template_dir)))
 
+# Cached watermark stamp — generated once on first use, reused for every request.
+_WATERMARK_STAMP_CACHE: bytes | None = None
+
+_WATERMARK_HTML = """\
+<!DOCTYPE html>
+<html style="background:transparent!important">
+<body style="margin:0;padding:0;width:210mm;height:297mm;
+             background:transparent!important;overflow:hidden">
+  <div style="
+    position:fixed;top:0;left:0;width:100%;height:100%;
+    display:flex;align-items:center;justify-content:center;
+    pointer-events:none;
+  ">
+    <div style="
+      transform:rotate(-45deg);
+      font-size:96px;
+      font-weight:900;
+      color:rgba(160,160,160,0.22);
+      white-space:nowrap;
+      font-family:Arial,Helvetica,sans-serif;
+      text-transform:uppercase;
+      letter-spacing:18px;
+      user-select:none;
+    ">SAMPLE</div>
+  </div>
+</body>
+</html>"""
+
+
+async def _get_watermark_stamp() -> bytes:
+    """Return a cached single-page watermark stamp PDF (transparent background)."""
+    global _WATERMARK_STAMP_CACHE
+    if _WATERMARK_STAMP_CACHE is not None:
+        return _WATERMARK_STAMP_CACHE
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch(headless=True)
+        page = await browser.new_page()
+        await page.set_content(_WATERMARK_HTML, wait_until="domcontentloaded")
+        stamp = await page.pdf(
+            format="A4",
+            print_background=False,  # no opaque white background in the PDF stream
+            margin={"top": "0mm", "bottom": "0mm", "left": "0mm", "right": "0mm"},
+        )
+        await browser.close()
+    _WATERMARK_STAMP_CACHE = stamp
+    return stamp
+
 
 def render_report_html(context: dict[str, Any]) -> str:
     template = _jinja_env.get_template("report.html")
@@ -97,6 +144,7 @@ async def build_pdf_bytes(
     capture_rounds: list[CaptureRound],
     report_documents: list[ReportDocument],
     config: dict | None = None,
+    watermark: bool = False,
 ) -> bytes:
     from app.models.report_config import DEFAULT_CONFIG
     if config is None:
@@ -195,5 +243,20 @@ async def build_pdf_bytes(
 
     output = io.BytesIO()
     writer.write(output)
-    return output.getvalue()
+    pdf_bytes = output.getvalue()
+
+    if watermark:
+        # Apply the watermark stamp to every page — HTML-rendered pages, capture
+        # screenshot PDFs, and user-uploaded document PDFs all get it uniformly.
+        stamp_bytes = await _get_watermark_stamp()
+        stamp_page = PdfReader(io.BytesIO(stamp_bytes)).pages[0]
+        watermarked_writer = PdfWriter()
+        for page in PdfReader(io.BytesIO(pdf_bytes)).pages:
+            page.merge_page(stamp_page)
+            watermarked_writer.add_page(page)
+        out = io.BytesIO()
+        watermarked_writer.write(out)
+        return out.getvalue()
+
+    return pdf_bytes
 
