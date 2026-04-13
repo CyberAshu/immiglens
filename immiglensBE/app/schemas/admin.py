@@ -73,6 +73,7 @@ class TierCreate(BaseModel):
     max_captures_per_month: int = 50
     min_capture_frequency_days: int = 7
     price_per_month: Optional[float] = None
+    watermark_reports: bool = True
 
 
 class TierUpdate(BaseModel):
@@ -83,6 +84,7 @@ class TierUpdate(BaseModel):
     min_capture_frequency_days: Optional[int] = None
     price_per_month: Optional[float] = None
     is_active: Optional[bool] = None
+    watermark_reports: Optional[bool] = None
 
 
 class AssignTierRequest(BaseModel):

@@ -9,6 +9,8 @@ export interface SubscriptionTier {
   price_per_month: number | null
   stripe_product_id: string | null
   stripe_price_id: string | null
+  stripe_annual_price_id: string | null
+  watermark_reports: boolean
   is_active: boolean
   created_at: string
 }

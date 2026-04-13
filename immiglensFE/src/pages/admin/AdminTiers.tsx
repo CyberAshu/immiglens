@@ -15,6 +15,7 @@ const EMPTY_FORM: TierCreate = {
   max_captures_per_month: 50,
   min_capture_frequency_days: 28,
   price_per_month: null,
+  watermark_reports: true,
 }
 
 const TIER_COLORS = ['#0B1F3B', '#16a34a', '#2563eb', '#7c3aed', '#ea580c', '#0891b2', '#c026d3', '#dc2626']
@@ -94,6 +95,16 @@ function TierCardV2({ tier, color, onEdit, onToggle, onDelete }: {
         <LimitRow icon={<Globe size={13} />} label="URLs / Position" value={fmt(tier.max_urls_per_position)} />
         <LimitRow icon={<Camera size={13} />} label="Captures / Month" value={fmt(tier.max_captures_per_month)} />
         <LimitRow icon={<Clock size={13} />} label="Min Interval" value={tier.min_capture_frequency_days < 0 ? 'No limit' : `${tier.min_capture_frequency_days}d`} />
+        <LimitRow
+          icon={<span style={{ fontSize: 11 }}>🖼</span>}
+          label="Watermark"
+          value={tier.watermark_reports ? 'Yes' : 'No'}
+        />
+        <LimitRow
+          icon={<Link2 size={13} />}
+          label="Annual Price"
+          value={tier.stripe_annual_price_id ? '✓ Configured' : '—'}
+        />
       </div>
 
       {/* Actions */}
@@ -192,6 +203,18 @@ function TierFormDrawer({ editing, form, setForm, saving, onSave, onClose }: {
                 />
               </div>
             </div>
+            {editing && (
+              <div className="st-form-group">
+                <label className="st-form-label">Annual Stripe Price ID</label>
+                <input
+                  className="st-form-input"
+                  value={editing.stripe_annual_price_id ?? '— auto-generated'}
+                  disabled
+                  style={{ color: '#888', background: '#f8f8f8' }}
+                />
+                <span className="st-form-hint">Auto-created when the tier was set up. Updated automatically when Price per Month changes.</span>
+              </div>
+            )}
           </section>
 
           <section className="drawer-section">
@@ -222,6 +245,24 @@ function TierFormDrawer({ editing, form, setForm, saving, onSave, onClose }: {
                 <span className="st-form-hint">Lower = more frequent</span>
               </div>
             </div>
+          </section>
+
+          <section className="drawer-section">
+            <h3 className="drawer-section-title">Report Output</h3>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.875rem' }}>
+              <input
+                type="checkbox"
+                checked={form.watermark_reports}
+                onChange={e => setForm(f => ({ ...f, watermark_reports: e.target.checked }))}
+              />
+              <span>
+                <strong>Watermark reports</strong>
+                <span className="st-form-hint" style={{ display: 'block', marginTop: 2 }}>
+                  When enabled, generated PDFs show a "SAMPLE — NOT FOR OFFICIAL USE" overlay.
+                  Disable for paid plans.
+                </span>
+              </span>
+            </label>
           </section>
 
           <button
@@ -275,6 +316,7 @@ export default function AdminTiers() {
       max_captures_per_month: tier.max_captures_per_month,
       min_capture_frequency_days: tier.min_capture_frequency_days,
       price_per_month: tier.price_per_month ?? null,
+      watermark_reports: tier.watermark_reports,
     })
     setShowForm(true)
   }

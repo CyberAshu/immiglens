@@ -1,6 +1,6 @@
 ﻿import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { consumePendingPdf } from '../reportStore'
+import { consumePendingPdf, consumePendingWatermarked } from '../reportStore'
 import {
   ArrowLeft,
   Download,
@@ -114,6 +114,7 @@ export default function ReportPreview() {
     return { name: 'generating', elapsed: 0 }
   })
   const [position, setPosition] = useState<JobPosition | null>(null)
+  const [isWatermarked, setIsWatermarked] = useState<boolean>(() => consumePendingWatermarked())
   const [showRemoved, setShowRemoved] = useState(false)
   const [viewMode, setViewMode] = useState<'preview' | 'manage'>('preview')
   const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null)
@@ -198,7 +199,8 @@ export default function ReportPreview() {
   async function handleGenerate() {
     setPhase({ name: 'generating', elapsed: 0 })
     try {
-      const blob = await reportsApi.generate(eId, pId)
+      const { blob, watermarked } = await reportsApi.generate(eId, pId)
+      setIsWatermarked(watermarked)
       const buffer = await blob.arrayBuffer()
       const pdfDoc = await getDocument({ data: buffer.slice(0) }).promise
       const pages: PageItem[] = Array.from({ length: pdfDoc.numPages }, (_, i) => ({
@@ -407,6 +409,28 @@ export default function ReportPreview() {
         </div>
 
       </div>
+
+      {isWatermarked && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          padding: '9px 16px',
+          background: '#fffbeb',
+          borderBottom: '1px solid #fcd34d',
+          fontSize: '13px',
+          color: '#92400e',
+        }}>
+          <TriangleAlert size={14} strokeWidth={2.5} style={{ flexShrink: 0, color: '#d97706' }} />
+          <span>
+            This report contains a <strong>watermark</strong> and is not suitable for official submission.{' '}
+            <Link to="/plan" style={{ color: '#b45309', fontWeight: 600, textDecoration: 'underline' }}>
+              Upgrade your plan
+            </Link>{' '}
+            to generate watermark-free reports.
+          </span>
+        </div>
+      )}
 
       {viewMode === 'preview' ? (
         <div className="rpe-preview-wrap">

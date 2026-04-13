@@ -28,11 +28,12 @@ def _client() -> stripe.StripeClient:
 
 # ── Tier / Product management ─────────────────────────────────────────────────
 
-def create_product_and_price(tier: "SubscriptionTier") -> tuple[str, str | None]:
-    """Create a Stripe Product (and an optional recurring Price) for a tier.
+def create_product_and_price(tier: "SubscriptionTier") -> tuple[str, str | None, str | None]:
+    """Create a Stripe Product plus monthly and annual Prices for a tier.
 
-    Returns (product_id, price_id).  price_id is None when price_per_month is
-    not set.
+    Returns (product_id, monthly_price_id, annual_price_id).
+    price IDs are None when price_per_month is not set (free tier).
+    Annual price is 20% off monthly, billed as a single yearly charge.
     """
     client = _client()
     product = client.products.create(
@@ -42,6 +43,7 @@ def create_product_and_price(tier: "SubscriptionTier") -> tuple[str, str | None]
         }
     )
     price_id: str | None = None
+    annual_price_id: str | None = None
     if tier.price_per_month and tier.price_per_month > 0:
         price = client.prices.create(
             params={
@@ -49,11 +51,23 @@ def create_product_and_price(tier: "SubscriptionTier") -> tuple[str, str | None]
                 "unit_amount": int(tier.price_per_month * 100),  # cents
                 "currency": "usd",
                 "recurring": {"interval": "month"},
-                "metadata": {"tier_id": str(tier.id), "env": settings.ENVIRONMENT},
+                "metadata": {"tier_id": str(tier.id), "billing_period": "monthly", "env": settings.ENVIRONMENT},
             }
         )
         price_id = price.id
-    return product.id, price_id
+        # Annual price: 20% discount, billed as one yearly charge
+        annual_amount = int(round(tier.price_per_month * 0.8 * 12 * 100))  # cents
+        annual_price = client.prices.create(
+            params={
+                "product": product.id,
+                "unit_amount": annual_amount,
+                "currency": "usd",
+                "recurring": {"interval": "year"},
+                "metadata": {"tier_id": str(tier.id), "billing_period": "annual", "env": settings.ENVIRONMENT},
+            }
+        )
+        annual_price_id = annual_price.id
+    return product.id, price_id, annual_price_id
 
 
 def update_product_name(product_id: str, display_name: str) -> None:
@@ -71,7 +85,26 @@ def create_new_price(product_id: str, tier_id: int, amount_usd: float) -> str:
             "unit_amount": int(amount_usd * 100),
             "currency": "usd",
             "recurring": {"interval": "month"},
-            "metadata": {"tier_id": str(tier_id), "env": settings.ENVIRONMENT},
+            "metadata": {"tier_id": str(tier_id), "billing_period": "monthly", "env": settings.ENVIRONMENT},
+        }
+    )
+    return price.id
+
+
+def create_new_annual_price(product_id: str, tier_id: int, monthly_amount_usd: float) -> str:
+    """Create a new annual Price (20% off monthly × 12) on an existing product.
+
+    Returns the new annual price_id.
+    """
+    client = _client()
+    annual_amount = int(round(monthly_amount_usd * 0.8 * 12 * 100))  # cents
+    price = client.prices.create(
+        params={
+            "product": product_id,
+            "unit_amount": annual_amount,
+            "currency": "usd",
+            "recurring": {"interval": "year"},
+            "metadata": {"tier_id": str(tier_id), "billing_period": "annual", "env": settings.ENVIRONMENT},
         }
     )
     return price.id
@@ -181,17 +214,9 @@ async def create_checkout_session(
     Pass extra_metadata to add arbitrary key/value pairs to session metadata
     (e.g. promotion_id for redemption recording in the webhook).
     """
-    # Resolve correct Stripe price — prefer annual when requested and available
-    annual_price_id: str | None = getattr(tier, "stripe_annual_price_id", None)
-    if is_annual and annual_price_id:
-        price_id = annual_price_id
-    elif is_annual and not annual_price_id:
-        # Annual billing was requested but no annual price is configured on this tier.
-        # Silently falling back to monthly would misbill the user — raise explicitly.
-        raise ValueError(
-            f"Tier '{tier.name}' does not have an annual price configured. "
-            "Please contact support or select monthly billing."
-        )
+    # Resolve correct Stripe price — prefer annual when requested and configured
+    if is_annual and tier.stripe_annual_price_id:
+        price_id = tier.stripe_annual_price_id
     elif tier.stripe_price_id:
         price_id = tier.stripe_price_id
     else:
@@ -282,15 +307,10 @@ def update_subscription_price(
     if not customer_id:
         raise ValueError("User has no Stripe customer account.")
 
-    # Resolve target price — prefer annual when requested and available
-    annual_price_id: str | None = getattr(new_tier, "stripe_annual_price_id", None)
-    if is_annual and annual_price_id:
-        price_id = annual_price_id
-    elif is_annual and not annual_price_id:
-        raise ValueError(
-            f"Tier '{new_tier.name}' does not have an annual price configured. "
-            "Please contact support or select monthly billing."
-        )
+    # Resolve target price — prefer annual when requested and configured,
+    # fall back to monthly if annual price is not yet set up for this tier.
+    if is_annual and new_tier.stripe_annual_price_id:
+        price_id = new_tier.stripe_annual_price_id
     elif new_tier.stripe_price_id:
         price_id = new_tier.stripe_price_id
     else:

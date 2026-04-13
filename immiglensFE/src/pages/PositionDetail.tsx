@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { captures as capturesApi, positions as positionsApi, reports as reportsApi, subscriptions as subApi } from '../api'
-import { setPendingPdf } from '../reportStore'
+import { setPendingPdf, setPendingWatermarked } from '../reportStore'
 import { RoundRow } from '../components/RoundRow'
 import Toast, { useToast } from '../components/Toast'
 import type { CaptureRound, JobPosition, ReportDocument, UsageSummary } from '../types'
@@ -179,9 +179,10 @@ export default function PositionDetail() {
     setGeneratingReport(true)
     setReportGenError(null)
     try {
-      const blob = await reportsApi.generate(eId, pId, acknowledgeEarly)
+      const { blob, watermarked } = await reportsApi.generate(eId, pId, acknowledgeEarly)
       const buffer = await blob.arrayBuffer()
       setPendingPdf(buffer)
+      setPendingWatermarked(watermarked)
       navigate(`/employers/${eId}/positions/${pId}/report-preview`)
     } catch (err: unknown) {
       // Check if backend returned an EARLY_REPORT 422
