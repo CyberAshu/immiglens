@@ -56,7 +56,7 @@ function LeftPanel({ step }: LeftPanelProps) {
 
   const sub =
     step === 'verify' ? 'Check your inbox for a 6-digit code. It expires in 10 minutes.' :
-    step === 'plan'   ? 'All plans include a 14-day free trial. No charge until your trial ends.' :
+    step === 'plan'   ? 'Choose a plan to activate your subscription immediately.' :
                         'Start adding employers, attaching job boards, and generating reports.'
 
   return (
@@ -161,7 +161,7 @@ function PlanCard({ tier, isSelected, isAnnual, hasBillingAccount, isPopular, on
       </ul>
 
       <div className={`ob-plan-cta${isSelected ? ' ob-plan-cta--selected' : ''}`}>
-        {isSelected ? 'Selected ✓' : hasBillingAccount ? 'Select Plan' : 'Start Free Trial'}
+        {isSelected ? 'Selected ✓' : hasBillingAccount ? 'Select Plan' : 'Subscribe Now'}
       </div>
     </button>
   )
@@ -390,16 +390,14 @@ interface PlanStepProps {
   preselectedTierId: number | null
   preselectedPeriod: 'monthly' | 'annual'
   hasBillingAccount: boolean
-  onSkip: () => void
 }
 
-function PlanStep({ preselectedTierId, preselectedPeriod, hasBillingAccount, onSkip }: PlanStepProps) {
+function PlanStep({ preselectedTierId, preselectedPeriod, hasBillingAccount }: PlanStepProps) {
   const [tiers, setTiers] = useState<SubscriptionTier[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isAnnual, setIsAnnual] = useState(preselectedPeriod === 'annual')
   const [selectedId, setSelectedId] = useState<number | null>(preselectedTierId)
-  const [skipTrial, setSkipTrial] = useState(false)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -465,7 +463,7 @@ function PlanStep({ preselectedTierId, preselectedPeriod, hasBillingAccount, onS
             <p className="asf-sub">
               {hasBillingAccount
                 ? 'Select a plan below and activate it immediately.'
-                : <><strong>14-day free trial</strong> included. Skip it below if you prefer to pay now.</>}
+                : 'Select a plan below to subscribe and get full access immediately.'}
             </p>
           </div>
 
@@ -520,17 +518,6 @@ function PlanStep({ preselectedTierId, preselectedPeriod, hasBillingAccount, onS
           )}
 
           <div className="ob-plan-actions" style={{ marginTop: '1.5rem' }}>
-            {/* Trial opt-out — only shown for new users without an existing billing account */}
-            {!hasBillingAccount && (
-              <label className="asf-remember" style={{ marginBottom: '0.25rem' }}>
-                <input
-                  type="checkbox"
-                  checked={skipTrial}
-                  onChange={e => setSkipTrial(e.target.checked)}
-                />
-                <span>Skip free trial — subscribe &amp; pay now</span>
-              </label>
-            )}
             <button
               className="asf-btn"
               style={{ marginTop: 0, maxWidth: 280 }}
@@ -539,12 +526,7 @@ function PlanStep({ preselectedTierId, preselectedPeriod, hasBillingAccount, onS
             >
               {checkoutLoading
                 ? <><span className="auth-spinner" /> Redirecting...</>
-                : hasBillingAccount || skipTrial
-                  ? <>Subscribe Now <ArrowRight size={16} strokeWidth={2.5} /></>
-                  : <>Start 14-day Free Trial <ArrowRight size={16} strokeWidth={2.5} /></>}
-            </button>
-            <button type="button" className="ob-skip-btn" onClick={onSkip} disabled={checkoutLoading}>
-              Continue with free tier for now
+                : <>Subscribe Now <ArrowRight size={16} strokeWidth={2.5} /></>}
             </button>
           </div>
 
@@ -705,10 +687,6 @@ export default function Onboarding() {
     navigate(`/onboarding?${params.toString()}`, { replace: true, state: { hasBillingAccount: false } })
   }
 
-  function handleSkipPlan() {
-    navigate('/dashboard', { replace: true })
-  }
-
   async function handleDoneContinue() {
     // Sync subscription state proactively before the webhook fires (race-condition fix)
     const sid = searchParams.get('session_id')
@@ -733,7 +711,6 @@ export default function Onboarding() {
           preselectedTierId={planIdParam ? parseInt(planIdParam, 10) : null}
           preselectedPeriod={periodParam}
           hasBillingAccount={locState?.hasBillingAccount ?? false}
-          onSkip={handleSkipPlan}
         />
       )}
       {step === 'done' && user && (

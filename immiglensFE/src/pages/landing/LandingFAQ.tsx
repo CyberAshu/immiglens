@@ -18,10 +18,6 @@ const faqs = [
     a: 'The generated PDF is a compiled, organized document containing all screenshots for a specific job position. It includes a summary cover page, followed by the screenshots grouped by platform and date, clearly showing the URL and indisputable timestamps.',
   },
   {
-    q: 'Are free trial exports restricted?',
-    a: 'During the free trial, you can generate as many LMIA reports as you like to test the system. However, these PDFs will contain a prominent "Trial Export" watermark. Upgrading to a paid plan immediately removes the watermark for all future exports.',
-  },
-  {
     q: 'What happens if my credit card payment fails?',
     a: 'We never delete your compliance data. If payment fails, you will still be able to access existing job positions, view timelines, and download reports. However, the creation of new Active Job Positions will be disabled until payment is resolved.',
   },
@@ -39,7 +35,7 @@ const faqs = [
   },
   {
     q: 'How do email alerts work?',
-    a: "You'll receive notifications for critical events: if an automated capture fails, when you are approaching your active position plan limit, and a few days before your free trial ends.",
+    a: "You'll receive notifications for critical events: if an automated capture fails, when you are approaching your active position plan limit.",
   },
   {
     q: 'Can I choose where my data is stored?',

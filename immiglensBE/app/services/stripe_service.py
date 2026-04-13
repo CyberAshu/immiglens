@@ -167,7 +167,6 @@ async def create_checkout_session(
     user: "User",
     tier: "SubscriptionTier",
     db,
-    trial_days: int = 0,
     coupon_id: str | None = None,
     onboarding: bool = False,
     is_annual: bool = False,
@@ -175,7 +174,6 @@ async def create_checkout_session(
 ) -> str:
     """Create a Stripe Checkout Session and return the hosted URL.
 
-    Pass trial_days > 0 to start a free trial period before the first charge.
     Pass coupon_id to apply a discount coupon.
     Pass onboarding=True to redirect back to onboarding wizard after checkout.
     Pass is_annual=True to use the tier's annual price (stripe_annual_price_id)
@@ -219,8 +217,6 @@ async def create_checkout_session(
             "billing_period": "annual" if is_annual else "monthly",
         }
     }
-    if trial_days > 0:
-        subscription_data["trial_period_days"] = trial_days
 
     base_metadata: dict = {
             "user_id": str(user.id),
@@ -278,7 +274,7 @@ def update_subscription_price(
 ) -> stripe.Subscription:
     """Update an existing Stripe subscription to a new price (upgrade / downgrade).
 
-    Finds the customer's first active or trialing subscription and replaces the
+    Finds the customer's first active subscription and replaces the
     price on the first item.  Raises ValueError if no subscription is found.
     """
     client = _client()
@@ -301,10 +297,8 @@ def update_subscription_price(
         raise ValueError(f"Tier '{new_tier.name}' has no Stripe price configured.")
 
     sub = None
-    # Check active → trialing → past_due in priority order.
-    # past_due subscriptions are still modifiable and should not force a new checkout
-    # (which would create a duplicate subscription on the same customer).
-    for status_filter in ("active", "trialing", "past_due"):
+    # Check active → past_due to avoid creating duplicate subscriptions.
+    for status_filter in ("active", "past_due"):
         result = client.subscriptions.list(
             params={"customer": customer_id, "status": status_filter, "limit": 1}
         )
@@ -332,7 +326,7 @@ def update_subscription_price(
 
 
 def cancel_all_customer_subscriptions(customer_id: str) -> int:
-    """Cancel every active or trialing Stripe subscription for a customer.
+    """Cancel every active Stripe subscription for a customer.
 
     Called when an admin deletes a tier that had subscribers, so those users are
     not charged again after being moved to the free tier.
@@ -341,7 +335,7 @@ def cancel_all_customer_subscriptions(customer_id: str) -> int:
     """
     client = _client()
     cancelled = 0
-    for status_filter in ("active", "trialing", "past_due"):
+    for status_filter in ("active", "past_due"):
         page = client.subscriptions.list(
             params={"customer": customer_id, "status": status_filter, "limit": 100}
         )

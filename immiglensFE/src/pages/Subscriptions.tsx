@@ -357,7 +357,7 @@ export default function Subscriptions() {
                     {isLoading
                       ? 'Redirecting…'
                       : !data.has_billing_account
-                        ? 'Start Free Trial'
+                        ? 'Subscribe Now'
                         : isDowngrade
                           ? 'Downgrade'
                           : 'Upgrade Now'}

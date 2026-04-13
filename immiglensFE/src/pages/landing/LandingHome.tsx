@@ -251,7 +251,7 @@ export function LandingHome() {
                   to="/register"
                   className="bg-brand-gold hover:bg-[#b38e3c] text-white px-8 py-4 rounded-xl font-semibold shadow-lg shadow-brand-gold/20 transition-all text-lg flex items-center justify-center gap-2"
                 >
-                  Start Free Trial <ArrowRight size={20} />
+                  Get Started <ArrowRight size={20} />
                 </Link>
                 <button
                   onClick={() => setDemoOpen(true)}
@@ -402,8 +402,8 @@ export function LandingHome() {
             <FeatureCard
               icon={Bell}
               title="Email Alerts"
-              description="Stay informed with instant notifications for captures, plan limits, and trial status."
-              bullets={['Capture failure notifications', 'Trial ending alerts', 'Plan limit warnings']}
+              description="Stay informed with instant notifications for captures, plan limits, and system alerts."
+              bullets={['Capture failure notifications', 'Plan limit warnings', 'Billing alerts']}
             />
             <FeatureCard
               icon={Shield}
