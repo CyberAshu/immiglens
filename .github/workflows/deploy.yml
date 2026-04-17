@@ -31,6 +31,7 @@ jobs:
         run: npm run build
         env:
           VITE_API_BASE: ''
+          VITE_GA_MEASUREMENT_ID: 'G-XHY7855B4E'
 
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
