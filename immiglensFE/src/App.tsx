@@ -1,4 +1,5 @@
-import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom'
+import { Navigate, Route, BrowserRouter as Router, Routes, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { UploadProvider } from './context/UploadContext'
 import Layout from './pages/Layout'
@@ -38,6 +39,18 @@ import { LandingFAQ } from './pages/landing/LandingFAQ'
 import { LandingContact } from './pages/landing/LandingContact'
 import { LandingLegal } from './pages/landing/LandingLegal'
 
+function RouteTracker() {
+  const location = useLocation()
+  useEffect(() => {
+    const id = import.meta.env.VITE_GA_MEASUREMENT_ID
+    if (!id) return
+    if (location.pathname.startsWith('/admin')) return
+    if (typeof window.gtag !== 'function') return
+    window.gtag('event', 'page_view', { page_path: location.pathname })
+  }, [location.pathname])
+  return null
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) return <div className="loading full-loading">Loading…</div>
@@ -50,6 +63,7 @@ export default function App() {
     <AuthProvider>
       <UploadProvider>
       <Router>
+        <RouteTracker />
         <Routes>
           {/* ── Public Landing Pages ─────────────── */}
           <Route path="/" element={<LandingLayout />}>
