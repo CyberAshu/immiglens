@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  AlertTriangle, CheckCircle2, ChevronDown, ChevronRight,
-  Clock, Loader2, RefreshCw, RotateCcw, ShieldAlert,
+  AlertTriangle, Ban, CheckCircle2, ChevronDown, ChevronRight,
+  Clock, FileX, HelpCircle, Loader2, Lock, RefreshCw, RotateCcw, ShieldAlert, WifiOff,
 } from 'lucide-react'
 import { admin } from '../../api/admin'
 import { useConfirm } from '../../components/ConfirmModal'
@@ -11,6 +11,43 @@ import type { AdminCaptureRound } from '../../types'
 // Uses updated_at (actual RUNNING start time), not scheduled_at.
 const STUCK_THRESHOLD_MS = 60 * 60 * 1000
 const AUTO_REFRESH_MS = 30_000
+
+const CATEGORY_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  bot_detected:  { label: 'Bot Detected',  color: '#f59e0b', icon: <ShieldAlert size={9} /> },
+  captcha:       { label: 'Captcha',       color: '#f97316', icon: <Lock size={9} /> },
+  access_denied: { label: 'Access Denied', color: '#ef4444', icon: <Ban size={9} /> },
+  timeout:       { label: 'Timeout',       color: '#6b7280', icon: <Clock size={9} /> },
+  empty_page:    { label: 'Empty Page',    color: '#6b7280', icon: <FileX size={9} /> },
+  network_error: { label: 'Network Error', color: '#ef4444', icon: <WifiOff size={9} /> },
+  unknown:       { label: 'Unknown',       color: '#9ca3af', icon: <HelpCircle size={9} /> },
+}
+
+function FailureCategoryChips({ categories }: { categories: string[] }) {
+  if (!categories.length) return <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+  const unique = [...new Set(categories)]
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.2rem' }}>
+      {unique.map(cat => {
+        const cfg = CATEGORY_CONFIG[cat] ?? { label: cat, color: '#9ca3af', icon: <HelpCircle size={9} /> }
+        return (
+          <span
+            key={cat}
+            title={cat}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+              fontSize: '0.68rem', fontWeight: 600, padding: '2px 6px',
+              borderRadius: '4px', whiteSpace: 'nowrap',
+              background: cfg.color + '18', color: cfg.color,
+              border: `1px solid ${cfg.color}35`,
+            }}
+          >
+            {cfg.icon} {cfg.label}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
 
 function isStuck(r: AdminCaptureRound): boolean {
   if (r.status !== 'running') return false
@@ -130,6 +167,7 @@ function CaptureSection({
                 <th>Position</th>
                 <th style={{ width: 130 }}>Last Updated</th>
                 <th style={{ width: 80, textAlign: 'center' }}>URLs</th>
+                <th style={{ width: 150 }}>Root Cause</th>
                 <th>Error</th>
                 <th style={{ width: 80, textAlign: 'right' }}>Action</th>
               </tr>
@@ -162,6 +200,9 @@ function CaptureSection({
                         ? <><span style={{ color: 'var(--color-danger)', fontWeight: 600 }}>{r.failed_results}</span><span style={{ color: 'var(--text-muted)' }}>/{r.total_results}</span></>
                         : <span style={{ color: 'var(--text-muted)' }}>{r.total_results}</span>
                       }
+                    </td>
+                    <td style={{ width: 150 }}>
+                      <FailureCategoryChips categories={r.failure_categories ?? []} />
                     </td>
                     <td style={{ fontSize: '0.75rem', maxWidth: 240 }}>
                       {errMsg ? (

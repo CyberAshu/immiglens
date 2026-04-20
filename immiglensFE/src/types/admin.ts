@@ -92,6 +92,7 @@ export interface AdminCaptureRound {
   failed_results: number
   total_results: number
   error_sample: string | null
+  failure_categories: string[]
 }
 
 export interface AdminCaptureListResponse {

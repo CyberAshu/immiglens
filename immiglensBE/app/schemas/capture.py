@@ -17,6 +17,9 @@ class CaptureResultOut(BaseModel):
     page_pdf_url: Optional[str]
     error: Optional[str]
     duration_ms: Optional[int]
+    failure_category: Optional[str] = None
+    response_status: Optional[int] = None
+    page_title: Optional[str] = None
 
 
 class CaptureRoundOut(BaseModel):

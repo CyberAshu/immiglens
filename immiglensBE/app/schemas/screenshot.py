@@ -11,6 +11,16 @@ class URLStatus(str, Enum):
     FAILED = "failed"
 
 
+class FailureCategory(str, Enum):
+    TIMEOUT = "timeout"
+    BOT_DETECTED = "bot_detected"
+    CAPTCHA = "captcha"
+    ACCESS_DENIED = "access_denied"
+    EMPTY_PAGE = "empty_page"
+    NETWORK_ERROR = "network_error"
+    UNKNOWN = "unknown"
+
+
 class JobStatus(str, Enum):
     QUEUED = "queued"
     RUNNING = "running"
@@ -25,6 +35,9 @@ class ScreenshotResult(BaseModel):
     page_pdf_url: Optional[str] = None
     error: Optional[str] = None
     duration_ms: Optional[int] = None
+    failure_category: Optional[FailureCategory] = None
+    response_status: Optional[int] = None
+    page_title: Optional[str] = None
 
 
 class BatchJob(BaseModel):

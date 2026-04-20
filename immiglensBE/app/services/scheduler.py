@@ -547,6 +547,9 @@ async def recapture_result(result_id: int) -> None:
         result.page_pdf_url = screenshot_result.page_pdf_url
         result.error = screenshot_result.error
         result.duration_ms = screenshot_result.duration_ms
+        result.failure_category = screenshot_result.failure_category.value if screenshot_result.failure_category else None
+        result.response_status = screenshot_result.response_status
+        result.page_title = screenshot_result.page_title
 
         # Save scalar result values before commit expires them
         new_status: ResultStatus = result.status
@@ -809,6 +812,9 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                 page_pdf_url=screenshot_result.page_pdf_url,
                 error=screenshot_result.error,
                 duration_ms=screenshot_result.duration_ms,
+                failure_category=screenshot_result.failure_category.value if screenshot_result.failure_category else None,
+                response_status=screenshot_result.response_status,
+                page_title=screenshot_result.page_title,
             )
             db.add(capture_result)
             await db.flush()  # populate capture_result.id before snapshot

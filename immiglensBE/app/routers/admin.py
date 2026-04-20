@@ -2,7 +2,7 @@ import asyncio
 import functools
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import func, select
+from sqlalchemy import func, select, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import audit
@@ -670,6 +670,19 @@ async def admin_list_problematic_captures(
         .subquery()
     )
 
+    category_sq = (
+        select(
+            CaptureResult.capture_round_id.label("round_id"),
+            func.array_agg(distinct(CaptureResult.failure_category)).label("failure_categories"),
+        )
+        .where(
+            CaptureResult.status == ResultStatus.FAILED,
+            CaptureResult.failure_category.isnot(None),
+        )
+        .group_by(CaptureResult.capture_round_id)
+        .subquery()
+    )
+
     stmt = (
         select(
             CaptureRound,
@@ -679,6 +692,7 @@ async def admin_list_problematic_captures(
             func.coalesce(total_sq.c.total, 0).label("total_results"),
             func.coalesce(failed_sq.c.failed, 0).label("failed_results"),
             error_sq.c.error_sample,
+            category_sq.c.failure_categories,
         )
         .join(JobPosition, CaptureRound.job_position_id == JobPosition.id)
         .join(Employer, JobPosition.employer_id == Employer.id)
@@ -686,6 +700,7 @@ async def admin_list_problematic_captures(
         .outerjoin(total_sq, CaptureRound.id == total_sq.c.round_id)
         .outerjoin(failed_sq, CaptureRound.id == failed_sq.c.round_id)
         .outerjoin(error_sq, CaptureRound.id == error_sq.c.round_id)
+        .outerjoin(category_sq, CaptureRound.id == category_sq.c.round_id)
         .where(
             (CaptureRound.status == CaptureStatus.FAILED)
             | (
@@ -732,8 +747,9 @@ async def admin_list_problematic_captures(
             failed_results=failed_results,
             total_results=total_results,
             error_sample=error_sample,
+            failure_categories=list(failure_categories) if failure_categories else [],
         )
-        for round_, position, employer, user, total_results, failed_results, error_sample in rows
+        for round_, position, employer, user, total_results, failed_results, error_sample, failure_categories in rows
     ]
 
     return AdminCaptureListResponse(rounds=records, total=len(records))

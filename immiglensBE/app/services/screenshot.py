@@ -9,9 +9,48 @@ from urllib.parse import urlparse
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from app.core.config import settings
-from app.schemas.screenshot import ScreenshotResult, URLStatus
+from app.schemas.screenshot import FailureCategory, ScreenshotResult, URLStatus
 from app.services import storage
 from app.services.browser import browser_manager
+
+_BOT_KEYWORDS: frozenset[str] = frozenset([
+    "just a moment",
+    "checking your browser",
+    "ddos protection by cloudflare",
+    "cf-browser-verification",
+    "__cf_chl",
+    "enable javascript and cookies to continue",
+    "ray id",
+    "please wait while we verify",
+    "datadome",
+    "px-captcha",
+])
+
+_CAPTCHA_KEYWORDS: frozenset[str] = frozenset([
+    "captcha",
+    "recaptcha",
+    "g-recaptcha",
+    "hcaptcha",
+    "h-captcha",
+    "verify you are human",
+    "i am not a robot",
+    "prove you are human",
+    "challenge-form",
+])
+
+_ACCESS_DENIED_KEYWORDS: frozenset[str] = frozenset([
+    "access denied",
+    "403 forbidden",
+    "you do not have permission",
+    "too many requests",
+    "rate limit exceeded",
+    "this site can\u2019t be reached",
+])
+
+_NO_RETRY_CATEGORIES: frozenset[FailureCategory] = frozenset([
+    FailureCategory.CAPTCHA,
+    FailureCategory.ACCESS_DENIED,
+])
 
 
 def _sanitize_filename(url: str) -> str:
@@ -24,13 +63,37 @@ def _sanitize_filename(url: str) -> str:
     return f"{safe}_{timestamp}"
 
 
+def _classify(
+    response_status: int | None,
+    page_title: str,
+    html_snippet: str,
+) -> FailureCategory | None:
+    if response_status in (401, 403, 429):
+        return FailureCategory.ACCESS_DENIED
+
+    combined = page_title.lower() + " " + html_snippet
+
+    if any(kw in combined for kw in _CAPTCHA_KEYWORDS):
+        return FailureCategory.CAPTCHA
+
+    if any(kw in combined for kw in _BOT_KEYWORDS):
+        return FailureCategory.BOT_DETECTED
+
+    if any(kw in combined for kw in _ACCESS_DENIED_KEYWORDS):
+        return FailureCategory.ACCESS_DENIED
+
+    return None
+
+
 async def _attempt_capture(url: str, dest: Path, pdf_dest: Path) -> ScreenshotResult:
-    """Single capture attempt — saves full-page PNG and print-layout PDF."""
     start = time.monotonic()
+    response_status: int | None = None
+    page_title: str = ""
 
     try:
         async with browser_manager.acquire_page() as page:
-            await page.goto(url, timeout=settings.PAGE_TIMEOUT_MS, wait_until="commit")
+            response = await page.goto(url, timeout=settings.PAGE_TIMEOUT_MS, wait_until="commit")
+            response_status = response.status if response else None
 
             try:
                 await page.wait_for_load_state(
@@ -42,10 +105,24 @@ async def _attempt_capture(url: str, dest: Path, pdf_dest: Path) -> ScreenshotRe
 
             await asyncio.sleep(settings.JS_SETTLE_DELAY_S)
 
-            # Full-page PNG screenshot (for UI thumbnails)
+            page_title = await page.title()
+            html_snippet = (await page.content())[:32_000].lower()
+
+            category = _classify(response_status, page_title, html_snippet)
+            if category is not None:
+                duration = int((time.monotonic() - start) * 1000)
+                return ScreenshotResult(
+                    url=url,
+                    status=URLStatus.FAILED,
+                    error=f"Page blocked: {category.value}",
+                    duration_ms=duration,
+                    failure_category=category,
+                    response_status=response_status,
+                    page_title=page_title,
+                )
+
             await page.screenshot(path=str(dest), full_page=True)
 
-            # Print-layout PDF (for report embedding)
             await page.emulate_media(media="print")
             await page.pdf(
                 path=str(pdf_dest),
@@ -75,20 +152,32 @@ async def _attempt_capture(url: str, dest: Path, pdf_dest: Path) -> ScreenshotRe
                 status=URLStatus.DONE,
                 filename=dest.name,
                 duration_ms=duration,
+                response_status=response_status,
+                page_title=page_title,
             )
 
     except PlaywrightTimeoutError:
         duration = int((time.monotonic() - start) * 1000)
         return ScreenshotResult(
-            url=url, status=URLStatus.FAILED,
-            error="Navigation timed out.", duration_ms=duration,
+            url=url,
+            status=URLStatus.FAILED,
+            error="Navigation timed out.",
+            duration_ms=duration,
+            failure_category=FailureCategory.TIMEOUT,
+            response_status=response_status,
+            page_title=page_title or None,
         )
 
     except Exception as exc:
         duration = int((time.monotonic() - start) * 1000)
         return ScreenshotResult(
-            url=url, status=URLStatus.FAILED,
-            error=str(exc), duration_ms=duration,
+            url=url,
+            status=URLStatus.FAILED,
+            error=str(exc),
+            duration_ms=duration,
+            failure_category=FailureCategory.NETWORK_ERROR,
+            response_status=response_status,
+            page_title=page_title or None,
         )
 
 
@@ -105,12 +194,15 @@ async def capture(url: str, max_attempts: int = 2) -> ScreenshotResult:
             os.close(pdf_fd)
         except OSError as exc:
             last_result = ScreenshotResult(
-                url=url, status=URLStatus.FAILED,
+                url=url,
+                status=URLStatus.FAILED,
                 error=f"Failed to create temporary capture file: {exc}",
+                failure_category=FailureCategory.UNKNOWN,
             )
             if attempt < max_attempts:
                 await asyncio.sleep(3)
             continue
+
         dest_png = Path(png_path_str)
         dest_pdf = Path(pdf_path_str)
 
@@ -121,10 +213,7 @@ async def capture(url: str, max_attempts: int = 2) -> ScreenshotResult:
                 png_bytes = dest_png.read_bytes()
                 pdf_bytes = dest_pdf.read_bytes()
 
-                # Supabase returns 400 for empty or near-empty uploads.
-                # A valid full-page PNG is always > 5 KB; anything smaller means
-                # Playwright captured a blank/bot-block page.
-                MIN_PNG_BYTES = 5_120  # 5 KB
+                MIN_PNG_BYTES = 5_120
                 if len(png_bytes) < MIN_PNG_BYTES:
                     last_result = ScreenshotResult(
                         url=url,
@@ -134,6 +223,9 @@ async def capture(url: str, max_attempts: int = 2) -> ScreenshotResult:
                             "page may have been blocked or returned an empty response."
                         ),
                         duration_ms=result.duration_ms,
+                        failure_category=FailureCategory.EMPTY_PAGE,
+                        response_status=result.response_status,
+                        page_title=result.page_title,
                     )
                     continue
 
@@ -153,12 +245,16 @@ async def capture(url: str, max_attempts: int = 2) -> ScreenshotResult:
                     screenshot_url=png_url,
                     page_pdf_url=pdf_url,
                     duration_ms=result.duration_ms,
+                    response_status=result.response_status,
+                    page_title=result.page_title,
                 )
             except Exception as exc:
                 last_result = ScreenshotResult(
-                    url=url, status=URLStatus.FAILED,
+                    url=url,
+                    status=URLStatus.FAILED,
                     error=f"Storage upload failed: {exc}",
                     duration_ms=result.duration_ms,
+                    failure_category=FailureCategory.UNKNOWN,
                 )
             finally:
                 dest_png.unlink(missing_ok=True)
@@ -167,6 +263,8 @@ async def capture(url: str, max_attempts: int = 2) -> ScreenshotResult:
             dest_png.unlink(missing_ok=True)
             dest_pdf.unlink(missing_ok=True)
             last_result = result
+            if result.failure_category in _NO_RETRY_CATEGORIES:
+                break
 
         if attempt < max_attempts:
             await asyncio.sleep(3)

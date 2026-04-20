@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum as PyEnum
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, SmallInteger, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -71,6 +71,9 @@ class CaptureResult(Base):
     page_pdf_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     duration_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    failure_category: Mapped[Optional[str]] = mapped_column(String(30), nullable=True, index=True)
+    response_status: Mapped[Optional[int]] = mapped_column(SmallInteger(), nullable=True)
+    page_title: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
     capture_round: Mapped["CaptureRound"] = relationship(back_populates="results")
     job_url: Mapped["JobUrl"] = relationship(back_populates="capture_results")
