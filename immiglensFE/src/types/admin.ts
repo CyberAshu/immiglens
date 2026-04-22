@@ -93,6 +93,12 @@ export interface AdminCaptureRound {
   total_results: number
   error_sample: string | null
   failure_categories: string[]
+  proxy_used: boolean
+  profile_ids: string[]
+  modal_detected: boolean
+  modal_remaining: boolean
+  modal_actions_clicked: number
+  modal_actions_hidden: number
 }
 
 export interface AdminCaptureListResponse {

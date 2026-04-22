@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum as PyEnum
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, SmallInteger, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, SmallInteger, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -74,6 +74,13 @@ class CaptureResult(Base):
     failure_category: Mapped[Optional[str]] = mapped_column(String(30), nullable=True, index=True)
     response_status: Mapped[Optional[int]] = mapped_column(SmallInteger(), nullable=True)
     page_title: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    proxy_used: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    proxy_session: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    profile_id: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    modal_detected: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    modal_remaining: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    modal_actions_clicked: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    modal_actions_hidden: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     capture_round: Mapped["CaptureRound"] = relationship(back_populates="results")
     job_url: Mapped["JobUrl"] = relationship(back_populates="capture_results")

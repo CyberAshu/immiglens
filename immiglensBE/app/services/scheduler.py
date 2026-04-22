@@ -28,7 +28,7 @@ from app.services.screenshot import capture
 scheduler = AsyncIOScheduler()
 logger = logging.getLogger(__name__)
 
-_CST = ZoneInfo("America/Chicago")
+_CANADA_TZ = ZoneInfo("America/Toronto")
 
 # ── Per-round idempotency locks ───────────────────────────────────────────────
 # Prevents concurrent executions of force_run_capture_round for the same round_id.
@@ -45,18 +45,18 @@ def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _noon_cst_as_utc(d: date) -> datetime:
-    return datetime.combine(d, dt_time(12, 0)).replace(tzinfo=_CST).astimezone(timezone.utc)
+def _noon_local_as_utc(d: date) -> datetime:
+    return datetime.combine(d, dt_time(12, 0)).replace(tzinfo=_CANADA_TZ).astimezone(timezone.utc)
 
 
-def _cst_date_str(dt_utc: datetime) -> str:
-    return dt_utc.astimezone(_CST).date().isoformat()
+def _local_date_str(dt_utc: datetime) -> str:
+    return dt_utc.astimezone(_CANADA_TZ).date().isoformat()
 
 
-def _cst_day_utc_window() -> tuple[datetime, datetime]:
-    today_cst = datetime.now(_CST).date()
-    start = datetime.combine(today_cst, dt_time(0, 0)).replace(tzinfo=_CST).astimezone(timezone.utc)
-    end   = datetime.combine(today_cst + timedelta(days=1), dt_time(0, 0)).replace(tzinfo=_CST).astimezone(timezone.utc)
+def _local_day_utc_window() -> tuple[datetime, datetime]:
+    today_local = datetime.now(_CANADA_TZ).date()
+    start = datetime.combine(today_local, dt_time(0, 0)).replace(tzinfo=_CANADA_TZ).astimezone(timezone.utc)
+    end   = datetime.combine(today_local + timedelta(days=1), dt_time(0, 0)).replace(tzinfo=_CANADA_TZ).astimezone(timezone.utc)
     return start, end
 
 
@@ -290,9 +290,9 @@ async def schedule_rounds_for_position(
     position: JobPosition,
     not_before: datetime | None = None,
 ) -> None:
-    start = _noon_cst_as_utc(position.start_date)
+    start = _noon_local_as_utc(position.start_date)
     if position.end_date is not None:
-        end = _noon_cst_as_utc(position.end_date)
+        end = _noon_local_as_utc(position.end_date)
     else:
         end = start + timedelta(days=settings.RECRUITMENT_PERIOD_DAYS)
     freq = timedelta(days=position.capture_frequency_days)
@@ -312,12 +312,12 @@ async def schedule_rounds_for_position(
         )
     )
     existing_dates: set[str] = {
-        _cst_date_str(row[0]) for row in existing_result.fetchall()
+        _local_date_str(row[0]) for row in existing_result.fetchall()
     }
 
     now_utc = _now_utc()
     if not_before is None:
-        today_start, today_end = _cst_day_utc_window()
+        today_start, today_end = _local_day_utc_window()
         same_day_exists = (
             await db.execute(
                 select(CaptureRound.id).where(
@@ -343,11 +343,11 @@ async def schedule_rounds_for_position(
                 id=f"capture_round_{posting_round.id}",
                 replace_existing=True,
             )
-            existing_dates.add(_cst_date_str(run_at))
+            existing_dates.add(_local_date_str(run_at))
 
     scheduled_at = start
     while scheduled_at <= end:
-        date_str = _cst_date_str(scheduled_at)
+        date_str = _local_date_str(scheduled_at)
         if date_str in existing_dates:
             scheduled_at += freq
             continue
@@ -550,6 +550,13 @@ async def recapture_result(result_id: int) -> None:
         result.failure_category = screenshot_result.failure_category.value if screenshot_result.failure_category else None
         result.response_status = screenshot_result.response_status
         result.page_title = screenshot_result.page_title
+        result.proxy_used = screenshot_result.proxy_used
+        result.proxy_session = screenshot_result.proxy_session
+        result.profile_id = screenshot_result.profile_id
+        result.modal_detected = screenshot_result.modal_detected
+        result.modal_remaining = screenshot_result.modal_remaining
+        result.modal_actions_clicked = screenshot_result.modal_actions_clicked
+        result.modal_actions_hidden = screenshot_result.modal_actions_hidden
 
         # Save scalar result values before commit expires them
         new_status: ResultStatus = result.status
@@ -815,6 +822,13 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
                 failure_category=screenshot_result.failure_category.value if screenshot_result.failure_category else None,
                 response_status=screenshot_result.response_status,
                 page_title=screenshot_result.page_title,
+                proxy_used=screenshot_result.proxy_used,
+                proxy_session=screenshot_result.proxy_session,
+                profile_id=screenshot_result.profile_id,
+                modal_detected=screenshot_result.modal_detected,
+                modal_remaining=screenshot_result.modal_remaining,
+                modal_actions_clicked=screenshot_result.modal_actions_clicked,
+                modal_actions_hidden=screenshot_result.modal_actions_hidden,
             )
             db.add(capture_result)
             await db.flush()  # populate capture_result.id before snapshot

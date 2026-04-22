@@ -38,6 +38,13 @@ class ScreenshotResult(BaseModel):
     failure_category: Optional[FailureCategory] = None
     response_status: Optional[int] = None
     page_title: Optional[str] = None
+    proxy_used: Optional[bool] = None
+    proxy_session: Optional[str] = None
+    profile_id: Optional[str] = None
+    modal_detected: Optional[bool] = None
+    modal_remaining: Optional[bool] = None
+    modal_actions_clicked: Optional[int] = None
+    modal_actions_hidden: Optional[int] = None
 
 
 class BatchJob(BaseModel):

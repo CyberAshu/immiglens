@@ -683,6 +683,20 @@ async def admin_list_problematic_captures(
         .subquery()
     )
 
+    diag_sq = (
+        select(
+            CaptureResult.capture_round_id.label("round_id"),
+            func.bool_or(CaptureResult.proxy_used.is_(True)).label("proxy_used"),
+            func.array_agg(distinct(CaptureResult.profile_id)).label("profile_ids"),
+            func.bool_or(CaptureResult.modal_detected.is_(True)).label("modal_detected"),
+            func.bool_or(CaptureResult.modal_remaining.is_(True)).label("modal_remaining"),
+            func.coalesce(func.sum(CaptureResult.modal_actions_clicked), 0).label("modal_actions_clicked"),
+            func.coalesce(func.sum(CaptureResult.modal_actions_hidden), 0).label("modal_actions_hidden"),
+        )
+        .group_by(CaptureResult.capture_round_id)
+        .subquery()
+    )
+
     stmt = (
         select(
             CaptureRound,
@@ -693,6 +707,12 @@ async def admin_list_problematic_captures(
             func.coalesce(failed_sq.c.failed, 0).label("failed_results"),
             error_sq.c.error_sample,
             category_sq.c.failure_categories,
+            diag_sq.c.proxy_used,
+            diag_sq.c.profile_ids,
+            diag_sq.c.modal_detected,
+            diag_sq.c.modal_remaining,
+            diag_sq.c.modal_actions_clicked,
+            diag_sq.c.modal_actions_hidden,
         )
         .join(JobPosition, CaptureRound.job_position_id == JobPosition.id)
         .join(Employer, JobPosition.employer_id == Employer.id)
@@ -701,6 +721,7 @@ async def admin_list_problematic_captures(
         .outerjoin(failed_sq, CaptureRound.id == failed_sq.c.round_id)
         .outerjoin(error_sq, CaptureRound.id == error_sq.c.round_id)
         .outerjoin(category_sq, CaptureRound.id == category_sq.c.round_id)
+        .outerjoin(diag_sq, CaptureRound.id == diag_sq.c.round_id)
         .where(
             (CaptureRound.status == CaptureStatus.FAILED)
             | (
@@ -748,8 +769,29 @@ async def admin_list_problematic_captures(
             total_results=total_results,
             error_sample=error_sample,
             failure_categories=list(failure_categories) if failure_categories else [],
+            proxy_used=bool(proxy_used),
+            profile_ids=[p for p in profile_ids if p] if profile_ids else [],
+            modal_detected=bool(modal_detected),
+            modal_remaining=bool(modal_remaining),
+            modal_actions_clicked=int(modal_actions_clicked or 0),
+            modal_actions_hidden=int(modal_actions_hidden or 0),
         )
-        for round_, position, employer, user, total_results, failed_results, error_sample, failure_categories in rows
+        for (
+            round_,
+            position,
+            employer,
+            user,
+            total_results,
+            failed_results,
+            error_sample,
+            failure_categories,
+            proxy_used,
+            profile_ids,
+            modal_detected,
+            modal_remaining,
+            modal_actions_clicked,
+            modal_actions_hidden,
+        ) in rows
     ]
 
     return AdminCaptureListResponse(rounds=records, total=len(records))

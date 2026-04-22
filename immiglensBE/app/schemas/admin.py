@@ -110,6 +110,12 @@ class AdminCaptureRoundRecord(BaseModel):
     total_results: int
     error_sample: Optional[str] = None
     failure_categories: List[str] = []
+    proxy_used: bool = False
+    profile_ids: List[str] = []
+    modal_detected: bool = False
+    modal_remaining: bool = False
+    modal_actions_clicked: int = 0
+    modal_actions_hidden: int = 0
 
 
 class AdminCaptureListResponse(BaseModel):

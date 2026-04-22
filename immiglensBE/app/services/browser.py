@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from typing import Optional
 
 from playwright.async_api import Browser, Playwright, async_playwright
@@ -9,6 +10,45 @@ from playwright._impl._errors import TargetClosedError
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class CaptureContextOptions:
+    user_agent: str
+    viewport_width: int
+    viewport_height: int
+    locale: str = "en-CA"
+    timezone_id: str = "America/Toronto"
+    extra_headers: dict[str, str] | None = None
+    proxy: dict[str, str] | None = None
+    stealth: bool = True
+    profile_id: str = "default"
+    proxy_session: str | None = None
+
+
+DEFAULT_CONTEXT_OPTIONS = CaptureContextOptions(
+    user_agent=(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/122.0.0.0 Safari/537.36"
+    ),
+    viewport_width=1280,
+    viewport_height=720,
+)
+
+
+STEALTH_INIT_SCRIPT = """
+Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4] });
+Object.defineProperty(navigator, 'languages', { get: () => ['en-CA', 'en'] });
+
+const getParameter = WebGLRenderingContext.prototype.getParameter;
+WebGLRenderingContext.prototype.getParameter = function(param) {
+  if (param === 37445) return 'Intel Inc.';
+  if (param === 37446) return 'Intel Iris OpenGL Engine';
+  return getParameter.call(this, param);
+};
+"""
 
 
 class BrowserManager:
@@ -63,19 +103,22 @@ class BrowserManager:
             self._playwright = None
 
     @asynccontextmanager
-    async def acquire_page(self):
+    async def acquire_page(self, options: CaptureContextOptions | None = None):
         async with self._semaphore:
+            opts = options or DEFAULT_CONTEXT_OPTIONS
             for attempt in range(2):
                 try:
                     browser = await self._ensure_browser()
                     context = await browser.new_context(
-                        viewport={"width": 1280, "height": 720},
-                        user_agent=(
-                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                            "AppleWebKit/537.36 (KHTML, like Gecko) "
-                            "Chrome/122.0.0.0 Safari/537.36"
-                        ),
+                        viewport={"width": opts.viewport_width, "height": opts.viewport_height},
+                        user_agent=opts.user_agent,
+                        locale=opts.locale,
+                        timezone_id=opts.timezone_id,
+                        extra_http_headers=opts.extra_headers,
+                        proxy=opts.proxy,
                     )
+                    if opts.stealth:
+                        await context.add_init_script(STEALTH_INIT_SCRIPT)
                     page = await context.new_page()
                     break
                 except TargetClosedError:

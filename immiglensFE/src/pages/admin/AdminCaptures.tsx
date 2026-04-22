@@ -49,6 +49,49 @@ function FailureCategoryChips({ categories }: { categories: string[] }) {
   )
 }
 
+function RuntimeSignalChips({ r }: { r: AdminCaptureRound }) {
+  const chips: Array<{ key: string; label: string; color: string }> = []
+  if (r.proxy_used) chips.push({ key: 'proxy', label: 'Proxy', color: '#2563eb' })
+  if (r.modal_detected) chips.push({ key: 'modal', label: 'Modal', color: '#7c3aed' })
+  if (r.modal_remaining) chips.push({ key: 'modal_remaining', label: 'Overlay Left', color: '#dc2626' })
+  if (!chips.length && (!r.profile_ids || r.profile_ids.length === 0)) {
+    return <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+  }
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.2rem' }}>
+      {chips.map(ch => (
+        <span
+          key={ch.key}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '0.2rem',
+            fontSize: '0.68rem', fontWeight: 600, padding: '2px 6px',
+            borderRadius: '4px', whiteSpace: 'nowrap',
+            background: ch.color + '18', color: ch.color,
+            border: `1px solid ${ch.color}35`,
+          }}
+        >
+          {ch.label}
+        </span>
+      ))}
+      {(r.profile_ids || []).slice(0, 2).map(pid => (
+        <span
+          key={pid}
+          title={pid}
+          style={{
+            display: 'inline-flex', alignItems: 'center',
+            fontSize: '0.68rem', fontWeight: 600, padding: '2px 6px',
+            borderRadius: '4px', whiteSpace: 'nowrap',
+            background: '#6b728018', color: '#6b7280', border: '1px solid #6b728035',
+          }}
+        >
+          {pid}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function isStuck(r: AdminCaptureRound): boolean {
   if (r.status !== 'running') return false
   const diffMs = Date.now() - new Date(r.updated_at).getTime()
@@ -168,6 +211,7 @@ function CaptureSection({
                 <th style={{ width: 130 }}>Last Updated</th>
                 <th style={{ width: 80, textAlign: 'center' }}>URLs</th>
                 <th style={{ width: 150 }}>Root Cause</th>
+                <th style={{ width: 170 }}>Runtime</th>
                 <th>Error</th>
                 <th style={{ width: 80, textAlign: 'right' }}>Action</th>
               </tr>
@@ -203,6 +247,9 @@ function CaptureSection({
                     </td>
                     <td style={{ width: 150 }}>
                       <FailureCategoryChips categories={r.failure_categories ?? []} />
+                    </td>
+                    <td style={{ width: 170 }}>
+                      <RuntimeSignalChips r={r} />
                     </td>
                     <td style={{ fontSize: '0.75rem', maxWidth: 240 }}>
                       {errMsg ? (

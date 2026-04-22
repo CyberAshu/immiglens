@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     MAX_URLS_PER_BATCH: int = 100
     JOB_MAX_AGE_S: int = 3_600
 
+    RES_PROXY_ENABLED: bool = False
+    RES_PROXY_SERVER: str = ""
+    RES_PROXY_USERNAME: str = ""
+    RES_PROXY_PASSWORD: str = ""
+    RES_PROXY_RETRY_ONLY: bool = True
+    RES_PROXY_USERNAME_SESSION_TEMPLATE: str = ""
+
     RECRUITMENT_PERIOD_DAYS: int = 28
     ADMIN_ALERT_EMAIL: str = "info@immiglens.ca"
     STUCK_ROUND_TIMEOUT_MINUTES: int = 60
