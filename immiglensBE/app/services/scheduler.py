@@ -539,7 +539,12 @@ async def recapture_result(result_id: int) -> None:
         user_id: int | None = getattr(getattr(position, "employer", None), "user_id", None)
 
         # ── Run the capture ────────────────────────────────────────────────
-        screenshot_result = await capture(result_url)
+        screenshot_result = await capture(
+            result_url,
+            max_attempts=3,
+            manual_retry=True,
+            persist_blocked_artifacts=True,
+        )
 
         result.status = ResultStatus(screenshot_result.status.value)
         result.screenshot_path = None
@@ -676,7 +681,7 @@ async def _run_capture_round(round_id: int) -> None:
         await _execute_round(db, round_)
 
 
-async def force_run_capture_round(round_id: int) -> None:
+async def force_run_capture_round(round_id: int, aggressive: bool = False) -> None:
     """Re-run a round regardless of its current status, clearing previous results.
 
     Uses a per-round asyncio.Lock to prevent concurrent duplicate executions when
@@ -720,7 +725,7 @@ async def force_run_capture_round(round_id: int) -> None:
                     )
                 )
                 round_ = result2.scalar_one()
-                await _execute_round(db, round_)
+                await _execute_round(db, round_, aggressive_retry=aggressive)
         finally:
             # Release the lock entry if no other task is queued behind this one
             lock = _round_locks.get(round_id)
@@ -728,17 +733,22 @@ async def force_run_capture_round(round_id: int) -> None:
                 _round_locks.pop(round_id, None)
 
 
-def queue_force_run_capture_round(round_id: int) -> None:
+def queue_force_run_capture_round(round_id: int, aggressive: bool = False) -> None:
     scheduler.add_job(
         force_run_capture_round,
         trigger=DateTrigger(run_date=_now_utc() + timedelta(seconds=1)),
         args=[round_id],
+        kwargs={"aggressive": aggressive},
         id=f"force_run_capture_round_{round_id}",
         replace_existing=True,
     )
 
 
-async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
+async def _execute_round(
+    db: AsyncSession,
+    round_: CaptureRound,
+    aggressive_retry: bool = False,
+) -> None:
     _position_title: str = round_.job_position.job_title
     _position_employer_id: int = round_.job_position.employer_id
     _position_id: int = round_.job_position_id
@@ -827,7 +837,12 @@ async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:
     try:
         for posting in active_urls:
             _current_posting = posting
-            screenshot_result = await capture(posting.url)
+            screenshot_result = await capture(
+                posting.url,
+                max_attempts=3 if aggressive_retry else 2,
+                manual_retry=aggressive_retry,
+                persist_blocked_artifacts=aggressive_retry,
+            )
             capture_result = CaptureResult(
                 capture_round_id=round_.id,
                 job_url_id=posting.id,

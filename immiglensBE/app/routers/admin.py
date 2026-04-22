@@ -843,7 +843,7 @@ async def admin_retry_capture_round(
         request=request,
     )
     await db.commit()
-    queue_force_run_capture_round(round_id)
+    queue_force_run_capture_round(round_id, aggressive=True)
     return {"detail": "Retry queued", "round_id": round_id}
 
 
@@ -878,7 +878,7 @@ async def admin_bulk_retry_captures(
             new_data={"status": "pending", "admin_bulk_retry": True},
             request=request,
         )
-        queue_force_run_capture_round(round_.id)
+        queue_force_run_capture_round(round_.id, aggressive=True)
     await db.commit()
     return {"detail": "Bulk retry queued", "queued": len(failed_rounds)}
 
@@ -935,6 +935,6 @@ async def admin_recover_all_captures(
     await db.commit()
 
     for round_ in rounds:
-        queue_force_run_capture_round(round_.id)
+        queue_force_run_capture_round(round_.id, aggressive=True)
 
     return {"detail": "All stuck rounds queued for recovery", "queued": len(rounds)}

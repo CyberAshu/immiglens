@@ -160,9 +160,17 @@ def _is_proxy_error(error_message: str) -> bool:
     return any(m in text for m in markers)
 
 
-def _should_use_proxy_for_attempt(attempt: int, last_result: ScreenshotResult | None) -> bool:
+def _should_use_proxy_for_attempt(
+    attempt: int,
+    last_result: ScreenshotResult | None,
+    *,
+    force_proxy_first_attempt: bool,
+    retry_blocked_categories: bool,
+) -> bool:
     if not settings.RES_PROXY_ENABLED or not settings.RES_PROXY_SERVER:
         return False
+    if attempt == 1 and force_proxy_first_attempt:
+        return True
     if not settings.RES_PROXY_RETRY_ONLY:
         return True
     if attempt == 1:
@@ -174,6 +182,12 @@ def _should_use_proxy_for_attempt(attempt: int, last_result: ScreenshotResult | 
         FailureCategory.BOT_DETECTED,
         FailureCategory.TIMEOUT,
         FailureCategory.NETWORK_ERROR,
+    }:
+        return True
+
+    if retry_blocked_categories and last_result.failure_category in {
+        FailureCategory.CAPTCHA,
+        FailureCategory.ACCESS_DENIED,
     }:
         return True
 
@@ -353,6 +367,7 @@ async def _attempt_capture(
     context_options: CaptureContextOptions,
     proxy_used: bool,
     proxy_session: str | None,
+    persist_blocked_artifacts: bool,
 ) -> ScreenshotResult:
     start = time.monotonic()
     response_status: int | None = None
@@ -387,6 +402,55 @@ async def _attempt_capture(
 
             category = _classify(response_status, page_title, html_snippet)
             if category is not None:
+                if persist_blocked_artifacts:
+                    try:
+                        await page.screenshot(path=str(dest), full_page=True)
+
+                        png_b64 = base64.b64encode(dest.read_bytes()).decode("ascii")
+                        captured_at_label = datetime.now(ZoneInfo(context_options.timezone_id)).strftime("%d/%m/%Y, %H:%M")
+                        pdf_html = f"""
+<!doctype html>
+<html>
+    <head>
+        <meta charset=\"utf-8\" />
+        <style>
+            @page {{ size: A4; margin: 8mm; }}
+            html, body {{ margin: 0; padding: 0; background: #fff; }}
+            .wrap {{ width: 100%; }}
+            img {{ width: 100%; height: auto; display: block; }}
+            .stamp {{
+                position: fixed;
+                right: 8mm;
+                bottom: 5mm;
+                font-family: Arial, sans-serif;
+                font-size: 9px;
+                color: #555;
+                background: rgba(255,255,255,0.75);
+                padding: 1px 4px;
+                border-radius: 2px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class=\"wrap\">
+            <img alt=\"capture\" src=\"data:image/png;base64,{png_b64}\" />
+        </div>
+        <div class=\"stamp\">{captured_at_label}</div>
+    </body>
+</html>
+"""
+                        await page.set_content(pdf_html, wait_until="domcontentloaded")
+                        await page.emulate_media(media="screen")
+                        await page.pdf(
+                            path=str(pdf_dest),
+                            format="A4",
+                            print_background=True,
+                            display_header_footer=False,
+                            margin={"top": "8mm", "bottom": "8mm", "left": "8mm", "right": "8mm"},
+                        )
+                    except Exception:
+                        pass
+
                 duration = int((time.monotonic() - start) * 1000)
                 return ScreenshotResult(
                     url=url,
@@ -518,12 +582,23 @@ async def _attempt_capture(
         )
 
 
-async def capture(url: str, max_attempts: int = 2) -> ScreenshotResult:
+async def capture(
+    url: str,
+    max_attempts: int = 2,
+    *,
+    manual_retry: bool = False,
+    persist_blocked_artifacts: bool = False,
+) -> ScreenshotResult:
     """Capture PNG screenshot + print-layout PDF, upload both to Supabase Storage."""
     last_result: ScreenshotResult | None = None
 
     for attempt in range(1, max_attempts + 1):
-        use_proxy = _should_use_proxy_for_attempt(attempt, last_result)
+        use_proxy = _should_use_proxy_for_attempt(
+            attempt,
+            last_result,
+            force_proxy_first_attempt=manual_retry,
+            retry_blocked_categories=manual_retry,
+        )
         proxy_session = _proxy_session_token(attempt) if use_proxy else None
         context_options = _build_context_options(attempt, use_proxy, proxy_session)
 
@@ -557,6 +632,7 @@ async def capture(url: str, max_attempts: int = 2) -> ScreenshotResult:
             context_options=context_options,
             proxy_used=use_proxy,
             proxy_session=proxy_session,
+            persist_blocked_artifacts=persist_blocked_artifacts,
         )
 
         if result.status == URLStatus.DONE:
@@ -634,10 +710,32 @@ async def capture(url: str, max_attempts: int = 2) -> ScreenshotResult:
                 dest_png.unlink(missing_ok=True)
                 dest_pdf.unlink(missing_ok=True)
         else:
+            if persist_blocked_artifacts and dest_png.exists() and dest_png.stat().st_size > 1024:
+                try:
+                    failed_png_name = f"{stem}.png"
+                    failed_pdf_name = f"{stem}_print.pdf"
+                    failed_png_url = await storage.upload(
+                        "screenshots", failed_png_name, dest_png.read_bytes(), "image/png"
+                    )
+                    failed_pdf_url = None
+                    if dest_pdf.exists() and dest_pdf.stat().st_size > 1024:
+                        failed_pdf_url = await storage.upload(
+                            "screenshots", failed_pdf_name, dest_pdf.read_bytes(), "application/pdf"
+                        )
+                    result = result.model_copy(
+                        update={
+                            "filename": failed_png_name,
+                            "screenshot_url": failed_png_url,
+                            "page_pdf_url": failed_pdf_url,
+                        }
+                    )
+                except Exception:
+                    pass
+
             dest_png.unlink(missing_ok=True)
             dest_pdf.unlink(missing_ok=True)
             last_result = result
-            if result.failure_category in _NO_RETRY_CATEGORIES:
+            if not manual_retry and result.failure_category in _NO_RETRY_CATEGORIES:
                 break
 
         if attempt < max_attempts:
