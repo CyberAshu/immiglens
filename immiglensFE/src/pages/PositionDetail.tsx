@@ -29,6 +29,7 @@ export default function PositionDetail() {
   const { toast, showToast, clearToast } = useToast()
   const [runningRound, setRunningRound] = useState<number | null>(null)
   const [recapturingResult, setRecapturingResult] = useState<Set<number>>(new Set())
+  const [retryInfoByRound, setRetryInfoByRound] = useState<Record<number, { count: number; lastAt: string }>>({})
   const [uploadingDoc, setUploadingDoc] = useState(false)
   const [uploadingJobMatch, setUploadingJobMatch] = useState(false)
   const [generatingReport, setGeneratingReport] = useState(false)
@@ -98,8 +99,25 @@ export default function PositionDetail() {
     setRunningRound(roundId)
     setError(null)
     try {
-      const updated = await capturesApi.runNow(eId, pId, roundId)
-      setRounds(prev => prev.map(r => r.id === roundId ? updated : r))
+      await capturesApi.runNow(eId, pId, roundId)
+      setRetryInfoByRound(prev => {
+        const current = prev[roundId]
+        return {
+          ...prev,
+          [roundId]: {
+            count: (current?.count ?? 0) + 1,
+            lastAt: new Date().toISOString(),
+          },
+        }
+      })
+      setRounds(prev => prev.map(r => (r.id === roundId ? { ...r, status: 'running' } : r)))
+      setTimeout(async () => {
+        try {
+          const refreshed = await capturesApi.list(eId, pId)
+          setRounds(refreshed)
+        } catch {
+        }
+      }, 1500)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Capture failed.')
     } finally {
@@ -111,8 +129,24 @@ export default function PositionDetail() {
     setRecapturingResult(prev => new Set(prev).add(resultId))
     setError(null)
     try {
-      const updated = await capturesApi.recaptureResult(eId, pId, roundId, resultId)
-      setRounds(prev => prev.map(r => r.id === roundId ? updated : r))
+      await capturesApi.recaptureResult(eId, pId, roundId, resultId)
+      setRetryInfoByRound(prev => {
+        const current = prev[roundId]
+        return {
+          ...prev,
+          [roundId]: {
+            count: (current?.count ?? 0) + 1,
+            lastAt: new Date().toISOString(),
+          },
+        }
+      })
+      setTimeout(async () => {
+        try {
+          const refreshed = await capturesApi.list(eId, pId)
+          setRounds(refreshed)
+        } catch {
+        }
+      }, 1500)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Recapture failed.')
     } finally {
@@ -460,6 +494,7 @@ export default function PositionDetail() {
                 onRecapture={handleRecaptureResult}
                 recapturing={recapturingResult}
                 allowCapture={position.is_active && round.id === firstPendingId}
+                retryInfo={retryInfoByRound[round.id]}
               />
             ))}
           </div>

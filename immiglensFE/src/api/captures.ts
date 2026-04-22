@@ -6,7 +6,7 @@ export const captures = {
     request<CaptureRound[]>(`/api/employers/${employerId}/positions/${positionId}/captures`),
 
   runNow: (employerId: number, positionId: number, roundId: number) =>
-    request<CaptureRound>(
+    request<{ detail: string; round_id: number }>(
       `/api/employers/${employerId}/positions/${positionId}/captures/${roundId}/run`,
       { method: 'POST' },
     ),
@@ -17,7 +17,7 @@ export const captures = {
     roundId: number,
     resultId: number,
   ) =>
-    request<CaptureRound>(
+    request<{ detail: string; round_id: number; result_id: number }>(
       `/api/employers/${employerId}/positions/${positionId}/captures/${roundId}/results/${resultId}/recapture`,
       { method: 'POST' },
     ),

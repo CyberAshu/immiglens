@@ -9,6 +9,7 @@ interface RoundRowProps {
   onRecapture: (roundId: number, resultId: number) => void
   recapturing: Set<number>
   allowCapture: boolean
+  retryInfo?: { count: number; lastAt: string }
 }
 
 export function RoundRow({
@@ -19,6 +20,7 @@ export function RoundRow({
   onRecapture,
   recapturing,
   allowCapture,
+  retryInfo,
 }: RoundRowProps) {
   const [expanded, setExpanded] = useState(false)
 
@@ -46,6 +48,11 @@ export function RoundRow({
           {round.captured_at && (
             <span className="round-captured">
               captured {fmtDateTime(round.captured_at)}
+            </span>
+          )}
+          {retryInfo && (
+            <span className="round-captured" title={`Last retry: ${fmtDateTime(retryInfo.lastAt)}`}>
+              retries {retryInfo.count} · last {fmtDateTime(retryInfo.lastAt)}
             </span>
           )}
         </div>

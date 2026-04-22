@@ -612,7 +612,6 @@ async def recapture_result(result_id: int) -> None:
             )
         except Exception:
             pass
-
         try:
             _user = await db.get(User, user_id)
             if _user:
@@ -643,6 +642,16 @@ async def recapture_result(result_id: int) -> None:
                 )
         except Exception:
             pass
+
+
+def queue_recapture_result(result_id: int) -> None:
+    scheduler.add_job(
+        recapture_result,
+        trigger=DateTrigger(run_date=_now_utc() + timedelta(seconds=1)),
+        args=[result_id],
+        id=f"recapture_result_{result_id}",
+        replace_existing=True,
+    )
 
 
 async def _run_capture_round(round_id: int) -> None:
@@ -717,6 +726,16 @@ async def force_run_capture_round(round_id: int) -> None:
             lock = _round_locks.get(round_id)
             if lock and not lock.locked():
                 _round_locks.pop(round_id, None)
+
+
+def queue_force_run_capture_round(round_id: int) -> None:
+    scheduler.add_job(
+        force_run_capture_round,
+        trigger=DateTrigger(run_date=_now_utc() + timedelta(seconds=1)),
+        args=[round_id],
+        id=f"force_run_capture_round_{round_id}",
+        replace_existing=True,
+    )
 
 
 async def _execute_round(db: AsyncSession, round_: CaptureRound) -> None:

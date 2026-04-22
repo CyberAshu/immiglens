@@ -13,7 +13,10 @@ from app.models.employer import Employer
 from app.models.job_position import JobPosition
 from app.models.user import User
 from app.schemas.capture import CaptureRoundOut
-from app.services.scheduler import force_run_capture_round, recapture_result
+from app.services.scheduler import (
+    queue_force_run_capture_round,
+    queue_recapture_result,
+)
 
 router = APIRouter(prefix="/api/employers/{employer_id}/positions/{position_id}/captures", tags=["captures"])
 
@@ -51,7 +54,7 @@ async def list_capture_rounds(
     return result.scalars().all()
 
 
-@router.post("/{round_id}/run", response_model=CaptureRoundOut)
+@router.post("/{round_id}/run", status_code=202)
 async def trigger_capture_round(
     employer_id: int,
     position_id: int,
@@ -93,7 +96,6 @@ async def trigger_capture_round(
         )
 
     await check_monthly_capture_limit(db, current_user)
-    await force_run_capture_round(round_id)
     await audit(
         db,
         action=AuditAction.CAPTURE_TRIGGERED,
@@ -107,16 +109,11 @@ async def trigger_capture_round(
         request=request,
     )
     await db.commit()
-    await db.refresh(round_)
-    result2 = await db.execute(
-        select(CaptureRound)
-        .where(CaptureRound.id == round_id)
-        .options(selectinload(CaptureRound.results))
-    )
-    return result2.scalar_one()
+    queue_force_run_capture_round(round_id)
+    return {"detail": "Retry queued", "round_id": round_id}
 
 
-@router.post("/{round_id}/results/{result_id}/recapture", response_model=CaptureRoundOut)
+@router.post("/{round_id}/results/{result_id}/recapture", status_code=202)
 async def recapture_single_result(
     employer_id: int,
     position_id: int,
@@ -151,7 +148,7 @@ async def recapture_single_result(
     if res.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail="Capture result not found.")
 
-    await recapture_result(result_id)
+    queue_recapture_result(result_id)
 
     await audit(
         db,
@@ -167,9 +164,4 @@ async def recapture_single_result(
     )
     await db.commit()
 
-    result2 = await db.execute(
-        select(CaptureRound)
-        .where(CaptureRound.id == round_id)
-        .options(selectinload(CaptureRound.results))
-    )
-    return result2.scalar_one()
+    return {"detail": "Recapture queued", "round_id": round_id, "result_id": result_id}

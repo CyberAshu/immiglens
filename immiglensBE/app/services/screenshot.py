@@ -1,5 +1,6 @@
 import asyncio
 import base64
+from datetime import datetime
 import os
 import random
 import re
@@ -7,6 +8,7 @@ import tempfile
 import time
 from pathlib import Path
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
@@ -414,6 +416,7 @@ async def _attempt_capture(
             await page.screenshot(path=str(dest), full_page=True)
 
             png_b64 = base64.b64encode(dest.read_bytes()).decode("ascii")
+            captured_at_label = datetime.now(ZoneInfo(context_options.timezone_id)).strftime("%d/%m/%Y, %H:%M")
             pdf_html = f"""
 <!doctype html>
 <html>
@@ -424,12 +427,24 @@ async def _attempt_capture(
             html, body {{ margin: 0; padding: 0; background: #fff; }}
             .wrap {{ width: 100%; }}
             img {{ width: 100%; height: auto; display: block; }}
+            .stamp {{
+                position: fixed;
+                right: 8mm;
+                bottom: 5mm;
+                font-family: Arial, sans-serif;
+                font-size: 9px;
+                color: #555;
+                background: rgba(255,255,255,0.75);
+                padding: 1px 4px;
+                border-radius: 2px;
+            }}
         </style>
     </head>
     <body>
         <div class=\"wrap\">
             <img alt=\"capture\" src=\"data:image/png;base64,{png_b64}\" />
         </div>
+        <div class=\"stamp\">{captured_at_label}</div>
     </body>
 </html>
 """

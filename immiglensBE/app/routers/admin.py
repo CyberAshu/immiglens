@@ -805,10 +805,9 @@ async def admin_retry_capture_round(
     current_user: User = Depends(require_admin),
 ):
     """Admin: force-retry a capture round regardless of its current status."""
-    from app.services.scheduler import force_run_capture_round
+    from app.services.scheduler import queue_force_run_capture_round
     from app.models.job_url import JobUrl
     from sqlalchemy.orm import selectinload
-    import asyncio
 
     result = await db.execute(
         select(CaptureRound)
@@ -844,7 +843,7 @@ async def admin_retry_capture_round(
         request=request,
     )
     await db.commit()
-    asyncio.create_task(force_run_capture_round(round_id))
+    queue_force_run_capture_round(round_id)
     return {"detail": "Retry queued", "round_id": round_id}
 
 
@@ -856,8 +855,7 @@ async def admin_bulk_retry_captures(
 ):
     """Admin: retry ALL failed capture rounds."""
     from app.models.capture import CaptureStatus
-    from app.services.scheduler import force_run_capture_round
-    import asyncio
+    from app.services.scheduler import queue_force_run_capture_round
 
     result = await db.execute(
         select(CaptureRound).where(CaptureRound.status == CaptureStatus.FAILED)
@@ -880,7 +878,7 @@ async def admin_bulk_retry_captures(
             new_data={"status": "pending", "admin_bulk_retry": True},
             request=request,
         )
-        asyncio.create_task(force_run_capture_round(round_.id))
+        queue_force_run_capture_round(round_.id)
     await db.commit()
     return {"detail": "Bulk retry queued", "queued": len(failed_rounds)}
 
@@ -894,9 +892,8 @@ async def admin_recover_all_captures(
     """Admin: reset ALL stuck rounds (RUNNING + overdue PENDING + FAILED) and re-queue them."""
     from datetime import datetime, timezone, timedelta
     from app.models.capture import CaptureStatus
-    from app.services.scheduler import force_run_capture_round
+    from app.services.scheduler import queue_force_run_capture_round
     from app.core.config import settings as _settings
-    import asyncio
 
     now = datetime.now(timezone.utc)
     # Only treat RUNNING rounds as stuck (and eligible for recovery) once they have
@@ -938,6 +935,6 @@ async def admin_recover_all_captures(
     await db.commit()
 
     for round_ in rounds:
-        asyncio.create_task(force_run_capture_round(round_.id))
+        queue_force_run_capture_round(round_.id)
 
     return {"detail": "All stuck rounds queued for recovery", "queued": len(rounds)}
