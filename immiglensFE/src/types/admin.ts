@@ -99,6 +99,8 @@ export interface AdminCaptureRound {
   modal_remaining: boolean
   modal_actions_clicked: number
   modal_actions_hidden: number
+  auto_retry_count: number
+  has_manual_uploads: boolean
 }
 
 export interface AdminCaptureListResponse {

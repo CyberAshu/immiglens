@@ -284,6 +284,22 @@ function CaptureSection({
                             {retryInfo.count}x · {fmtDate(retryInfo.lastAt)}
                           </span>
                         )}
+                        {r.auto_retry_count > 0 && (
+                          <span
+                            style={{ fontSize: '0.68rem', color: 'var(--color-warning, #f59e0b)', whiteSpace: 'nowrap' }}
+                            title={`Auto-retried ${r.auto_retry_count}x by the system`}
+                          >
+                            ↺ Auto-retried {r.auto_retry_count}x
+                          </span>
+                        )}
+                        {r.has_manual_uploads && (
+                          <span
+                            style={{ fontSize: '0.68rem', color: 'var(--color-info, #3b82f6)', whiteSpace: 'nowrap' }}
+                            title="Contains manually uploaded screenshot(s)"
+                          >
+                            ↑ Manual Upload
+                          </span>
+                        )}
                       </div>
                     </td>
                   </tr>

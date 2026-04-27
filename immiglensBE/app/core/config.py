@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     RECRUITMENT_PERIOD_DAYS: int = 28
     ADMIN_ALERT_EMAIL: str = "info@immiglens.ca"
     STUCK_ROUND_TIMEOUT_MINUTES: int = 60
+    MAX_AUTO_RETRIES: int = 1
+    AUTO_RETRY_DELAY_SECONDS: int = 30
 
     # ── Email / SMTP ─────────────────────────────────────────────────────────
     SMTP_HOST: str = ""

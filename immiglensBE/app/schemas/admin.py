@@ -116,6 +116,8 @@ class AdminCaptureRoundRecord(BaseModel):
     modal_remaining: bool = False
     modal_actions_clicked: int = 0
     modal_actions_hidden: int = 0
+    auto_retry_count: int = 0
+    has_manual_uploads: bool = False
 
 
 class AdminCaptureListResponse(BaseModel):

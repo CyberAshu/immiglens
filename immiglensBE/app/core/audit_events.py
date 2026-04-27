@@ -42,10 +42,11 @@ class AuditAction:
     POSTING_DEACTIVATED         = "POSTING_DEACTIVATED"
 
     # ── Capture ───────────────────────────────────────────────────────────────
-    CAPTURE_TRIGGERED           = "CAPTURE_TRIGGERED"
-    CAPTURE_COMPLETED           = "CAPTURE_COMPLETED"
-    CAPTURE_FAILED              = "CAPTURE_FAILED"
-    CAPTURE_RESULT_RECAPTURED   = "CAPTURE_RESULT_RECAPTURED"
+    CAPTURE_TRIGGERED             = "CAPTURE_TRIGGERED"
+    CAPTURE_COMPLETED             = "CAPTURE_COMPLETED"
+    CAPTURE_FAILED                = "CAPTURE_FAILED"
+    CAPTURE_RESULT_RECAPTURED     = "CAPTURE_RESULT_RECAPTURED"
+    MANUAL_SCREENSHOT_UPLOADED    = "MANUAL_SCREENSHOT_UPLOADED"
 
     # ── Reports / Documents ───────────────────────────────────────────────────
     REPORT_GENERATED            = "REPORT_GENERATED"

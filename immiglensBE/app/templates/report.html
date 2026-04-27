@@ -198,6 +198,9 @@
             <img class="capture-screenshot" src="{{ result.screenshot_url }}" alt="Capture {{ ns.idx }} screenshot" />
             {% elif preview_mode %}
             <div class="capture-no-screenshot">Screenshot not available for this capture.</div>
+            {% elif result.is_manual and result.screenshot_url %}
+            {# Manual upload in PDF mode: inline the screenshot image directly #}
+            <img class="capture-screenshot" src="{{ result.screenshot_url }}" alt="Capture {{ ns.idx }} screenshot (manual upload)" />
             {% else %}
             {# PDF download mode: actual captured PDF is interleaved by build_pdf right after this header #}
             <div style="font-size:8pt;color:#777;padding:4px 12px;background:#f7f9fc;border-top:1px solid #e0e7ef;">

@@ -659,6 +659,53 @@ def queue_recapture_result(result_id: int) -> None:
     )
 
 
+async def _maybe_auto_retry(
+    db: AsyncSession,
+    round_: CaptureRound,
+    auto_retry_count: int,
+    active_url_count: int,
+) -> bool:
+    """Attempt one automatic aggressive retry of a failed capture round.
+
+    Accepts pre-extracted scalar values to avoid expired-attribute access after
+    db.commit() (SQLAlchemy expires all ORM attrs on commit in async sessions).
+
+    Returns True if the retry was queued (caller should suppress failure notifications).
+    Returns False if max retries already reached or position has no active URLs
+    (in which case caller should proceed with normal failure handling).
+
+    Increments auto_retry_count and resets status to PENDING before scheduling
+    so the state is durable across server restarts.
+    """
+    if auto_retry_count >= settings.MAX_AUTO_RETRIES:
+        return False
+
+    if active_url_count == 0:
+        return False
+
+    round_.auto_retry_count = auto_retry_count + 1
+    round_.status = CaptureStatus.PENDING
+    await db.commit()
+
+    scheduler.add_job(
+        force_run_capture_round,
+        trigger=DateTrigger(run_date=_now_utc() + timedelta(seconds=settings.AUTO_RETRY_DELAY_SECONDS)),
+        args=[round_.id],
+        kwargs={"aggressive": True},
+        id=f"force_run_capture_round_{round_.id}",
+        replace_existing=True,
+    )
+
+    logger.info(
+        "Auto-retry queued for round_id=%s (attempt %s/%s) aggressive=True delay=%ss",
+        round_.id,
+        auto_retry_count + 1,
+        settings.MAX_AUTO_RETRIES,
+        settings.AUTO_RETRY_DELAY_SECONDS,
+    )
+    return True
+
+
 async def _run_capture_round(round_id: int) -> None:
     async with AsyncSessionLocal() as db:
         result = await db.execute(
@@ -709,8 +756,22 @@ async def force_run_capture_round(round_id: int, aggressive: bool = False) -> No
                 round_ = result.scalar_one_or_none()
                 if round_ is None:
                     return
-                # Clear previous results so re-run starts fresh
-                await db.execute(sa_delete(CaptureResultModel).where(CaptureResultModel.capture_round_id == round_id))
+                # Guard: check position active BEFORE clearing any results
+                # (prevents result data loss when position is deactivated mid-flight).
+                if not round_.job_position.is_active:
+                    logger.info(
+                        "force_run_capture_round: skipping round_id=%s — position %s is deactivated",
+                        round_id, round_.job_position_id,
+                    )
+                    return
+                # Clear only non-manual results so re-run starts fresh.
+                # Manual uploads (is_manual=True) are preserved — they represent
+                # client-supplied evidence and must not be discarded on re-run.
+                await db.execute(
+                    sa_delete(CaptureResultModel)
+                    .where(CaptureResultModel.capture_round_id == round_id)
+                    .where(CaptureResultModel.is_manual.is_(False))
+                )
                 round_.status = CaptureStatus.PENDING
                 round_.captured_at = None
                 await db.commit()
@@ -725,6 +786,13 @@ async def force_run_capture_round(round_id: int, aggressive: bool = False) -> No
                     )
                 )
                 round_ = result2.scalar_one()
+                # Belt-and-suspenders: recheck after reload in case deactivation raced.
+                if not round_.job_position.is_active:
+                    logger.info(
+                        "force_run_capture_round: skipping round_id=%s — position %s is deactivated (post-reload)",
+                        round_id, round_.job_position_id,
+                    )
+                    return
                 await _execute_round(db, round_, aggressive_retry=aggressive)
         finally:
             # Release the lock entry if no other task is queued behind this one
@@ -887,8 +955,15 @@ async def _execute_round(
                 db.add(err_result)
             except Exception:
                 pass  # session may be in error state — best-effort only
+        # Extract attrs before commit — async SQLAlchemy expires all ORM attrs on commit.
+        _retry_count = round_.auto_retry_count
+        _active_url_count = len(active_urls)
         round_.status = CaptureStatus.FAILED
         await db.commit()
+        # ── Auto-retry: suppress notifications and re-queue if under limit ──
+        if await _maybe_auto_retry(db, round_, _retry_count, _active_url_count):
+            logger.info("Capture round %s queued for auto-retry after unexpected exception", round_.id)
+            return
         if user_id is not None:
             try:
                 await dispatch_event(
@@ -950,10 +1025,19 @@ async def _execute_round(
 
     # If every attempted URL failed gracefully (no Python exception), the round
     # itself is FAILED. Partial failures (some succeeded, some failed) remain COMPLETED.
+    # Extract attrs before commit — async SQLAlchemy expires all ORM attrs on commit.
+    _retry_count = round_.auto_retry_count
+    _active_url_count = len(active_urls)
     all_urls_failed = bool(snapshots) and len(failed_results) == len(snapshots)
     round_.status = CaptureStatus.FAILED if all_urls_failed else CaptureStatus.COMPLETED
     round_.captured_at = datetime.now(timezone.utc)
     await db.commit()
+
+    # ── Auto-retry: if all URLs failed gracefully, retry once before notifying ─
+    if all_urls_failed:
+        if await _maybe_auto_retry(db, round_, _retry_count, _active_url_count):
+            logger.info("Capture round %s queued for auto-retry after all-URL failure", round_.id)
+            return
 
     # ── Per-URL failure notifications ─────────────────────────────────────────
     # Fire for each failed URL regardless of whether the round is FAILED (all URLs
