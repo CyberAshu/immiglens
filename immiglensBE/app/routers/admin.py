@@ -697,6 +697,15 @@ async def admin_list_problematic_captures(
         .subquery()
     )
 
+    manual_sq = (
+        select(
+            CaptureResult.capture_round_id.label("round_id"),
+            func.bool_or(CaptureResult.is_manual.is_(True)).label("has_manual_uploads"),
+        )
+        .group_by(CaptureResult.capture_round_id)
+        .subquery()
+    )
+
     stmt = (
         select(
             CaptureRound,
@@ -713,6 +722,7 @@ async def admin_list_problematic_captures(
             diag_sq.c.modal_remaining,
             diag_sq.c.modal_actions_clicked,
             diag_sq.c.modal_actions_hidden,
+            func.coalesce(manual_sq.c.has_manual_uploads, False).label("has_manual_uploads"),
         )
         .join(JobPosition, CaptureRound.job_position_id == JobPosition.id)
         .join(Employer, JobPosition.employer_id == Employer.id)
@@ -722,6 +732,7 @@ async def admin_list_problematic_captures(
         .outerjoin(error_sq, CaptureRound.id == error_sq.c.round_id)
         .outerjoin(category_sq, CaptureRound.id == category_sq.c.round_id)
         .outerjoin(diag_sq, CaptureRound.id == diag_sq.c.round_id)
+        .outerjoin(manual_sq, CaptureRound.id == manual_sq.c.round_id)
         .where(
             (CaptureRound.status == CaptureStatus.FAILED)
             | (
@@ -775,6 +786,8 @@ async def admin_list_problematic_captures(
             modal_remaining=bool(modal_remaining),
             modal_actions_clicked=int(modal_actions_clicked or 0),
             modal_actions_hidden=int(modal_actions_hidden or 0),
+            auto_retry_count=round_.auto_retry_count,
+            has_manual_uploads=bool(has_manual_uploads),
         )
         for (
             round_,
@@ -791,6 +804,7 @@ async def admin_list_problematic_captures(
             modal_remaining,
             modal_actions_clicked,
             modal_actions_hidden,
+            has_manual_uploads,
         ) in rows
     ]
 

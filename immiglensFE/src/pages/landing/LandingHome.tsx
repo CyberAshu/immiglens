@@ -11,7 +11,6 @@ import {
   Download,
   Settings,
   Play,
-  User,
   Users,
   Briefcase,
   Building,
@@ -35,170 +34,349 @@ function tierFeatures(tier: SubscriptionTier): string[] {
 }
 
 // ── Hero Mockup — mirrors the real app dashboard ─────────────────────────────
-function HeroMockup() {
-  const stats = [
-    { label: 'Employers',      value: '4',   accent: '#0B1F3B' },
-    { label: 'Job Positions',  value: '8',   accent: '#C8A24A' },
-    { label: 'Job Board URLs', value: '12',  accent: '#1a3352' },
-    { label: 'Rounds Done',    value: '6/8', accent: '#22c55e' },
-    { label: 'Pending',        value: '2',   accent: '#f59e0b' },
-    { label: 'Screenshots',    value: '47',  accent: '#0B1F3B' },
+// ── Tab content panels ────────────────────────────────────────────────────────
+function MockDashboardPanel() {
+  const kpis = [
+    { label: 'Active Employers',  value: '4',   accent: '#0B1F3B', iconBg: 'rgba(11,31,59,0.07)',   sub: 'of 4 total',   icon: '🏢' },
+    { label: 'Active Positions',  value: '8',   accent: '#C8A24A', iconBg: 'rgba(200,162,74,0.1)',  sub: 'of 8 total',   icon: '💼' },
+    { label: 'Active Job Boards', value: '12',  accent: '#1a3352', iconBg: 'rgba(26,51,82,0.08)',   sub: 'of 12 total',  icon: '🌐' },
+    { label: 'Capture Success',   value: '94%', accent: '#22c55e', iconBg: 'rgba(34,197,94,0.09)',  sub: '47 successful', icon: '✅' },
+    { label: 'Pending Rounds',    value: '2',   accent: '#f59e0b', iconBg: 'rgba(245,158,11,0.09)', sub: 'in queue',      icon: '⏱' },
+    { label: 'Screenshots',       value: '47',  accent: '#6366f1', iconBg: 'rgba(99,102,241,0.09)', sub: 'all time',      icon: '📸' },
   ]
-  const sidebarLinks = ['Dashboard','Employers','Organizations','Notifications','Audit Logs']
   const bars = [
-    { name: 'Maple',  done: 100, failed: 13 },
-    { name: 'NorCan', done: 75,  failed: 0  },
-    { name: 'Peak',   done: 63,  failed: 13 },
-    { name: 'Bright', done: 56,  failed: 6  },
+    { name: 'Maple',  ss: 18, failed: 2 },
+    { name: 'NorCan', ss: 14, failed: 0 },
+    { name: 'Peak',   ss: 10, failed: 2 },
+    { name: 'Bright', ss: 5,  failed: 1 },
+  ]
+  const BAR_MAX = 20
+  const timeline = [
+    { c: 2, p: 1, f: 0 }, { c: 3, p: 2, f: 1 }, { c: 4, p: 1, f: 0 },
+    { c: 3, p: 2, f: 1 }, { c: 5, p: 1, f: 0 }, { c: 6, p: 2, f: 1 },
+  ]
+  const TL_MAX = 7
+  return (
+    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 7, padding: '10px 12px', background: '#F6F4EF' }}>
+      {/* Welcome bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#0B1F3B', letterSpacing: '-0.3px', lineHeight: 1.2 }}>Good afternoon, Sarah</div>
+          <div style={{ fontSize: 8.5, color: '#6b7280', marginTop: 1 }}>Sunday, April 27</div>
+        </div>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 8.5, fontWeight: 600, padding: '3px 9px', borderRadius: 99, border: '1px solid rgba(200,162,74,0.4)', background: 'rgba(200,162,74,0.09)', color: '#C8A24A', whiteSpace: 'nowrap' }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#C8A24A', flexShrink: 0 }} />Pro Plan
+        </div>
+      </div>
+
+      {/* Plan card — 3-col grid matching real db-plan-card */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', alignItems: 'center', gap: 10, background: 'linear-gradient(135deg,#0B1F3B 0%,#1a3352 100%)', borderRadius: 10, padding: '8px 11px', position: 'relative', overflow: 'hidden', flexShrink: 0, boxShadow: '0 3px 14px rgba(11,31,59,0.22)' }}>
+        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px)', backgroundSize: '16px 16px', pointerEvents: 'none' }} />
+        {/* Left: plan name */}
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ fontSize: 7, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(255,255,255,0.5)', marginBottom: 1 }}>Current Plan</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: '-0.4px', lineHeight: 1.1 }}>Pro</div>
+          <div style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.7)', marginTop: 1 }}>$79<span style={{ fontSize: 7, fontWeight: 400 }}>/mo</span></div>
+          <div style={{ display: 'flex', gap: 4, marginTop: 3 }}>
+            {['25 positions', 'Daily'].map(p => (
+              <span key={p} style={{ fontSize: 7, fontWeight: 600, color: 'rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 4, padding: '1px 5px', whiteSpace: 'nowrap' }}>{p}</span>
+            ))}
+          </div>
+        </div>
+        {/* Center: dark glassy usage panel */}
+        <div style={{ position: 'relative', zIndex: 1, background: 'rgba(0,0,0,0.18)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {[{ label: 'Active Positions', used: 8, max: 25 }, { label: 'Captures / Month', used: 47, max: 50 }].map(({ label, used, max }) => {
+            const pct = Math.round(used / max * 100)
+            const color = pct >= 90 ? '#dc2626' : pct >= 70 ? '#d97706' : '#22c55e'
+            return (
+              <div key={label}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                  <span style={{ fontSize: 7.5, color: 'rgba(255,255,255,0.58)', fontWeight: 500 }}>{label}</span>
+                  <span style={{ fontSize: 7.5, fontWeight: 700, color }}>{used}/{max}</span>
+                </div>
+                <div style={{ height: 3, background: 'rgba(255,255,255,0.12)', borderRadius: 2, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 2 }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        {/* Right: CTA */}
+        <div style={{ position: 'relative', zIndex: 1, flexShrink: 0 }}>
+          <div style={{ fontSize: 7.5, fontWeight: 600, color: '#fff', background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 6, padding: '5px 9px', whiteSpace: 'nowrap' }}>Manage Plan</div>
+        </div>
+      </div>
+
+      {/* KPI grid — icon badge + value + uppercase label + sub */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5, flexShrink: 0 }}>
+        {kpis.map(k => (
+          <div key={k.label} style={{ background: '#fff', borderRadius: 8, padding: '6px 8px 5px', border: '1px solid #e5e7eb', borderBottom: `3px solid ${k.accent}`, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 5 }}>
+              <div style={{ width: 20, height: 20, borderRadius: 5, background: k.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>{k.icon}</div>
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: k.accent, lineHeight: 1, letterSpacing: '-0.5px' }}>{k.value}</div>
+            <div style={{ fontSize: 7, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>{k.label}</div>
+            <div style={{ fontSize: 7, color: '#9ca3af', marginTop: 1 }}>{k.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Charts row — donut (fixed) + bar chart (grow) matching db-charts-row */}
+      <div style={{ display: 'flex', gap: 5, flex: 1, minHeight: 0 }}>
+        {/* Donut — capture status */}
+        <div style={{ width: 106, background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb', padding: '7px 9px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+          <div style={{ fontSize: 7, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#374151', paddingBottom: 4, borderBottom: '1px solid #f1f5f9', marginBottom: 5 }}>Capture Status</div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="62" height="62" viewBox="0 0 62 62">
+              <circle cx="31" cy="31" r="22" fill="none" stroke="#f3f4f6" strokeWidth="9"/>
+              <circle cx="31" cy="31" r="22" fill="none" stroke="#22c55e" strokeWidth="9" strokeDasharray="83 55" transform="rotate(-90 31 31)"/>
+              <circle cx="31" cy="31" r="22" fill="none" stroke="#C8A24A" strokeWidth="9" strokeDasharray="22 116" strokeDashoffset="-83" transform="rotate(-90 31 31)"/>
+              <circle cx="31" cy="31" r="22" fill="none" stroke="#ef4444" strokeWidth="9" strokeDasharray="8 130" strokeDashoffset="-105" transform="rotate(-90 31 31)"/>
+              <text x="31" y="35" textAnchor="middle" fill="#0B1F3B" fontSize="11" fontWeight="700">47</text>
+            </svg>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {[{ c: '#22c55e', l: 'Done 60%' }, { c: '#C8A24A', l: 'Pending 16%' }, { c: '#ef4444', l: 'Failed 6%' }].map(x => (
+              <div key={x.l} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 7.5, color: '#6b7280' }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: x.c, flexShrink: 0 }} />{x.l}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Bar chart — screenshots by employer */}
+        <div style={{ flex: 1, background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb', padding: '7px 9px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <div style={{ fontSize: 7, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#374151', paddingBottom: 4, borderBottom: '1px solid #f1f5f9', marginBottom: 5, display: 'flex', justifyContent: 'space-between' }}>
+            <span>Screenshots by Employer</span>
+            <span style={{ fontWeight: 400, color: '#9ca3af', textTransform: 'none', letterSpacing: 0 }}>4 employers</span>
+          </div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: 5, padding: '0 2px' }}>
+            {bars.map(d => (
+              <div key={d.name} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                <div style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 2, height: 42 }}>
+                  <div style={{ width: 7, height: `${Math.round(d.ss / BAR_MAX * 42)}px`, background: '#22c55e', borderRadius: '2px 2px 0 0', minHeight: 2 }} />
+                  {d.failed > 0 && <div style={{ width: 7, height: `${Math.round(d.failed / BAR_MAX * 42)}px`, background: '#ef4444', borderRadius: '2px 2px 0 0', minHeight: 2 }} />}
+                </div>
+                <div style={{ fontSize: 7, color: '#9ca3af', marginTop: 2 }}>{d.name}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 7, marginTop: 5, paddingTop: 4, borderTop: '1px solid #f3f4f6' }}>
+            {[{ c: '#22c55e', l: 'Successful' }, { c: '#ef4444', l: 'Failed' }, { c: '#0B1F3B', l: 'Positions' }].map(x => (
+              <div key={x.l} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 7, color: '#6b7280' }}>
+                <div style={{ width: 6, height: 6, borderRadius: 2, background: x.c }} />{x.l}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Area chart — rounds timeline */}
+        <div style={{ flex: 1, background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb', padding: '7px 9px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <div style={{ fontSize: 7, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#374151', paddingBottom: 4, borderBottom: '1px solid #f1f5f9', marginBottom: 5 }}>Rounds Timeline</div>
+          <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+            <svg width="100%" height="100%" viewBox="0 0 100 40" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="hm-gc" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#22c55e" stopOpacity="0.25"/><stop offset="100%" stopColor="#22c55e" stopOpacity="0"/></linearGradient>
+                <linearGradient id="hm-gp" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#C8A24A" stopOpacity="0.2"/><stop offset="100%" stopColor="#C8A24A" stopOpacity="0"/></linearGradient>
+                <linearGradient id="hm-gf" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#ef4444" stopOpacity="0.2"/><stop offset="100%" stopColor="#ef4444" stopOpacity="0"/></linearGradient>
+              </defs>
+              {[10,20,30,40].map(y => <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="#f3f4f6" strokeWidth="0.5"/>)}
+              <polygon points={`0,40 ${timeline.map((t,i)=>`${(i/(timeline.length-1))*100},${40-(t.c/TL_MAX)*36}`).join(' ')} 100,40`} fill="url(#hm-gc)"/>
+              <polyline points={timeline.map((t,i)=>`${(i/(timeline.length-1))*100},${40-(t.c/TL_MAX)*36}`).join(' ')} fill="none" stroke="#22c55e" strokeWidth="1.5" strokeLinejoin="round"/>
+              <polygon points={`0,40 ${timeline.map((t,i)=>`${(i/(timeline.length-1))*100},${40-(t.p/TL_MAX)*36}`).join(' ')} 100,40`} fill="url(#hm-gp)"/>
+              <polyline points={timeline.map((t,i)=>`${(i/(timeline.length-1))*100},${40-(t.p/TL_MAX)*36}`).join(' ')} fill="none" stroke="#C8A24A" strokeWidth="1.2" strokeLinejoin="round" strokeDasharray="2 1"/>
+              <polygon points={`0,40 ${timeline.map((t,i)=>`${(i/(timeline.length-1))*100},${40-(t.f/TL_MAX)*36}`).join(' ')} 100,40`} fill="url(#hm-gf)"/>
+              <polyline points={timeline.map((t,i)=>`${(i/(timeline.length-1))*100},${40-(t.f/TL_MAX)*36}`).join(' ')} fill="none" stroke="#ef4444" strokeWidth="1.2" strokeLinejoin="round" strokeDasharray="2 1"/>
+            </svg>
+          </div>
+          <div style={{ display: 'flex', gap: 7, marginTop: 5, paddingTop: 4, borderTop: '1px solid #f3f4f6' }}>
+            {[{ c: '#22c55e', l: 'Completed' }, { c: '#C8A24A', l: 'Pending' }, { c: '#ef4444', l: 'Failed' }].map(x => (
+              <div key={x.l} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 7, color: '#6b7280' }}>
+                <div style={{ width: 6, height: 6, borderRadius: 2, background: x.c }} />{x.l}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MockEmployersPanel() {
+  const employers = [
+    { name: 'Maple Staffing Inc.',      positions: 3, boards: 5, pct: 100 },
+    { name: 'NorCan Recruitment',       positions: 2, boards: 3, pct: 93  },
+    { name: 'Peak Workforce Solutions', positions: 2, boards: 3, pct: 67  },
+    { name: 'Brightpath HR',            positions: 1, boards: 1, pct: 83  },
+  ]
+  return (
+    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '10px 12px', gap: 8, background: '#F6F4EF' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#0B1F3B', letterSpacing: '-0.3px' }}>Employers</div>
+          <div style={{ fontSize: 8.5, color: '#6b7280', marginTop: 1 }}>Manage your employer profiles</div>
+        </div>
+        <div style={{ fontSize: 9, fontWeight: 600, padding: '4px 10px', borderRadius: 7, background: '#0B1F3B', color: '#C8A24A', cursor: 'pointer' }}>+ Add Employer</div>
+      </div>
+      <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)', flex: 1 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 52px 56px 56px', padding: '5px 12px', borderBottom: '1px solid #f3f4f6', background: '#f9fafb' }}>
+          {['Employer', 'Pos.', 'Boards', 'Success'].map(h => (
+            <div key={h} style={{ fontSize: 7.5, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</div>
+          ))}
+        </div>
+        {employers.map((e, i) => (
+          <div key={e.name} style={{ display: 'grid', gridTemplateColumns: '1fr 52px 56px 56px', padding: '7px 12px', borderBottom: i < employers.length - 1 ? '1px solid #f3f4f6' : 'none', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <div style={{ width: 24, height: 24, borderRadius: 7, background: '#0B1F3B', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: 9, fontWeight: 700, color: '#C8A24A' }}>{e.name[0]}</span>
+              </div>
+              <div style={{ fontSize: 9.5, fontWeight: 600, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.name}</div>
+            </div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: '#374151' }}>{e.positions}</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: '#374151' }}>{e.boards}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ flex: 1, height: 4, background: '#f3f4f6', borderRadius: 99, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${e.pct}%`, background: e.pct >= 90 ? '#22c55e' : e.pct >= 70 ? '#f59e0b' : '#ef4444', borderRadius: 99 }} />
+              </div>
+              <span style={{ fontSize: 7.5, fontWeight: 600, color: '#6b7280', flexShrink: 0 }}>{e.pct}%</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function MockActivityPanel() {
+  const logs = [
+    { action: 'CAPTURE_TRIGGERED', user: 'sarah@techtalent.ca',  resource: 'Round #48',      time: '09:14', c: '#22c55e' },
+    { action: 'EMPLOYER_UPDATED',  user: 'sarah@techtalent.ca',  resource: 'Maple Staffing', time: '09:02', c: '#C8A24A' },
+    { action: 'POSITION_CREATED',  user: 'sarah@techtalent.ca',  resource: 'DevOps Lead',    time: '08:55', c: '#C8A24A' },
+    { action: 'MANUAL_UPLOAD',     user: 'sarah@techtalent.ca',  resource: 'Round #47',      time: '08:30', c: '#22c55e' },
+    { action: 'USER_LOGIN',        user: 'sarah@techtalent.ca',  resource: '—',              time: '08:15', c: '#6366f1' },
+  ]
+  return (
+    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '10px 12px', gap: 8, background: '#F6F4EF' }}>
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 700, color: '#0B1F3B', letterSpacing: '-0.3px' }}>Activity Log</div>
+        <div style={{ fontSize: 8.5, color: '#6b7280', marginTop: 1 }}>All account events</div>
+      </div>
+      <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', flex: 1 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 74px 36px', padding: '5px 12px', borderBottom: '1px solid #f3f4f6', background: '#f9fafb' }}>
+          {['Action', 'User', 'Resource', 'Time'].map(h => (
+            <div key={h} style={{ fontSize: 7.5, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</div>
+          ))}
+        </div>
+        {logs.map((l, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 74px 36px', padding: '7px 12px', borderBottom: i < logs.length - 1 ? '1px solid #f3f4f6' : 'none', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: l.c, flexShrink: 0 }} />
+              <div style={{ fontSize: 8.5, fontWeight: 600, color: '#1E2329', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.action}</div>
+            </div>
+            <div style={{ fontSize: 7.5, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.user}</div>
+            <div style={{ fontSize: 7.5, color: '#374151' }}>{l.resource}</div>
+            <div style={{ fontSize: 7.5, color: '#9ca3af' }}>{l.time}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Hero Mockup shell ─────────────────────────────────────────────────────────
+function HeroMockup() {
+  const [activeTab, setActiveTab] = useState<'Dashboard' | 'Employers' | 'Activity Log'>('Dashboard')
+
+  // matches real Layout.tsx sidebar — white bg, dark text, lucide-style icon squares
+  const navLinks: { id: 'Dashboard' | 'Employers' | 'Activity Log'; label: string }[] = [
+    { id: 'Dashboard',    label: 'Dashboard'    },
+    { id: 'Employers',    label: 'Employers'    },
+    { id: 'Activity Log', label: 'Activity Log' },
   ]
 
   return (
     <div className="relative w-full max-w-2xl mx-auto xl:max-w-none">
       {/* Glow backdrop */}
-      <div className="absolute inset-0 bg-gradient-to-tr from-brand-gold/20 to-brand-navy/5 rounded-3xl transform rotate-3 scale-105 z-0 pointer-events-none transition-transform duration-700" />
+      <div className="absolute inset-0 bg-gradient-to-tr from-brand-gold/20 to-brand-navy/5 rounded-3xl transform rotate-3 scale-105 z-0 pointer-events-none" />
 
       {/* Shell */}
-      <div className="relative z-10 rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col select-none"
+      <div className="relative z-10 rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col select-none"
         style={{ height: 490, background: '#F6F4EF' }}>
 
-        {/* ── Navbar ── */}
-        <div className="flex items-center justify-between flex-shrink-0 px-5"
-          style={{ height: 52, background: '#0B1F3B', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center flex-shrink-0"
-              style={{ width: 30, height: 30, borderRadius: 9, background: 'linear-gradient(135deg,#C8A24A,#e0b95a)', boxShadow: '0 2px 8px rgba(200,162,74,0.35)' }}>
-              <Shield size={14} color="#fff" strokeWidth={2.5} />
+        {/* ── Navbar — #061629, gold border-bottom, profile initials ── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', height: 48, background: '#061629', borderBottom: '1px solid rgba(200,162,74,0.2)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 26, height: 26, borderRadius: 7, background: 'linear-gradient(135deg,#C8A24A,#e0b95a)', boxShadow: '0 2px 6px rgba(200,162,74,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Shield size={12} color="#fff" strokeWidth={2.5} />
             </div>
-            <span style={{ fontWeight: 800, color: '#fff', fontSize: 13, letterSpacing: '-0.4px' }}>ImmigLens</span>
+            <span style={{ fontWeight: 800, color: '#fff', fontSize: 12, letterSpacing: '-0.3px' }}>ImmigLens</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5" style={{ color: 'rgba(255,255,255,0.82)', fontSize: 11 }}>
-              <div className="flex items-center justify-center"
-                style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(200,162,74,0.2)', border: '1px solid rgba(200,162,74,0.4)' }}>
-                <User size={11} color="#C8A24A" />
-              </div>
-              Sarah Chen
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Bell icon */}
+            <div style={{ width: 26, height: 26, borderRadius: 6, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Bell size={11} color="rgba(255,255,255,0.6)" strokeWidth={2} />
             </div>
-            <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)' }} />
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 5, padding: '3px 8px' }}>Logout</div>
+            <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.12)' }} />
+            {/* Profile button with initials */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 7px', borderRadius: 6, cursor: 'pointer' }}>
+              <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(200,162,74,0.2)', border: '1px solid rgba(200,162,74,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: '#C8A24A', flexShrink: 0 }}>SC</div>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)', fontWeight: 500 }}>Sarah Chen</span>
+              <svg width="10" height="10" viewBox="0 0 10 10" style={{ color: 'rgba(255,255,255,0.4)' }}><polyline points="2,3.5 5,6.5 8,3.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
           </div>
         </div>
 
         {/* ── Body ── */}
-        <div className="flex flex-1 overflow-hidden">
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-          {/* Sidebar */}
-          <div className="flex flex-col flex-shrink-0 py-4 px-2.5"
-            style={{ width: 152, background: '#0B1F3B', borderRight: '1px solid rgba(255,255,255,0.07)' }}>
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)', padding: '0 8px', marginBottom: 6 }}>Navigation</div>
-            {sidebarLinks.map((label, i) => (
-              <div key={label} className="relative flex items-center gap-2 rounded-lg" style={{
-                padding: '7px 10px', marginBottom: 2,
-                background: i === 0 ? 'rgba(200,162,74,0.14)' : 'transparent',
-                color: i === 0 ? '#d4aa55' : 'rgba(255,255,255,0.42)',
-                fontSize: 11, fontWeight: i === 0 ? 600 : 500,
-              }}>
-                {i === 0 && <div style={{ position: 'absolute', left: 0, top: '20%', bottom: '20%', width: 3, background: '#C8A24A', borderRadius: '0 3px 3px 0' }} />}
-                <div style={{ width: 14, height: 14, borderRadius: 4, background: i === 0 ? 'rgba(200,162,74,0.25)' : 'rgba(255,255,255,0.06)', flexShrink: 0 }} />
-                {label}
-              </div>
-            ))}
-            <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '8px 6px' }} />
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.28)', padding: '0 8px', marginBottom: 6 }}>Account</div>
-            <div className="flex items-center gap-2 rounded-lg" style={{ padding: '7px 10px', color: 'rgba(255,255,255,0.38)', fontSize: 11 }}>
-              <div style={{ width: 14, height: 14, borderRadius: 4, background: 'rgba(255,255,255,0.06)', flexShrink: 0 }} />
-              My Plan
+          {/* Sidebar — WHITE, 130px, dark text, matches real .sidebar */}
+          <div style={{ width: 130, minWidth: 130, background: '#ffffff', borderRight: '1px solid rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', padding: '10px 7px', gap: 0 }}>
+            <div style={{ fontSize: 7.5, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'rgba(30,35,41,0.35)', padding: '0 8px', marginBottom: 4 }}>Navigation</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {navLinks.map(({ id, label }) => {
+                const active = id === activeTab
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setActiveTab(id)}
+                    style={{
+                      all: 'unset', position: 'relative', display: 'flex', alignItems: 'center', gap: 6,
+                      borderRadius: 7, padding: '5px 8px', boxSizing: 'border-box', width: '100%',
+                      background: active ? 'rgba(200,162,74,0.14)' : 'transparent',
+                      color: active ? '#1E2329' : '#1E2329',
+                      fontSize: 10, fontWeight: active ? 600 : 500,
+                      cursor: 'pointer', transition: 'background 0.15s',
+                      opacity: active ? 1 : 0.6,
+                    }}
+                  >
+                    {active && <div style={{ position: 'absolute', left: 0, top: '20%', height: '60%', width: 3, background: '#C8A24A', borderRadius: '0 3px 3px 0' }} />}
+                    {/* Icon square */}
+                    <div style={{ width: 14, height: 14, borderRadius: 4, background: active ? 'rgba(200,162,74,0.2)' : 'rgba(30,35,41,0.07)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {id === 'Dashboard'    && <svg width="8" height="8" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/></svg>}
+                      {id === 'Employers'    && <svg width="8" height="8" viewBox="0 0 16 16" fill="none"><rect x="2" y="7" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><path d="M5 7V4a3 3 0 016 0v3" stroke="currentColor" strokeWidth="1.5"/></svg>}
+                      {id === 'Activity Log' && <svg width="8" height="8" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/><line x1="5" y1="6" x2="11" y2="6" stroke="currentColor" strokeWidth="1.2"/><line x1="5" y1="9" x2="11" y2="9" stroke="currentColor" strokeWidth="1.2"/></svg>}
+                    </div>
+                    {label}
+                  </button>
+                )
+              })}
             </div>
-          </div>
-
-          {/* Main content */}
-          <div className="flex-1 overflow-hidden flex flex-col gap-3 p-4" style={{ background: '#F6F4EF' }}>
-
-            {/* Page title */}
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#0B1F3B', lineHeight: 1 }}>Dashboard</div>
-
-            {/* Plan strip */}
-            <div className="flex items-center gap-3 flex-shrink-0" style={{
-              background: '#fff', border: '1px solid #e5e7eb', borderLeft: '3px solid #C8A24A',
-              borderRadius: 10, padding: '7px 14px', fontSize: 10,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-            }}>
-              <div className="flex items-center gap-1.5">
-                <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#C8A24A' }} />
-                <span style={{ fontWeight: 700, color: '#0B1F3B', fontSize: 11 }}>Pro Plan</span>
-              </div>
-              <div style={{ width: 1, height: 14, background: '#e5e7eb' }} />
-              <span style={{ color: '#6b7280' }}>Employers <strong style={{ color: '#0B1F3B' }}>4/10</strong></span>
-              <span style={{ color: '#6b7280' }}>Captures <strong style={{ color: '#0B1F3B' }}>47/50</strong></span>
-              <span style={{ color: '#6b7280' }}>Positions <strong style={{ color: '#0B1F3B' }}>8</strong></span>
-              <span style={{ color: '#C8A24A', fontWeight: 600, marginLeft: 'auto', fontSize: 10 }}>View Plan →</span>
-            </div>
-
-            {/* Stat cards */}
-            <div className="grid grid-cols-3 gap-2 flex-shrink-0">
-              {stats.map(s => (
-                <div key={s.label} style={{
-                  background: '#fff', borderRadius: 10, padding: '8px 12px',
-                  border: '1px solid #e5e7eb', borderTop: `3px solid ${s.accent}`,
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-                }}>
-                  <div style={{ fontSize: 9, color: '#9ca3af', fontWeight: 600, marginBottom: 3 }}>{s.label}</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: s.accent, lineHeight: 1 }}>{s.value}</div>
+            <div style={{ height: 1, background: 'rgba(0,0,0,0.07)', margin: '8px 4px' }} />
+            <div style={{ fontSize: 7.5, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'rgba(30,35,41,0.35)', padding: '0 8px', marginBottom: 4 }}>Account</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {[{ label: 'My Plan' }, { label: 'My Account' }].map(({ label }) => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 7, color: '#1E2329', fontSize: 10, fontWeight: 500, opacity: 0.5 }}>
+                  <div style={{ width: 14, height: 14, borderRadius: 4, background: 'rgba(30,35,41,0.07)', flexShrink: 0 }} />
+                  {label}
                 </div>
               ))}
             </div>
-
-            {/* Charts */}
-            <div className="flex gap-2" style={{ flex: 1, minHeight: 0 }}>
-
-              {/* Donut */}
-              <div style={{ width: 120, background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9ca3af', marginBottom: 6 }}>Capture Status</div>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="72" height="72" viewBox="0 0 70 70">
-                    <circle cx="35" cy="35" r="25" fill="none" stroke="#f3f4f6" strokeWidth="10"/>
-                    <circle cx="35" cy="35" r="25" fill="none" stroke="#22c55e" strokeWidth="10"
-                      strokeDasharray="94 63" transform="rotate(-90 35 35)"/>
-                    <circle cx="35" cy="35" r="25" fill="none" stroke="#C8A24A" strokeWidth="10"
-                      strokeDasharray="25 132" strokeDashoffset="-94" transform="rotate(-90 35 35)"/>
-                    <circle cx="35" cy="35" r="25" fill="none" stroke="#ef4444" strokeWidth="10"
-                      strokeDasharray="10 147" strokeDashoffset="-119" transform="rotate(-90 35 35)"/>
-                    <text x="35" y="39" textAnchor="middle" fill="#0B1F3B" fontSize="12" fontWeight="700">47</text>
-                  </svg>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {[{ c: '#22c55e', l: 'Done 60%' }, { c: '#C8A24A', l: 'Pending 16%' }, { c: '#ef4444', l: 'Failed 6%' }].map(x => (
-                    <div key={x.l} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#6b7280' }}>
-                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: x.c, flexShrink: 0 }} />{x.l}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Bar chart */}
-              <div style={{ flex: 1, background: '#fff', borderRadius: 10, border: '1px solid #e5e7eb', padding: '10px 12px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9ca3af', marginBottom: 8 }}>Screenshots by Employer</div>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', gap: 8, padding: '0 4px' }}>
-                  {bars.map(d => (
-                    <div key={d.name} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                      <div style={{ width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 2 }}>
-                        <div style={{ width: 9, height: `${d.done}px`, background: '#22c55e', borderRadius: '3px 3px 0 0' }} />
-                        {d.failed > 0 && <div style={{ width: 9, height: `${d.failed}px`, background: '#ef4444', borderRadius: '3px 3px 0 0' }} />}
-                      </div>
-                      <div style={{ fontSize: 8, color: '#9ca3af', marginTop: 3 }}>{d.name}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', gap: 10, marginTop: 8, paddingTop: 6, borderTop: '1px solid #f3f4f6' }}>
-                  {[{ c: '#22c55e', l: 'Successful' }, { c: '#ef4444', l: 'Failed' }].map(x => (
-                    <div key={x.l} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#6b7280' }}>
-                      <div style={{ width: 8, height: 8, borderRadius: 2, background: x.c }} />{x.l}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
           </div>
+
+          {/* Main content area — switches per tab */}
+          {activeTab === 'Dashboard'    && <MockDashboardPanel />}
+          {activeTab === 'Employers'    && <MockEmployersPanel />}
+          {activeTab === 'Activity Log' && <MockActivityPanel />}
         </div>
       </div>
     </div>
@@ -237,7 +415,7 @@ export function LandingHome() {
                 <span className="w-2 h-2 rounded-full bg-brand-gold animate-pulse" />
                 LMIA Recruitment Proof Automated
               </div>
-              <h1 className="text-5xl lg:text-6xl font-extrabold text-brand-navy leading-[1.1] mb-6 tracking-tight">
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-brand-navy leading-[1.1] mb-6 tracking-tight">
                 No more manual screenshots.{' '}
                 <span className="text-brand-gold">We capture your recruitment proof automatically.</span>
               </h1>
@@ -249,13 +427,13 @@ export function LandingHome() {
               <div className="flex flex-col sm:flex-row gap-4 mb-4">
                 <Link
                   to="/register"
-                  className="bg-brand-gold hover:bg-[#b38e3c] text-white px-8 py-4 rounded-xl font-semibold shadow-lg shadow-brand-gold/20 transition-all text-lg flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto bg-brand-gold hover:bg-[#b38e3c] text-white px-8 py-4 rounded-xl font-semibold shadow-lg shadow-brand-gold/20 transition-all text-lg flex items-center justify-center gap-2"
                 >
                   Get Started <ArrowRight size={20} />
                 </Link>
                 <button
                   onClick={() => setDemoOpen(true)}
-                  className="bg-white hover:bg-gray-50 text-brand-navy border-2 border-brand-navy px-8 py-4 rounded-xl font-semibold shadow-sm transition-all text-lg flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto bg-white hover:bg-gray-50 text-brand-navy border-2 border-brand-navy px-8 py-4 rounded-xl font-semibold shadow-sm transition-all text-lg flex items-center justify-center gap-2"
                 >
                   <Play size={18} strokeWidth={2.5} /> Watch Demo
                 </button>
@@ -284,8 +462,18 @@ export function LandingHome() {
             </div>
 
             {/* Right – Hero Mockup */}
-            <div className="relative lg:h-[600px] flex items-center justify-center lg:justify-end perspective-1000">
-              <HeroMockup />
+            {/* overflow-x-hidden clips the scale transform's horizontal bleed on small screens */}
+            <div className="relative lg:h-[600px] flex items-center justify-center lg:justify-end perspective-1000 overflow-x-hidden lg:overflow-x-visible mt-8 lg:mt-0">
+              {/* Scale the fixed-px mockup proportionally on smaller screens.
+                  Negative margin-bottom compensates for the layout gap left by the scale transform:
+                  -mb = height × (1 − scale) so the container collapses to the visual height. */}
+              <div className="w-full [transform-origin:top_center]
+                              scale-[0.72] -mb-[137px]
+                              sm:scale-[0.86] sm:-mb-[69px]
+                              md:scale-[0.93] md:-mb-[34px]
+                              lg:scale-100 lg:mb-0">
+                <HeroMockup />
+              </div>
             </div>
           </div>
         </div>

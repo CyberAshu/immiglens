@@ -27,6 +27,7 @@ class CaptureResultOut(BaseModel):
     modal_remaining: Optional[bool] = None
     modal_actions_clicked: Optional[int] = None
     modal_actions_hidden: Optional[int] = None
+    is_manual: bool = False
 
 
 class CaptureRoundOut(BaseModel):

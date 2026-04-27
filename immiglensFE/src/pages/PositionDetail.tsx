@@ -30,6 +30,7 @@ export default function PositionDetail() {
   const [runningRound, setRunningRound] = useState<number | null>(null)
   const [recapturingResult, setRecapturingResult] = useState<Set<number>>(new Set())
   const [retryInfoByRound, setRetryInfoByRound] = useState<Record<number, { count: number; lastAt: string }>>({})
+  const [uploadingScreenshot, setUploadingScreenshot] = useState<Set<number>>(new Set()) // keyed by job_url_id
   const [uploadingDoc, setUploadingDoc] = useState(false)
   const [uploadingJobMatch, setUploadingJobMatch] = useState(false)
   const [generatingReport, setGeneratingReport] = useState(false)
@@ -151,6 +152,21 @@ export default function PositionDetail() {
       setError(err instanceof Error ? err.message : 'Recapture failed.')
     } finally {
       setRecapturingResult(prev => { const s = new Set(prev); s.delete(resultId); return s })
+    }
+  }
+
+  async function handleManualUpload(roundId: number, jobUrlId: number, file: File) {
+    setUploadingScreenshot(prev => new Set(prev).add(jobUrlId))
+    setError(null)
+    try {
+      await capturesApi.manualUpload(eId, pId, roundId, jobUrlId, file)
+      showToast('Screenshot uploaded successfully', 'success')
+      const refreshed = await capturesApi.list(eId, pId)
+      setRounds(refreshed)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Upload failed.')
+    } finally {
+      setUploadingScreenshot(prev => { const s = new Set(prev); s.delete(jobUrlId); return s })
     }
   }
 
@@ -495,6 +511,8 @@ export default function PositionDetail() {
                 recapturing={recapturingResult}
                 allowCapture={position.is_active && round.id === firstPendingId}
                 retryInfo={retryInfoByRound[round.id]}
+                onManualUpload={handleManualUpload}
+                uploading={uploadingScreenshot}
               />
             ))}
           </div>

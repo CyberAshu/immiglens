@@ -40,6 +40,7 @@ class CaptureRound(Base):
         default=CaptureStatus.PENDING,
         index=True,
     )
+    auto_retry_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -81,6 +82,7 @@ class CaptureResult(Base):
     modal_remaining: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     modal_actions_clicked: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     modal_actions_hidden: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    is_manual: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     capture_round: Mapped["CaptureRound"] = relationship(back_populates="results")
     job_url: Mapped["JobUrl"] = relationship(back_populates="capture_results")

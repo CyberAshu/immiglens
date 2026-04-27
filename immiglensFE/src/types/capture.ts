@@ -7,6 +7,7 @@ export interface CaptureResult {
   page_pdf_url: string | null
   error: string | null
   duration_ms: number | null
+  is_manual: boolean
 }
 
 export interface CaptureRound {

@@ -330,12 +330,13 @@ export default function ReportPreview() {
           <div className="rp-gen-sub">{position.job_title} · NOC {position.noc_code}</div>
         )}
         <div className="rp-gen-hint">{phase.message}</div>
-        <button className="rp-btn-primary" style={{ marginTop: '1.5rem' }} onClick={handleGenerate}>
-          Retry
-        </button>
+        <div className="rp-gen-hint" style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          If a capture recently failed, the system will retry it automatically. Please check back shortly or contact support if the issue persists.
+        </div>
         <Link
           to={`/employers/${eId}/positions/${pId}`}
           className="rp-gen-back"
+          style={{ marginTop: '1.5rem' }}
         >
           ← Back to Position
         </Link>
