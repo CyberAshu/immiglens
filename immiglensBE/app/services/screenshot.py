@@ -127,7 +127,7 @@ _COMMON_CLOSE_SELECTORS: tuple[str, ...] = (
 
 
 def _proxy_session_token(attempt: int) -> str:
-    return f"a{attempt}-{int(time.time() * 1000)}"
+    return f"{attempt}{int(time.time() * 1000)}"
 
 
 def _build_proxy_config(session_token: str) -> dict[str, str] | None:
