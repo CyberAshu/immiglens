@@ -8,8 +8,8 @@ engine = create_async_engine(
     echo=False,
     pool_pre_ping=True,        # test connection health before use; discards closed connections
     pool_recycle=1800,         # recycle connections after 30 min to beat server-side idle timeouts
-    pool_size=10,
-    max_overflow=20,
+    pool_size=3,
+    max_overflow=5,
     connect_args={"statement_cache_size": 0},
 )
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
