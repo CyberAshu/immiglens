@@ -71,10 +71,14 @@ def do_run_migrations(connection):
 
 async def run_async_migrations() -> None:
     """Create an async engine, obtain a connection, run migrations."""
+    # Supabase: the app uses the PgBouncer transaction pooler (port 6543) which is
+    # incompatible with asyncpg for DDL/migrations.  Switch to the session pooler
+    # (port 5432) which behaves like a direct connection and supports asyncpg fine.
+    migration_url = settings.DATABASE_URL.replace(":6543/", ":5432/")
     engine = create_async_engine(
-        settings.DATABASE_URL,
+        migration_url,
         echo=False,
-        poolclass=NullPool,  # no pool needed for a one-shot CLI run; avoids stale-connection errors
+        poolclass=NullPool,  # no pool needed for a one-shot CLI run
         connect_args={"statement_cache_size": 0},
     )
     async with engine.begin() as conn:
