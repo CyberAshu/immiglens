@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Optional
@@ -10,6 +11,9 @@ from playwright._impl._errors import TargetClosedError
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Close the browser after this many seconds of no active captures.
+BROWSER_IDLE_TIMEOUT = 300  # 5 minutes
 
 
 @dataclass(frozen=True)
@@ -57,6 +61,9 @@ class BrowserManager:
         self._browser: Optional[Browser] = None
         self._semaphore = asyncio.Semaphore(settings.MAX_CONCURRENT_SCREENSHOTS)
         self._lock = asyncio.Lock()
+        self._active_pages: int = 0
+        self._last_active: float = time.monotonic()
+        self._idle_task: Optional[asyncio.Task] = None
 
     def _on_disconnected(self) -> None:
         logger.warning("Chromium browser disconnected — will relaunch on next capture.")
@@ -85,10 +92,34 @@ class BrowserManager:
             self._browser.on("disconnected", lambda _: self._on_disconnected())
             return self._browser
 
+    async def _idle_watcher(self) -> None:
+        """Close the browser after BROWSER_IDLE_TIMEOUT seconds of inactivity."""
+        while True:
+            await asyncio.sleep(60)  # check every minute
+            if self._browser is None or not self._browser.is_connected():
+                continue
+            if self._active_pages > 0:
+                continue
+            idle_secs = time.monotonic() - self._last_active
+            if idle_secs >= BROWSER_IDLE_TIMEOUT:
+                logger.info("Browser idle for %.0f s — closing to free memory.", idle_secs)
+                async with self._lock:
+                    if self._browser and self._active_pages == 0:
+                        try:
+                            await self._browser.close()
+                        except Exception:
+                            pass
+                        self._browser = None
+                        # Keep _playwright alive so relaunch is fast (avoids node restart)
+
     async def start(self) -> None:
-        await self._ensure_browser()
+        """Start the idle watcher; the browser is launched lazily on first acquire_page()."""
+        self._idle_task = asyncio.create_task(self._idle_watcher())
 
     async def stop(self) -> None:
+        if self._idle_task:
+            self._idle_task.cancel()
+            self._idle_task = None
         if self._browser:
             try:
                 await self._browser.close()
@@ -106,37 +137,50 @@ class BrowserManager:
     async def acquire_page(self, options: CaptureContextOptions | None = None):
         async with self._semaphore:
             opts = options or DEFAULT_CONTEXT_OPTIONS
-            for attempt in range(2):
-                try:
-                    browser = await self._ensure_browser()
-                    context = await browser.new_context(
-                        viewport={"width": opts.viewport_width, "height": opts.viewport_height},
-                        user_agent=opts.user_agent,
-                        locale=opts.locale,
-                        timezone_id=opts.timezone_id,
-                        extra_http_headers=opts.extra_headers,
-                        proxy=opts.proxy,
-                    )
-                    if opts.stealth:
-                        await context.add_init_script(STEALTH_INIT_SCRIPT)
-                    page = await context.new_page()
-                    break
-                except TargetClosedError:
-                    logger.warning("Browser closed during page creation — forcing relaunch (attempt %d).", attempt + 1)
-                    self._browser = None
-                    if attempt == 1:
-                        raise
+            self._active_pages += 1
+            context = None
+            page = None
             try:
+                for attempt in range(2):
+                    try:
+                        browser = await self._ensure_browser()
+                        context = await browser.new_context(
+                            viewport={"width": opts.viewport_width, "height": opts.viewport_height},
+                            user_agent=opts.user_agent,
+                            locale=opts.locale,
+                            timezone_id=opts.timezone_id,
+                            extra_http_headers=opts.extra_headers,
+                            proxy=opts.proxy,
+                        )
+                        if opts.stealth:
+                            await context.add_init_script(STEALTH_INIT_SCRIPT)
+                        page = await context.new_page()
+                        break
+                    except TargetClosedError:
+                        logger.warning("Browser closed during page creation — forcing relaunch (attempt %d).", attempt + 1)
+                        self._browser = None
+                        if context:
+                            try:
+                                await context.close()
+                            except Exception:
+                                pass
+                            context = None
+                        if attempt == 1:
+                            raise
                 yield page
             finally:
-                try:
-                    await page.close()
-                except Exception:
-                    pass
-                try:
-                    await context.close()
-                except Exception:
-                    pass
+                if page:
+                    try:
+                        await page.close()
+                    except Exception:
+                        pass
+                if context:
+                    try:
+                        await context.close()
+                    except Exception:
+                        pass
+                self._active_pages -= 1
+                self._last_active = time.monotonic()
 
 
 browser_manager = BrowserManager()
