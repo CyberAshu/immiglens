@@ -24,6 +24,7 @@ import os
 from logging.config import fileConfig
 
 from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import NullPool
 
 from alembic import context
 
@@ -73,6 +74,7 @@ async def run_async_migrations() -> None:
     engine = create_async_engine(
         settings.DATABASE_URL,
         echo=False,
+        poolclass=NullPool,  # no pool needed for a one-shot CLI run; avoids stale-connection errors
         connect_args={"statement_cache_size": 0},
     )
     async with engine.begin() as conn:
