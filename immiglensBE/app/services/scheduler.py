@@ -725,7 +725,8 @@ async def _run_capture_round(round_id: int) -> None:
         if not any(p.is_active for p in round_.job_position.job_urls):
             # All URLs are deactivated — leave PENDING
             return
-        await _execute_round(db, round_)
+    # Session closed before the long-running capture work begins.
+    await _execute_round(round_id)
 
 
 async def force_run_capture_round(round_id: int, aggressive: bool = False) -> None:
@@ -776,7 +777,7 @@ async def force_run_capture_round(round_id: int, aggressive: bool = False) -> No
                 round_.captured_at = None
                 await db.commit()
                 await db.refresh(round_)
-                # Reload with postings and employer
+                # Reload with postings and employer — extract active status before close.
                 result2 = await db.execute(
                     select(CaptureRound)
                     .where(CaptureRound.id == round_id)
@@ -793,7 +794,8 @@ async def force_run_capture_round(round_id: int, aggressive: bool = False) -> No
                         round_id, round_.job_position_id,
                     )
                     return
-                await _execute_round(db, round_, aggressive_retry=aggressive)
+            # Session closed before the long-running capture work begins.
+            await _execute_round(round_id, aggressive_retry=aggressive)
         finally:
             # Release the lock entry if no other task is queued behind this one
             lock = _round_locks.get(round_id)
@@ -813,108 +815,224 @@ def queue_force_run_capture_round(round_id: int, aggressive: bool = False) -> No
 
 
 async def _execute_round(
-    db: AsyncSession,
-    round_: CaptureRound,
+    round_id: int,
     aggressive_retry: bool = False,
 ) -> None:
-    _position_title: str = round_.job_position.job_title
-    _position_employer_id: int = round_.job_position.employer_id
-    _position_id: int = round_.job_position_id
-    _noc_code: str = round_.job_position.noc_code or "N/A"
-    _capture_frequency_days: int = round_.job_position.capture_frequency_days
+    """Execute a capture round in three short DB sessions, releasing the connection
+    during the Playwright captures so the pool is not held for the full duration."""
 
-    round_.status = CaptureStatus.RUNNING
-    await db.commit()
+    # ── Phase 1: load data + mark RUNNING (short session) ────────────────────
+    _position_title: str
+    _position_employer_id: int
+    _position_id: int
+    _noc_code: str
+    _capture_frequency_days: int
+    _scheduled_at: datetime
+    _auto_retry_count: int
+    user_id: int | None
+    active_url_specs: list[tuple[int, str]]  # (job_url_id, url)
 
-    # Resolve the owning user once — reused for all notifications in this round
-    user_id: int | None = getattr(
-        getattr(round_.job_position, "employer", None), "user_id", None
-    )
-    if user_id is None:
-        emp_res = await db.execute(
-            select(Employer.user_id)
-            .join(JobPosition, Employer.id == JobPosition.employer_id)
-            .where(JobPosition.id == round_.job_position_id)
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(CaptureRound)
+            .where(CaptureRound.id == round_id)
+            .options(
+                selectinload(CaptureRound.job_position).selectinload(JobPosition.job_urls),
+                selectinload(CaptureRound.job_position).selectinload(JobPosition.employer),
+            )
         )
-        user_id = emp_res.scalar_one_or_none()
+        round_ = result.scalar_one_or_none()
+        if round_ is None:
+            return
 
-    # ── ROUND_STARTED ────────────────────────────────────────────────────────
-    # skip_email=True: no user-facing email is sent for round start events.
-    # This is an internal audit/webhook event only. The capture_completed or
-    # capture_failed HTML email covers the user-facing notification instead.
-    if user_id is not None:
+        # Extract all plain Python values before the session closes.
+        _position_title = round_.job_position.job_title
+        _position_employer_id = round_.job_position.employer_id
+        _position_id = round_.job_position_id
+        _noc_code = round_.job_position.noc_code or "N/A"
+        _capture_frequency_days = round_.job_position.capture_frequency_days
+        _scheduled_at = round_.scheduled_at
+        _auto_retry_count = round_.auto_retry_count
+
+        user_id = getattr(getattr(round_.job_position, "employer", None), "user_id", None)
+        if user_id is None:
+            emp_res = await db.execute(
+                select(Employer.user_id)
+                .join(JobPosition, Employer.id == JobPosition.employer_id)
+                .where(JobPosition.id == _position_id)
+            )
+            user_id = emp_res.scalar_one_or_none()
+
+        active_url_specs = [
+            (p.id, p.url) for p in round_.job_position.job_urls if p.is_active
+        ]
+
+        if not active_url_specs:
+            round_.status = CaptureStatus.FAILED
+            await db.commit()
+            if user_id is not None:
+                try:
+                    _user = await db.get(User, user_id)
+                    if _user:
+                        _ls = (await db.execute(
+                            select(CaptureRound.captured_at).where(
+                                CaptureRound.job_position_id == _position_id,
+                                CaptureRound.status == CaptureStatus.COMPLETED,
+                            ).order_by(CaptureRound.captured_at.desc()).limit(1)
+                        )).scalar_one_or_none()
+                        await send_capture_failed_email(
+                            to=_user.email,
+                            first_name=_user.full_name.split()[0] if _user.full_name else "there",
+                            position_title=_position_title,
+                            noc_code=_noc_code,
+                            attempted_at=datetime.now(timezone.utc).strftime("%b %d, %Y at %H:%M UTC"),
+                            error="No active job board URLs configured for this position. Add or activate at least one URL.",
+                            affected_sources=[],
+                            capture_id=round_id,
+                            last_successful=_ls.strftime("%b %d, %Y") if _ls else "—",
+                            retry_at=None,
+                            fix_url=f"{settings.FRONTEND_URL}/employers/{_position_employer_id}/positions/{_position_id}",
+                        )
+                except Exception:
+                    pass
+            logger.warning(
+                "Capture round %s FAILED — position %s has no active job board URLs",
+                round_id, _position_id,
+            )
+            return
+
+        round_.status = CaptureStatus.RUNNING
+        await db.commit()
+
         try:
             await dispatch_event(
                 db, user_id=user_id,
                 event=NotificationEvent.ROUND_STARTED,
                 context={
-                    "round_id": round_.id,
+                    "round_id": round_id,
                     "position": _position_title,
-                    "scheduled_at": round_.scheduled_at.isoformat(),
+                    "scheduled_at": _scheduled_at.isoformat(),
                 },
-                trigger_id=round_.id,
+                trigger_id=round_id,
                 trigger_type="capture_round",
                 skip_email=True,
             )
         except Exception:
-            pass  # Never block capture flow for notification errors
+            pass
+    # DB connection returned to pool — Playwright work begins below.
 
-    snapshots: list[tuple] = []
-    failed_results: list[CaptureResult] = []
-    # Track the URL being processed so we can record the error if an unexpected
-    # exception fires mid-loop (e.g. db.flush failure, record_snapshot crash).
-    _current_posting = None
-    active_urls = [p for p in round_.job_position.job_urls if p.is_active]
+    # ── Phase 2: run all captures (no DB session held) ────────────────────────
+    capture_data: list[tuple[int, str, ScreenshotResult]] = []  # (url_id, url, result)
+    capture_exception: Exception | None = None
+    _current_url_id: int | None = None
+    _current_url: str | None = None
 
-    # Guard: if no active URLs, fail immediately rather than silently completing.
-    # This can happen when all URLs are deactivated after a round was scheduled.
-    if not active_urls:
-        round_.status = CaptureStatus.FAILED
-        await db.commit()
-        if user_id is not None:
-            try:
-                _user = await db.get(User, user_id)
-                if _user:
-                    _ls = (await db.execute(
-                        select(CaptureRound.captured_at).where(
-                            CaptureRound.job_position_id == round_.job_position_id,
-                            CaptureRound.status == CaptureStatus.COMPLETED,
-                        ).order_by(CaptureRound.captured_at.desc()).limit(1)
-                    )).scalar_one_or_none()
-                    await send_capture_failed_email(
-                        to=_user.email,
-                        first_name=_user.full_name.split()[0] if _user.full_name else "there",
-                        position_title=_position_title,
-                        noc_code=_noc_code,
-                        attempted_at=datetime.now(timezone.utc).strftime("%b %d, %Y at %H:%M UTC"),
-                        error="No active job board URLs configured for this position. Add or activate at least one URL.",
-                        affected_sources=[],
-                        capture_id=round_.id,
-                        last_successful=_ls.strftime("%b %d, %Y") if _ls else "—",
-                        retry_at=None,
-                        fix_url=f"{settings.FRONTEND_URL}/employers/{_position_employer_id}/positions/{_position_id}",
-                    )
-            except Exception:
-                pass
-        logger.warning(
-            "Capture round %s FAILED — position %s has no active job board URLs",
-            round_.id, _position_id,
-        )
-        return
-
-    try:
-        for posting in active_urls:
-            _current_posting = posting
+    for url_id, url in active_url_specs:
+        _current_url_id = url_id
+        _current_url = url
+        try:
             screenshot_result = await capture(
-                posting.url,
+                url,
                 max_attempts=3 if aggressive_retry else 2,
                 manual_retry=aggressive_retry,
                 persist_blocked_artifacts=aggressive_retry,
             )
+            capture_data.append((url_id, url, screenshot_result))
+        except Exception as exc:
+            capture_exception = exc
+            break
+
+    # ── Phase 3: write results + send notifications (new short session) ───────
+    async with AsyncSessionLocal() as db:
+        round_ = await db.get(CaptureRound, round_id)
+        if round_ is None:
+            return  # round deleted mid-flight
+
+        if capture_exception is not None:
+            # Unexpected Python exception mid-loop — record the error and fail the round.
+            if _current_url_id is not None:
+                try:
+                    err_result = CaptureResult(
+                        capture_round_id=round_id,
+                        job_url_id=_current_url_id,
+                        url=_current_url,
+                        status=ResultStatus.FAILED,
+                        error=f"Unexpected capture error: {capture_exception}",
+                    )
+                    db.add(err_result)
+                except Exception:
+                    pass  # session may be in error state — best-effort only
+            round_.status = CaptureStatus.FAILED
+            await db.commit()
+            if await _maybe_auto_retry(db, round_, _auto_retry_count, len(active_url_specs)):
+                logger.info("Capture round %s queued for auto-retry after unexpected exception", round_id)
+                return
+            if user_id is not None:
+                try:
+                    await dispatch_event(
+                        db, user_id=user_id,
+                        event=NotificationEvent.CAPTURE_FAILED,
+                        context={
+                            "round_id": round_id,
+                            "position": _position_title,
+                            "error": str(capture_exception),
+                        },
+                        trigger_id=round_id,
+                        trigger_type="capture_round",
+                        skip_email=True,
+                    )
+                except Exception:
+                    pass
+                try:
+                    _user = await db.get(User, user_id)
+                    if _user:
+                        _sources = [url for _, url in active_url_specs]
+                        _ls = (await db.execute(
+                            select(CaptureRound.captured_at).where(
+                                CaptureRound.job_position_id == _position_id,
+                                CaptureRound.status == CaptureStatus.COMPLETED,
+                            ).order_by(CaptureRound.captured_at.desc()).limit(1)
+                        )).scalar_one_or_none()
+                        await send_capture_failed_email(
+                            to=_user.email,
+                            first_name=_user.full_name.split()[0] if _user.full_name else "there",
+                            position_title=_position_title,
+                            noc_code=_noc_code,
+                            attempted_at=datetime.now(timezone.utc).strftime("%b %d, %Y at %H:%M UTC"),
+                            error=str(capture_exception),
+                            affected_sources=_sources,
+                            capture_id=round_id,
+                            last_successful=_ls.strftime("%b %d, %Y") if _ls else "—",
+                            retry_at=None,
+                            fix_url=(
+                                f"{settings.FRONTEND_URL}/employers/"
+                                f"{_position_employer_id}/positions/{_position_id}"
+                            ),
+                        )
+                except Exception:
+                    pass
+            await send_admin_alert(
+                subject=f"Capture round {round_id} FAILED",
+                body=(
+                    f"Capture round {round_id} failed unexpectedly.\n\n"
+                    f"Position : {_position_title}\n"
+                    f"Round ID : {round_id}\n"
+                    f"Error    : {capture_exception}\n"
+                    f"Time     : {datetime.now(timezone.utc).isoformat()}\n"
+                ),
+            )
+            logger.exception("Capture round %s failed", round_id)
+            return
+
+        # All captures returned without a Python exception — write results.
+        snapshots: list[tuple] = []
+        failed_results: list[CaptureResult] = []
+
+        for url_id, url, screenshot_result in capture_data:
             capture_result = CaptureResult(
-                capture_round_id=round_.id,
-                job_url_id=posting.id,
-                url=posting.url,
+                capture_round_id=round_id,
+                job_url_id=url_id,
+                url=url,
                 status=ResultStatus(screenshot_result.status.value),
                 screenshot_path=None,
                 screenshot_url=screenshot_result.screenshot_url,
@@ -935,235 +1053,136 @@ async def _execute_round(
             db.add(capture_result)
             await db.flush()  # populate capture_result.id before snapshot
             snap = await record_snapshot(db, capture_result)
-            snapshots.append((snap, posting.url))
+            snapshots.append((snap, url))
             if screenshot_result.status.value == ResultStatus.FAILED.value:
                 failed_results.append(capture_result)
-    except Exception as exc:
-        # Unexpected failure during capture loop — mark round FAILED and notify.
-        # Try to save the exception as a CaptureResult for the URL that was being
-        # processed at the time. This populates error_sample in the admin API so
-        # the admin can see the actual error rather than a generic fallback message.
-        if _current_posting is not None:
-            try:
-                err_result = CaptureResult(
-                    capture_round_id=round_.id,
-                    job_url_id=_current_posting.id,
-                    url=_current_posting.url,
-                    status=ResultStatus.FAILED,
-                    error=f"Unexpected capture error: {exc}",
-                )
-                db.add(err_result)
-            except Exception:
-                pass  # session may be in error state — best-effort only
-        # Extract attrs before commit — async SQLAlchemy expires all ORM attrs on commit.
-        _retry_count = round_.auto_retry_count
-        _active_url_count = len(active_urls)
-        round_.status = CaptureStatus.FAILED
+
+        all_urls_failed = bool(snapshots) and len(failed_results) == len(snapshots)
+        round_.status = CaptureStatus.FAILED if all_urls_failed else CaptureStatus.COMPLETED
+        round_.captured_at = datetime.now(timezone.utc)
         await db.commit()
-        # ── Auto-retry: suppress notifications and re-queue if under limit ──
-        if await _maybe_auto_retry(db, round_, _retry_count, _active_url_count):
-            logger.info("Capture round %s queued for auto-retry after unexpected exception", round_.id)
-            return
-        if user_id is not None:
+
+        if all_urls_failed:
+            if await _maybe_auto_retry(db, round_, _auto_retry_count, len(active_url_specs)):
+                logger.info("Capture round %s queued for auto-retry after all-URL failure", round_id)
+                return
+
+        # ── Per-URL failure notifications ─────────────────────────────────────
+        if user_id is not None and failed_results:
+            _user_for_fail = await db.get(User, user_id)
+            _ls_fail = (await db.execute(
+                select(CaptureRound.captured_at)
+                .where(
+                    CaptureRound.job_position_id == _position_id,
+                    CaptureRound.status == CaptureStatus.COMPLETED,
+                    CaptureRound.id != round_id,
+                )
+                .order_by(CaptureRound.captured_at.desc())
+                .limit(1)
+            )).scalar_one_or_none()
+            for failed_result in failed_results:
+                try:
+                    await dispatch_event(
+                        db,
+                        user_id=user_id,
+                        event=NotificationEvent.CAPTURE_FAILED,
+                        context={
+                            "round_id": round_id,
+                            "result_id": failed_result.id,
+                            "url": failed_result.url,
+                            "error": failed_result.error,
+                            "position": _position_title,
+                        },
+                        trigger_id=failed_result.id,
+                        trigger_type="capture_result",
+                        skip_email=True,
+                    )
+                except Exception:
+                    pass
+                if _user_for_fail:
+                    try:
+                        await send_capture_failed_email(
+                            to=_user_for_fail.email,
+                            first_name=_user_for_fail.full_name.split()[0] if _user_for_fail.full_name else "there",
+                            position_title=_position_title,
+                            noc_code=_noc_code,
+                            attempted_at=datetime.now(timezone.utc).strftime("%b %d, %Y at %H:%M UTC"),
+                            error=failed_result.error or "Unknown error",
+                            affected_sources=[failed_result.url],
+                            capture_id=round_id,
+                            last_successful=_ls_fail.strftime("%b %d, %Y") if _ls_fail else "—",
+                            retry_at=None,
+                            fix_url=(
+                                f"{settings.FRONTEND_URL}/employers/"
+                                f"{_position_employer_id}/positions/{_position_id}"
+                            ),
+                        )
+                    except Exception:
+                        pass
+
+        # ── Dispatch completion notifications ─────────────────────────────────
+        if user_id is not None and not all_urls_failed:
             try:
                 await dispatch_event(
                     db, user_id=user_id,
-                    event=NotificationEvent.CAPTURE_FAILED,
+                    event=NotificationEvent.CAPTURE_COMPLETE,
                     context={
-                        "round_id": round_.id,
+                        "round_id": round_id,
                         "position": _position_title,
-                        "error": str(exc),
+                        "completed_at": round_.captured_at.isoformat(),
                     },
-                    trigger_id=round_.id,
+                    trigger_id=round_id,
                     trigger_type="capture_round",
-                    skip_email=True,  # Rich HTML email sent directly below
+                    skip_email=True,
                 )
+                for snap, posting_url in snapshots:
+                    if snap.has_changed:
+                        await dispatch_event(
+                            db, user_id=user_id,
+                            event=NotificationEvent.POSTING_CHANGED,
+                            context={
+                                "posting_url": posting_url,
+                                "change_summary": snap.change_summary,
+                                "snapshot_id": snap.id,
+                            },
+                            trigger_id=snap.id,
+                            trigger_type="posting_snapshot",
+                            skip_email=True,
+                        )
             except Exception:
-                pass
-            # ── Transactional HTML email: capture failed ──────────────────────
+                pass  # Notification failures must never block the capture flow
+
+        # ── Transactional HTML email: capture completed ────────────────────────
+        if user_id is not None and not all_urls_failed:
             try:
                 _user = await db.get(User, user_id)
                 if _user:
-                    _sources = [u.url for u in active_urls]
-                    _ls = (await db.execute(
-                        select(CaptureRound.captured_at).where(
-                            CaptureRound.job_position_id == round_.job_position_id,
-                            CaptureRound.status == CaptureStatus.COMPLETED,
-                        ).order_by(CaptureRound.captured_at.desc()).limit(1)
-                    )).scalar_one_or_none()
-                    await send_capture_failed_email(
+                    _sources = [url for _, url in snapshots]
+                    _tot = (await db.execute(
+                        select(func.count(CaptureResult.id))
+                        .join(CaptureRound, CaptureResult.capture_round_id == CaptureRound.id)
+                        .where(CaptureRound.job_position_id == _position_id)
+                    )).scalar_one() or 0
+                    _next_run = (
+                        _scheduled_at
+                        + timedelta(days=_capture_frequency_days)
+                    ).strftime("%b %d, %Y")
+                    await send_capture_completed_email(
                         to=_user.email,
                         first_name=_user.full_name.split()[0] if _user.full_name else "there",
                         position_title=_position_title,
                         noc_code=_noc_code,
-                        attempted_at=datetime.now(timezone.utc).strftime("%b %d, %Y at %H:%M UTC"),
-                        error=str(exc),
-                        affected_sources=_sources,
-                        capture_id=round_.id,
-                        last_successful=_ls.strftime("%b %d, %Y") if _ls else "\u2014",
-                        retry_at=None,
-                        fix_url=(
-                            f"{settings.FRONTEND_URL}/employers/"
-                            f"{_position_employer_id}/positions/{_position_id}"
-                        ),
+                        captured_at=round_.captured_at.strftime("%b %d, %Y at %H:%M UTC"),
+                        screenshot_count=len(_sources),
+                        source_count=len(set(_sources)),
+                        sources=_sources or ["—"],
+                        capture_id=round_id,
+                        total_evidence=_tot,
+                        next_run=_next_run,
+                        timeline_url=f"{settings.FRONTEND_URL}/positions/{_position_id}/timeline",
                     )
             except Exception:
                 pass  # Never block capture flow for email errors
-        # Always alert the platform admin regardless of user preference settings
-        await send_admin_alert(
-            subject=f"Capture round {round_.id} FAILED",
-            body=(
-                f"Capture round {round_.id} failed unexpectedly.\n\n"
-                f"Position : {_position_title}\n"
-                f"Round ID : {round_.id}\n"
-                f"Error    : {exc}\n"
-                f"Time     : {datetime.now(timezone.utc).isoformat()}\n"
-            ),
-        )
-        logger.exception("Capture round %s failed", round_.id)
-        return
-
-    # If every attempted URL failed gracefully (no Python exception), the round
-    # itself is FAILED. Partial failures (some succeeded, some failed) remain COMPLETED.
-    # Extract attrs before commit — async SQLAlchemy expires all ORM attrs on commit.
-    _retry_count = round_.auto_retry_count
-    _active_url_count = len(active_urls)
-    all_urls_failed = bool(snapshots) and len(failed_results) == len(snapshots)
-    round_.status = CaptureStatus.FAILED if all_urls_failed else CaptureStatus.COMPLETED
-    round_.captured_at = datetime.now(timezone.utc)
-    await db.commit()
-
-    # ── Auto-retry: if all URLs failed gracefully, retry once before notifying ─
-    if all_urls_failed:
-        if await _maybe_auto_retry(db, round_, _retry_count, _active_url_count):
-            logger.info("Capture round %s queued for auto-retry after all-URL failure", round_.id)
-            return
-
-    # ── Per-URL failure notifications ─────────────────────────────────────────
-    # Fire for each failed URL regardless of whether the round is FAILED (all URLs
-    # failed) or COMPLETED (partial failure). Each failed URL gets a CAPTURE_FAILED
-    # notification and email so the user is always informed of specific broken URLs.
-    if user_id is not None and failed_results:
-        _user_for_fail = await db.get(User, user_id)
-        _ls_fail = (await db.execute(
-            select(CaptureRound.captured_at)
-            .where(
-                CaptureRound.job_position_id == round_.job_position_id,
-                CaptureRound.status == CaptureStatus.COMPLETED,
-                CaptureRound.id != round_.id,
-            )
-            .order_by(CaptureRound.captured_at.desc())
-            .limit(1)
-        )).scalar_one_or_none()
-        for failed_result in failed_results:
-            try:
-                await dispatch_event(
-                    db,
-                    user_id=user_id,
-                    event=NotificationEvent.CAPTURE_FAILED,
-                    context={
-                        "round_id": round_.id,
-                        "result_id": failed_result.id,
-                        "url": failed_result.url,
-                        "error": failed_result.error,
-                        "position": _position_title,
-                    },
-                    trigger_id=failed_result.id,
-                    trigger_type="capture_result",
-                    skip_email=True,
-                )
-            except Exception:
-                pass
-            if _user_for_fail:
-                try:
-                    await send_capture_failed_email(
-                        to=_user_for_fail.email,
-                        first_name=_user_for_fail.full_name.split()[0] if _user_for_fail.full_name else "there",
-                        position_title=_position_title,
-                        noc_code=_noc_code,
-                        attempted_at=datetime.now(timezone.utc).strftime("%b %d, %Y at %H:%M UTC"),
-                        error=failed_result.error or "Unknown error",
-                        affected_sources=[failed_result.url],
-                        capture_id=round_.id,
-                        last_successful=_ls_fail.strftime("%b %d, %Y") if _ls_fail else "\u2014",
-                        retry_at=None,
-                        fix_url=(
-                            f"{settings.FRONTEND_URL}/employers/"
-                            f"{_position_employer_id}/positions/{_position_id}"
-                        ),
-                    )
-                except Exception:
-                    pass
-
-    # ── Dispatch notifications ────────────────────────────────────────────────
-    # Skip CAPTURE_COMPLETE when all URLs failed — the round is FAILED, not completed.
-    if user_id is not None and not all_urls_failed:
-        try:
-            await dispatch_event(
-                db, user_id=user_id,
-                event=NotificationEvent.CAPTURE_COMPLETE,
-                context={
-                    "round_id": round_.id,
-                    "position": _position_title,
-                    "completed_at": round_.captured_at.isoformat(),
-                },
-                trigger_id=round_.id,
-                trigger_type="capture_round",
-                skip_email=True,  # Rich HTML email sent directly below
-            )
-            # Notify for each posting that changed (log/webhook only — no plain-text
-            # email; the designed capture-complete HTML email already covers this)
-            for snap, posting_url in snapshots:
-                if snap.has_changed:
-                    await dispatch_event(
-                        db, user_id=user_id,
-                        event=NotificationEvent.POSTING_CHANGED,
-                        context={
-                            "posting_url": posting_url,
-                            "change_summary": snap.change_summary,
-                            "snapshot_id": snap.id,
-                        },
-                        trigger_id=snap.id,
-                        trigger_type="posting_snapshot",
-                        skip_email=True,
-                    )
-        except Exception:
-            pass  # Notification failures must never block the capture flow
-
-    # ── Transactional HTML email: capture completed ────────────────────────────
-    # Sent directly to the account owner regardless of notification preferences.
-    # Skipped when all URLs failed (all_urls_failed=True) — per-URL failure emails
-    # already notified the user; sending a completion email would be misleading.
-    if user_id is not None and not all_urls_failed:
-        try:
-            _user = await db.get(User, user_id)
-            if _user:
-                _sources = [url for _, url in snapshots]
-                _tot = (await db.execute(
-                    select(func.count(CaptureResult.id))
-                    .join(CaptureRound, CaptureResult.capture_round_id == CaptureRound.id)
-                    .where(CaptureRound.job_position_id == round_.job_position_id)
-                )).scalar_one() or 0
-                _next_run = (
-                    round_.scheduled_at
-                    + timedelta(days=_capture_frequency_days)
-                ).strftime("%b %d, %Y")
-                await send_capture_completed_email(
-                    to=_user.email,
-                    first_name=_user.full_name.split()[0] if _user.full_name else "there",
-                    position_title=_position_title,
-                    noc_code=_noc_code,
-                    captured_at=round_.captured_at.strftime("%b %d, %Y at %H:%M UTC"),
-                    screenshot_count=len(_sources),
-                    source_count=len(set(_sources)),
-                    sources=_sources or ["\u2014"],
-                    capture_id=round_.id,
-                    total_evidence=_tot,
-                    next_run=_next_run,
-                    timeline_url=f"{settings.FRONTEND_URL}/positions/{round_.job_position_id}/timeline",
-                )
-        except Exception:
-            pass  # Never block capture flow for email errors
 
 
 async def recover_stuck_rounds() -> None:
